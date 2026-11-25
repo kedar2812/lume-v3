@@ -29,6 +29,7 @@ describe("firstRunStop", () => {
       "/calendar/connected",
       "/settings/integrations/connected",
       "/settings/integrations/whatsapp/connected",
+      "/settings/integrations/instagram/connected",
     ])
       expect(firstRunStop(onboarding, false, path), path).toBeNull();
     for (const path of ["/calendar", "/today", "/calendar/connected/x", "/calendar/connectedx", null])

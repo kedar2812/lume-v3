@@ -25,6 +25,8 @@ export type ChatList = {
   direct: ConvRow[];
   leads: ConvRow[];
   folds: Record<ListKey, boolean>;
+  /** The threads they follow: whether there are any, and the replies in them not read yet. */
+  threads: { any: boolean; unread: number };
   unread: number;
 };
 export type FileView = { id: string; name: string; mime: string; kind: string; size: number; url: string };
@@ -37,11 +39,18 @@ export type MessageView = {
   kind: "text" | "system";
   body: string | null;
   replyTo: { id: number; authorId: string | null; body: string | null } | null;
+  /** A reply in a thread: the message it hangs on; `alsoSent`: in the conversation too. */
+  threadRoot: number | null;
+  alsoSent: boolean;
+  /** The thread on this message: its last three people, the latest first. */
+  thread: { replies: number; lastAt: string; faces: string[] } | null;
   files: FileView[];
   reactions: { emoji: string; count: number; mine: boolean }[];
   editedAt: string | null;
   deletedAt: string | null;
   createdAt: string;
+  /** To its sender, as it's sent: people it names who can't read it, and so weren't told. */
+  notTold?: string[];
 };
 export type MemberMark = { userId: string; lastReadId: number; lastDeliveredId: number };
 export type MessagePage = {
@@ -52,6 +61,16 @@ export type MessagePage = {
   lastReadId: number | null;
   /** The other people's marks, in a direct message. */
   members: MemberMark[];
+};
+/** A thread's page: its first message is one of its messages. */
+export type ThreadPage = MessagePage & { root: number; conversationId: string; following: boolean };
+export type ThreadRow = { root: MessageView; conversation: ConvRow; unread: number };
+export type SendBody = { clientId: string; body?: string; replyTo?: number; files?: string[] };
+/** Whom one may name in a conversation; `members` null: about a lead, anyone (each is checked as it's sent). */
+export type Mentionable = {
+  members: string[] | null;
+  teams: { id: string; name: string }[];
+  everyone: boolean;
 };
 export type GroupRef = { kind: "everyone" | "team" | "role"; id?: string };
 export type ManagedChannel = {
@@ -70,6 +89,9 @@ export type ChannelAdmin = {
 };
 
 const conv = (id: string) => `/api/v1/chat/${encodeURIComponent(id)}`;
+type Window = { before?: number; after?: number };
+const windowOf = (q: Window) =>
+  q.before ? `?before=${q.before}` : q.after !== undefined ? `?after=${q.after}` : "";
 const msg = (id: number) => `/api/v1/chat/messages/${id}`;
 
 export const chatClient = {
@@ -84,17 +106,20 @@ export const chatClient = {
     api.patch<{ id: string }>(`/api/v1/chat/channels/${encodeURIComponent(id)}`, b),
   setMembers: (id: string, b: { people: string[]; groups: GroupRef[] }) =>
     api.put<{ id: string }>(`/api/v1/chat/channels/${encodeURIComponent(id)}/members`, b),
+  mentionable: (id: string) => api.get<Mentionable>(`${conv(id)}/mentionable`),
   fold: (list: ListKey, folded: boolean) => api.put<void>("/api/v1/chat/folds", { list, folded }),
   mute: (id: string, muted: boolean) => api.put<void>(`${conv(id)}/mute`, { muted }),
   direct: (people: string[]) => api.post<{ id: string }>("/api/v1/chat/direct", { people }),
   leadThread: (leadId: string) =>
     api.post<{ id: string }>(`/api/v1/chat/leads/${encodeURIComponent(leadId)}`),
-  page: (id: string, q: { before?: number; after?: number } = {}) =>
-    api.get<MessagePage>(
-      `${conv(id)}/messages${q.before ? `?before=${q.before}` : q.after !== undefined ? `?after=${q.after}` : ""}`,
-    ),
-  send: (id: string, body: { clientId: string; body?: string; replyTo?: number; files?: string[] }) =>
-    api.post<MessageView>(`${conv(id)}/messages`, body),
+  page: (id: string, q: Window = {}) => api.get<MessagePage>(`${conv(id)}/messages${windowOf(q)}`),
+  send: (id: string, body: SendBody) => api.post<MessageView>(`${conv(id)}/messages`, body),
+  threads: () => api.get<{ threads: ThreadRow[] }>("/api/v1/chat/threads"),
+  thread: (root: number, q: Window = {}) => api.get<ThreadPage>(`${msg(root)}/thread${windowOf(q)}`),
+  reply: (root: number, body: SendBody & { alsoSend?: boolean }) =>
+    api.post<MessageView>(`${msg(root)}/thread`, body),
+  readThread: (root: number, upTo: number) => api.put<void>(`${msg(root)}/thread/read`, { upTo }),
+  followThread: (root: number, on: boolean) => api.put<void>(`${msg(root)}/thread/following`, { on }),
   edit: (mid: number, body: string) => api.patch<MessageView>(msg(mid), { body }),
   remove: (mid: number) => api.del<void>(msg(mid)),
   react: (mid: number, emoji: string, on: boolean) =>

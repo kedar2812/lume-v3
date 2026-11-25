@@ -1,6 +1,7 @@
 "use client";
 import { useSyncExternalStore } from "react";
 import { chatClient, type FileView, type MessageView } from "./client";
+import { threadKey } from "./viewing";
 
 /**
  * What this tab is sending (plan 2026-11-24-team-chat-2a): kept outside any screen, so a send that failed is still there
@@ -8,6 +9,9 @@ import { chatClient, type FileView, type MessageView } from "./client";
  * written. Each keeps its `clientId` for good, so trying again can only ever land once.
  */
 export type Pending = MessageView & { pending: "sending" | "failed"; clientId: string; why?: string };
+/** Where it goes: the conversation, or a thread in it (and, with `also`, both). Each is its own queue. */
+export type Where = { conv: string; thread?: { root: number; also: boolean } };
+export const boxOf = (w: Where): string => (w.thread ? threadKey(w.thread.root) : w.conv);
 type Draft = { body: string | null; replyTo: MessageView["replyTo"]; files: FileView[] };
 
 const NONE: readonly Pending[] = [];
@@ -32,17 +36,23 @@ const set = (conv: string, f: (xs: readonly Pending[]) => readonly Pending[]) =>
 };
 let local = 0;
 
-/** Sends it after whatever this conversation is already sending. */
+/** Sends it after whatever this conversation, or thread, is already sending. */
 function go(conv: string, p: Pending): void {
   const run = async () => {
-    const r = await chatClient.send(conv, {
+    const body = {
       clientId: p.clientId,
       ...(p.body ? { body: p.body } : {}),
       ...(p.replyTo ? { replyTo: p.replyTo.id } : {}),
       ...(p.files.length ? { files: p.files.map((f) => f.id) } : {}),
-    });
+    };
+    const r =
+      p.threadRoot === null
+        ? await chatClient.send(p.conversationId, body)
+        : await chatClient.reply(p.threadRoot, { ...body, ...(p.alsoSent ? { alsoSend: true } : {}) });
     if (r.ok) {
       for (const f of open.get(conv) ?? []) f(r.data);
+      // Also sent: it is in the conversation beside it too.
+      if (p.alsoSent) for (const f of open.get(p.conversationId) ?? []) f(r.data);
       set(conv, (xs) => xs.filter((x) => x.clientId !== p.clientId));
     } else
       set(conv, (xs) =>
@@ -56,11 +66,15 @@ function go(conv: string, p: Pending): void {
   });
 }
 
-export function sendInto(conv: string, me: string, d: Draft): void {
+export function sendInto(w: Where, me: string, d: Draft): void {
+  const conv = boxOf(w);
   const p: Pending = {
     // Below every real id: never mistaken for one.
     id: -++local,
-    conversationId: conv,
+    conversationId: w.conv,
+    threadRoot: w.thread?.root ?? null,
+    alsoSent: w.thread?.also ?? false,
+    thread: null,
     authorId: me,
     clientId: crypto.randomUUID(),
     kind: "text",

@@ -9,6 +9,7 @@ const HAND_BACKS = new Set([
   "/calendar/connected",
   "/settings/integrations/connected",
   "/settings/integrations/whatsapp/connected",
+  "/settings/integrations/instagram/connected",
 ]);
 
 /**

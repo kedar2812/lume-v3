@@ -2,6 +2,7 @@
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import { memo } from "react";
 import type { FlowTrigger } from "@/lib/flows/client";
+import { ICON_SIZE, TRIGGER_ICONS } from "@/components/ui/icons";
 import s from "./builder.module.css";
 
 export type StartData = { triggers: FlowTrigger[] };
@@ -15,6 +16,12 @@ const WHAT: Record<FlowTrigger["kind"], string> = {
   ad: "Messages from an ad",
   welcome: "Messages for the first time",
 };
+
+/** What starts it, drawn as it is everywhere in LUME (components/ui/icons.tsx). */
+export function TriggerIcon({ kind }: { kind: FlowTrigger["kind"] }) {
+  const Icon = TRIGGER_ICONS[kind];
+  return <Icon size={ICON_SIZE.sm} className={s.trigIc} aria-hidden />;
+}
 
 /** Starts when: what starts the flow, each trigger with its keywords; its line goes to the first step. */
 function StartCardImpl({ data, selected }: NodeProps<StartNode>) {
@@ -36,6 +43,7 @@ function StartCardImpl({ data, selected }: NodeProps<StartNode>) {
       <span className={s.nb}>
         {on.map((t, i) => (
           <span key={t.id ?? i} className={s.trig}>
+            <TriggerIcon kind={t.kind} />
             <span className={s.trigWhat}>{WHAT[t.kind]}</span>
             {t.mode !== "any" && t.keywords[0] && (
               <span className={s.kw} title={t.keywords.join(", ")}>

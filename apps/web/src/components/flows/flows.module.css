@@ -1,0 +1,201 @@
+/* The Flows page (plan 2026-11-25-instagram-screens D3; canvas board Flows), in Live sheets' and Analytics' frame. */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+}
+.title {
+  flex: 1 1 360px;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.title h1 {
+  margin: 0;
+  font-size: var(--fs-3xl);
+  letter-spacing: var(--ls-3xl);
+  line-height: 1.1;
+  font-weight: var(--fw-bold);
+}
+.title p {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--fs-lg);
+  line-height: 1.5;
+  letter-spacing: var(--ls-lg);
+  color: var(--text-2);
+}
+.headline {
+  margin: 0;
+  font-size: var(--fs-xl);
+  letter-spacing: var(--ls-xl);
+  line-height: 1.3;
+  font-weight: var(--fw-semibold);
+}
+.note,
+.error {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.error {
+  color: var(--danger-ink);
+}
+.loading {
+  display: grid;
+  gap: 14px;
+}
+.off {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding: 18px 20px;
+  border-radius: 14px;
+  background: var(--sunk);
+}
+.off p {
+  margin: 0;
+  font-size: var(--fs-md);
+  color: var(--text-2);
+}
+.open {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--accent-ink);
+}
+.tiles {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  gap: 10px;
+}
+.tile {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.tileLabel {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.tileValue {
+  font-size: var(--fs-2xl);
+  letter-spacing: var(--ls-2xl);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.tileNote {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+}
+/* The table scrolls inside its own frame on a phone; the page never scrolls sideways. */
+.tableWrap {
+  overflow-x: auto;
+  border-radius: 14px;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: var(--fs-md);
+}
+.table th,
+.table td {
+  padding: 10px 14px;
+  text-align: left;
+  vertical-align: middle;
+}
+.table thead th {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+  box-shadow: inset 0 -0.5px 0 var(--line);
+}
+.table tbody tr + tr > * {
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.sortBtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.sortBtn:hover {
+  color: var(--text);
+}
+th[aria-sort] .sortBtn {
+  color: var(--text);
+}
+.nameCol {
+  width: 40%;
+  max-width: 0;
+  font-weight: var(--fw-regular);
+}
+.numCol {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.onCol {
+  width: 72px;
+  text-align: right !important;
+}
+.name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.name:hover {
+  color: var(--accent-ink);
+}
+.trig {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 2px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.trig > span:not(.draft, .paused) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trig svg {
+  flex: none;
+  color: var(--text-3);
+}
+.draft,
+.paused {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-2);
+}

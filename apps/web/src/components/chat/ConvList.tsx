@@ -30,6 +30,8 @@ export function ConvList({
   onFold,
   onNewDirect,
   onChannels,
+  onThreads,
+  threadsOpen,
 }: {
   list: ChatList;
   openId: string | null;
@@ -39,6 +41,9 @@ export function ConvList({
   onNewDirect?: () => void;
   /** For whoever manages channels. */
   onChannels?: () => void;
+  /** Their threads, on the right. */
+  onThreads: () => void;
+  threadsOpen: boolean;
 }) {
   const adds: Partial<Record<ListKey, { label: string; go: () => void }>> = {
     ...(onChannels ? { channels: { label: "Manage channels", go: onChannels } } : {}),
@@ -47,6 +52,33 @@ export function ConvList({
   return (
     <nav className={s.clist} aria-label="Conversations">
       <div className={s.cscroll}>
+        {(list.threads.any || threadsOpen) && (
+          <button
+            type="button"
+            className={`${s.crow} ${s.threadsrow}`}
+            aria-current={threadsOpen ? "page" : undefined}
+            data-unread={list.threads.unread > 0 || undefined}
+            onClick={onThreads}
+          >
+            <span className={s.hash} aria-hidden>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M20 5H7a3 3 0 0 0-3 3v4a3 3 0 0 0 3 3h2v4l5-4h6" />
+                <path d="M9 9h8M9 12h5" />
+              </svg>
+            </span>
+            <span className={s.cn}>Threads</span>
+            {list.threads.unread > 0 && (
+              <span className={s.un}>{list.threads.unread > 99 ? "99+" : list.threads.unread}</span>
+            )}
+          </button>
+        )}
         {LISTS.map(({ key, title, none }) => {
           const rows = list[key];
           const shut = list.folds[key];

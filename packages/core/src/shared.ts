@@ -89,6 +89,16 @@ export {
   type UpdateAction,
 } from "./instagram/graph";
 export { graphRefs, nextAt, stepGraph, type GraphTurn } from "./instagram/graph-run";
+// The ready-made flows (plan 2026-11-25-instagram-screens D4): the New flow sheet shows them as the API makes them.
+export {
+  READY_FLOWS,
+  READY_GROUPS,
+  READY_KEYS,
+  readyFlow,
+  type ReadyFlow,
+  type ReadyGroup,
+  type ReadyKey,
+} from "./instagram/templates";
 // LUME AI builds a flow (C1): the builder plays the answer's steps into its draft (zod and the graph only).
 export { applyOps, type GraphOp } from "./ai/flow-build";
 export { IG_LIMITS, messageProblems, textBytes, type IgOutMessage } from "./instagram/limits";
@@ -104,4 +114,5 @@ export {
   type RunState,
 } from "./instagram/flows";
 // Team Chat (plan 2026-11-24-team-chat-2a): its limits and rules, the same on screen as on the server.
+export * from "./chat/mentions";
 export * from "./chat/rules";

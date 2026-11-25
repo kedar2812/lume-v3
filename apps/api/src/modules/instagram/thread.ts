@@ -1,4 +1,4 @@
-import { canOnRecord, instagramWindow, maskInstagram } from "@lume/core";
+import { canOnRecord, instagramWindow, maskInstagram, privateReplyOpen } from "@lume/core";
 import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { loadFieldRegistry } from "../../leads/fields";
@@ -6,6 +6,8 @@ import { isFieldVisible } from "../leads/serialize";
 import { visibleLead } from "../leads/service";
 
 const THREAD_MAX = 500;
+/** A conversation's comments shown with it: the newest, each with whether its one private reply can still go. */
+const COMMENTS_MAX = 20;
 
 type Msg = {
   id: string;
@@ -22,6 +24,8 @@ type Msg = {
   problem: string | null;
   reaction: string | null;
   outboxId: string | null;
+  /** Sent by a flow: its name (sentBy is whoever the account's flows run as). */
+  flow: string | null;
   /** Sent from Instagram itself by someone at the business. */
   fromPhone: boolean;
   /** Sent with Meta's human agent tag (a person, after 24 hours). */
@@ -93,12 +97,36 @@ export async function leadInstagram(req: FastifyRequest, leadId: string, now: Da
     quick_replies: unknown;
     buttons: unknown;
     kind: string;
+    flow_name: string | null;
   }>(sql`
     SELECT o.id, o.thread_id, o.mid, o.user_id, u.name AS user_name, o.text, o.status, o.problem, o.reaction,
-           o.tag, o.created_at, o.quick_replies, o.buttons, o.kind
+           o.tag, o.created_at, o.quick_replies, o.buttons, o.kind, f.name AS flow_name
       FROM instagram_outbox o JOIN users u ON u.id = o.user_id
+      LEFT JOIN instagram_flow_runs r ON r.id = o.flow_run_id
+      LEFT JOIN instagram_flows f ON f.id = r.flow_id
      WHERE o.thread_id = ANY(${`{${ids.join(",")}}`}::uuid[])
      ORDER BY o.created_at DESC LIMIT ${THREAD_MAX}`);
+  const comments = await req.db.execute<{
+    id: string;
+    thread_id: string;
+    text: string | null;
+    media_type: string | null;
+    at: Date | string;
+    private_reply: "none" | "queued" | "sent" | "failed";
+  }>(sql`
+    SELECT id, thread_id, text, media_type, at, private_reply FROM (
+      SELECT id, thread_id, text, media_type, at, private_reply,
+             row_number() OVER (PARTITION BY thread_id ORDER BY at DESC, id DESC) AS n
+        FROM instagram_comments WHERE thread_id = ANY(${idList}::uuid[])) c
+     WHERE n <= ${COMMENTS_MAX}
+     ORDER BY at DESC, id DESC`);
+  // The flow each conversation is in now (one running or waiting run at a time).
+  const runs = await req.db.execute<{ thread_id: string; flow_id: string; name: string; status: string }>(sql`
+    SELECT DISTINCT ON (r.thread_id) r.thread_id, r.flow_id, f.name, r.status
+      FROM instagram_flow_runs r JOIN instagram_flows f ON f.id = r.flow_id
+     WHERE r.thread_id = ANY(${idList}::uuid[]) AND r.status IN ('running', 'waiting')
+     ORDER BY r.thread_id, r.created_at DESC`);
+  const flowOf = new Map(runs.rows.map((r) => [r.thread_id, r]));
   const unsent = new Set(
     acts.rows.filter((a) => a.type === "instagram_unsent").map((a) => String(a.payload.mid ?? "")),
   );
@@ -133,6 +161,7 @@ export async function leadInstagram(req: FastifyRequest, leadId: string, now: Da
       problem: null,
       reaction: null,
       outboxId: null,
+      flow: null,
       fromPhone: via === "echo",
       humanAgent: false,
       privateReply: false,
@@ -154,6 +183,7 @@ export async function leadInstagram(req: FastifyRequest, leadId: string, now: Da
       problem: o.problem,
       reaction: o.reaction,
       outboxId: o.id,
+      flow: o.flow_name,
       fromPhone: false,
       humanAgent: o.tag === "human_agent",
       privateReply: o.kind === "private_reply",
@@ -176,6 +206,20 @@ export async function leadInstagram(req: FastifyRequest, leadId: string, now: Da
             ? { state: w.state, since: w.since?.toISOString() ?? null }
             : { state: w.state, until: w.until.toISOString() },
         takenOver: t.taken_over_by ? { id: t.taken_over_by, name: t.taken_name ?? "" } : null,
+        flow: (() => {
+          const r = flowOf.get(t.id);
+          return r ? { id: r.flow_id, name: r.name, waiting: r.status === "waiting" } : null;
+        })(),
+        comments: comments.rows
+          .filter((c) => c.thread_id === t.id)
+          .map((c) => ({
+            id: c.id,
+            at: new Date(c.at).toISOString(),
+            text: c.text,
+            mediaType: c.media_type,
+            privateReply: c.private_reply,
+            replyOpen: privateReplyOpen({ at: new Date(c.at), privateReply: c.private_reply }, now),
+          })),
         source: seesSource ? t.source : null,
         messages,
       };

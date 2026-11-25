@@ -33,6 +33,8 @@ export type ChatList = {
   direct: ConvRow[];
   leads: ConvRow[];
   folds: { channels: boolean; direct: boolean; leads: boolean };
+  /** The threads they follow: whether there are any, and the replies in them they haven't read. */
+  threads: { any: boolean; unread: number };
   unread: number;
 };
 export type GroupRef = { kind: "everyone" | "team" | "role"; id?: string | undefined };
@@ -48,7 +50,7 @@ export const bigints = (ids: number[]): SQL => sql`${`{${ids.join(",")}}`}::bigi
  */
 export async function tell(
   req: FastifyRequest,
-  e: { c: string; e: string; m?: number; u?: string },
+  e: { c: string; e: string; m?: number; u?: string; t?: number },
 ): Promise<void> {
   const k = (
     await req.db.execute<{ kind: string; owner_id: string | null }>(sql`
@@ -117,6 +119,7 @@ const rowsOf = async (req: FastifyRequest, fromPlaces = false): Promise<Row[]> =
         CASE WHEN e.last_message_id > e.last_read_id THEN (SELECT count(*)::int FROM (
           SELECT 1 FROM chat_messages m
           WHERE m.conversation_id = e.id AND m.id > e.last_read_id AND m.deleted_at IS NULL
+            AND (m.thread_root IS NULL OR m.also_sent)
           LIMIT ${UNREAD_MAX}) AS u) ELSE 0 END AS unread
       FROM every e LEFT JOIN leads l ON l.id = e.lead_id LEFT JOIN stages s ON s.id = l.stage_id`)
   ).rows;
@@ -129,10 +132,41 @@ const rowsOf = async (req: FastifyRequest, fromPlaces = false): Promise<Row[]> =
 };
 const unreadOf = (rows: Row[]) => rows.filter((r) => !r.muted).reduce((t, r) => t + r.unread, 0);
 
+/**
+ * The replies a person hasn't read in threads they follow (2B, Task 1), in conversations they may read and haven't
+ * muted: their hundred newest such threads, each counted to 100. One also sent to the conversation is unread there.
+ */
+async function threadsUnread(req: FastifyRequest): Promise<number> {
+  const me = req.actor!.userId;
+  const rows = (
+    await req.db.execute<{ unread: number }>(sql`
+      WITH places AS (
+        SELECT root_id, last_read_id, last_reply_id FROM chat_thread_places
+        WHERE user_id = ${me} AND following AND last_reply_id > last_read_id
+        ORDER BY last_reply_id DESC),
+      mine AS (
+        SELECT p.root_id, p.last_read_id FROM places p
+        JOIN chat_threads t ON t.root_id = p.root_id
+        JOIN chat_conversations c ON c.id = t.conversation_id AND c.archived_at IS NULL
+        LEFT JOIN chat_members cm ON cm.conversation_id = c.id AND cm.user_id = ${me}
+        WHERE NOT coalesce(cm.muted, false)
+        ORDER BY p.last_reply_id DESC LIMIT ${UNREAD_MAX})
+      SELECT (SELECT count(*)::int FROM (
+          SELECT 1 FROM chat_messages m
+          WHERE m.thread_root = mine.root_id AND m.id > mine.last_read_id AND m.deleted_at IS NULL AND NOT m.also_sent
+          LIMIT ${UNREAD_MAX}) AS u) AS unread
+      FROM mine`)
+  ).rows;
+  return rows.reduce((n, r) => n + r.unread, 0);
+}
+
 /** The sidebar's number, and the conversations that never add to it. */
 export const chatUnread = async (req: FastifyRequest) => {
   const rows = await rowsOf(req);
-  return { unread: unreadOf(rows), muted: rows.filter((r) => r.muted).map((r) => r.id) };
+  return {
+    unread: unreadOf(rows) + (await threadsUnread(req)),
+    muted: rows.filter((r) => r.muted).map((r) => r.id),
+  };
 };
 
 async function viewsOf(req: FastifyRequest, rows: Row[]): Promise<Map<string, ConvRow>> {
@@ -201,30 +235,44 @@ export async function chatList(req: FastifyRequest): Promise<ChatList> {
       .filter((r) => r.kind === kind)
       .sort(by)
       .map((r) => views.get(r.id)!);
+  const any = (
+    await req.db.execute<{ any: boolean }>(
+      sql`SELECT EXISTS (SELECT 1 FROM chat_thread_places WHERE user_id = ${req.actor!.userId} AND following) AS any`,
+    )
+  ).rows[0]!.any;
+  const threads = { any, unread: any ? await threadsUnread(req) : 0 };
   const folded = (list: keyof ChatList["folds"]) => folds.some((f) => f.list === list && f.folded);
   return {
     channels: of("channel", (a, b) => (a.name ?? "").localeCompare(b.name ?? "")),
     direct: of("direct", newest),
     leads: of("lead", newest),
     folds: { channels: folded("channels"), direct: folded("direct"), leads: folded("leads") },
-    unread: unreadOf(rows),
+    threads,
+    unread: unreadOf(rows) + threads.unread,
   };
 }
 
-/** One conversation the person may read, in their list or not (a lead's thread opened from a link). */
-export async function chatOne(req: FastifyRequest, id: string): Promise<ConvRow> {
+/** These conversations, those the person may read, in their list or not. */
+export async function convsOf(req: FastifyRequest, ids: string[]): Promise<Map<string, ConvRow>> {
   const me = req.actor!.userId;
-  const row = (
+  if (!ids.length) return new Map();
+  const rows = (
     await req.db.execute<Row>(sql`
       SELECT c.id, c.kind, c.name, c.topic, c.last_at, coalesce(cm.muted, false) AS muted, 0 AS unread,
         l.id AS lead_id, l.name AS lead_name, s.name AS stage
       FROM chat_conversations c
       LEFT JOIN chat_members cm ON cm.conversation_id = c.id AND cm.user_id = ${me}
       LEFT JOIN leads l ON l.id = c.lead_id LEFT JOIN stages s ON s.id = l.stage_id
-      WHERE c.id = ${id} AND c.archived_at IS NULL`)
-  ).rows[0];
-  if (!row) throw notFound("NOT_FOUND", "That conversation isn't there.");
-  return (await viewsOf(req, [row])).get(id)!;
+      WHERE c.id = ANY(${uuids(ids)}) AND c.archived_at IS NULL`)
+  ).rows;
+  return viewsOf(req, rows);
+}
+
+/** One of them (a lead's thread opened from a link). */
+export async function chatOne(req: FastifyRequest, id: string): Promise<ConvRow> {
+  const one = (await convsOf(req, [id])).get(id);
+  if (!one) throw notFound("NOT_FOUND", "That conversation isn't there.");
+  return one;
 }
 
 /** Names and photos for everyone who chats (people who left too: their messages stay). */

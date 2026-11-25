@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAiOn } from "@/lib/ai/use-ai-on";
+import { useInstagramOn } from "@/lib/instagram/use-instagram-on";
 import { NewDot, NewPill } from "@/components/whats-new/NewPill";
 import { useStoryAt, useWhatsNew } from "@/components/whats-new/WhatsNewProvider";
 import { NavIcon } from "./icons";
@@ -29,7 +30,8 @@ export function MobileTabs({
   onFeedback?: () => void;
 }) {
   const pathname = usePathname();
-  const items = visibleNav(NAV_ITEMS, can, { ai: useAiOn() });
+  const instagram = useInstagramOn(can("instagram.flows.manage"));
+  const items = visibleNav(NAV_ITEMS, can, { ai: useAiOn(), instagram });
   const current = activeNav(items, pathname);
   const tabs = items.filter((i) => (PRIMARY as readonly string[]).includes(i.id));
   const more = items.filter((i) => !(PRIMARY as readonly string[]).includes(i.id));

@@ -22,6 +22,8 @@ let h: Harness;
 let rep: AuthedClient;
 let boss: AuthedClient;
 let everyone: string;
+let repId: string;
+let bossId: string;
 
 async function time(
   what: string,
@@ -54,6 +56,7 @@ describe.skipIf(!N)(`Team Chat at scale: ${N.toLocaleString("en-US")} messages`,
       grants: [chats, { key: "leads.view", scope: "own" }],
     });
     boss = await h.signIn(manager);
+    [repId, bossId] = [one.id, manager.id];
     rep = await h.signIn(one);
     await h.ownerPool.query("SET statement_timeout = 0");
     await h.ownerPool.query(
@@ -216,4 +219,43 @@ describe.skipIf(!N)(`Team Chat at scale: ${N.toLocaleString("en-US")} messages`,
     );
     stop.abort();
   }, 300_000);
+
+  it("threads: thousands followed, each a reply or two unread, and the list, the bell and a thread still answer at once", async () => {
+    const ROOTS = Math.min(5000, Math.ceil(N / 200));
+    await h.ownerPool.query("ALTER TABLE chat_messages NO FORCE ROW LEVEL SECURITY");
+    // Each root is the rep's (so they follow it), with three replies by someone else: unread for the rep.
+    await h.ownerPool.query(
+      `INSERT INTO chat_messages (conversation_id, author_id, body, client_id)
+       SELECT $1, $2, 'Thread ' || g, gen_random_uuid() FROM generate_series(1, $3::int) g`,
+      [everyone, repId, ROOTS],
+    );
+    await h.ownerPool.query(
+      `INSERT INTO chat_messages (conversation_id, author_id, body, client_id, thread_root)
+       SELECT $1, $2, 'Reply', gen_random_uuid(), m.id
+         FROM (SELECT id FROM chat_messages WHERE conversation_id = $1 AND author_id = $3 AND body LIKE 'Thread %') m,
+              generate_series(1, 3)`,
+      [everyone, bossId, repId],
+    );
+    await h.ownerPool.query("ALTER TABLE chat_messages FORCE ROW LEVEL SECURITY");
+    await h.ownerPool.query("ANALYZE");
+    const list = (await rep.inject({ method: "GET", url: "/api/v1/chat" })).json();
+    expect(list.threads.any).toBe(true);
+    expect(list.threads.unread).toBeGreaterThan(0);
+    const threads = (await rep.inject({ method: "GET", url: "/api/v1/chat/threads" })).json().threads;
+    expect(threads).toHaveLength(50);
+    const root = threads[0].root.id as number;
+    const get = (url: string) => () => rep.inject({ method: "GET", url });
+    await time("the list, following thousands of threads", get("/api/v1/chat"), 150);
+    await time("the sidebar's number, with them", get("/api/v1/chat/unread"), 150);
+    await time("the threads they follow", get("/api/v1/chat/threads"), 300);
+    await time("a thread", get(`/api/v1/chat/messages/${root}/thread`), 150);
+    await time("the newest page, threads on it", get(`/api/v1/chat/${everyone}/messages`), 150);
+    await time("a reply", () =>
+      boss.inject({
+        method: "POST",
+        url: `/api/v1/chat/messages/${root}/thread`,
+        payload: { clientId: crypto.randomUUID(), body: "One more" },
+      }),
+    );
+  }, 600_000);
 });

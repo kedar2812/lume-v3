@@ -118,7 +118,7 @@ const send = () => {
       data: { id, authorId: "me", clientId: null, body: `n${id}`, replyTo: null },
     } as never;
   });
-  act(() => sendInto("c", "me", { body: "x", replyTo: null, files: [] }));
+  act(() => sendInto({ conv: "c" }, "me", { body: "x", replyTo: null, files: [] }));
 };
 
 it("a send in the middle of catching up with more than ten pages leaves no hole", async () => {

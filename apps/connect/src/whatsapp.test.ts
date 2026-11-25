@@ -190,6 +190,32 @@ describe("connecting a WhatsApp number (Embedded Signup)", () => {
     expect(page.f.sent).toBe(0);
   });
 
+  it("a number another WhatsApp tool holds (Meta 2655093): what to do on the phone, in words, never Meta's text alone", async () => {
+    const page = await signupScript();
+    page.meta({
+      type: "WA_EMBEDDED_SIGNUP",
+      event: "ERROR",
+      data: {
+        error_message:
+          "The business is already sharing this WhatsApp Business account with a partner. Switching partners is not supported in this flow.",
+        error_id: "2655093",
+        session_id: "01a212c4",
+      },
+    });
+    const said = page.msg.textContent as string;
+    expect(said).toContain("already connected to another WhatsApp tool");
+    expect(said).toContain("Settings → Account → Business Platform");
+    expect(said).toContain("Disconnect");
+    expect(said).toContain("wait 5 minutes");
+    // The same words when Meta sends only its message, or the code in another field.
+    page.meta({
+      type: "WA_EMBEDDED_SIGNUP",
+      event: "ERROR",
+      data: { error_message: "x", error_code: 2655093 },
+    });
+    expect(page.msg.textContent).toBe(said);
+  });
+
   it("done: the code exchanged, the account subscribed with this LUME's own callback, both syncs asked, the number handed back sealed", async () => {
     const r = await done({
       state: await stateFrom(),

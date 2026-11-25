@@ -578,3 +578,109 @@ describe("take over and hand back", () => {
     expect((await take(other, "take-over")).statusCode).toBe(404);
   });
 });
+
+describe("the lead's Instagram tab: its comments and the flow it's in (plan 2026-11-25-instagram-screens D2)", () => {
+  const view = async (u: typeof rep = rep) =>
+    (await (await h.signIn(u)).inject({ method: "GET", url: `/api/v1/leads/${leadId}/instagram` })).json()
+      .threads[0];
+  const comment = async (o: {
+    id: string;
+    ago: number;
+    thread?: string | null;
+    state?: string;
+    text?: string;
+  }) =>
+    h.queryAll(
+      `INSERT INTO instagram_comments
+         (id, account_id, comment_id, media_id, media_type, from_igsid, from_username, text, at, thread_id, private_reply)
+       VALUES ($1, $2, $3, 'M1', 'REELS', $4, 'priya.fit', $5, $6, $7, $8)`,
+      [
+        randomUUID(),
+        account.id,
+        o.id,
+        IGSID,
+        o.text ?? "GUIDE please",
+        new Date(h.clock.now.getTime() - o.ago),
+        o.thread === undefined ? threadId : o.thread,
+        o.state ?? "none",
+      ],
+    );
+
+  it("its comments, newest first, with whether the one private reply can still go", async () => {
+    await comment({ id: "C-new", ago: H });
+    await comment({ id: "C-old", ago: 7 * 24 * H + 1000 });
+    await comment({ id: "C-sent", ago: 2 * H, state: "sent" });
+    await comment({ id: "C-failed", ago: 3 * H, state: "failed" });
+    const t = await view();
+    expect(
+      t.comments.map((c: { text: string; privateReply: string; replyOpen: boolean }) => [
+        c.privateReply,
+        c.replyOpen,
+      ]),
+    ).toEqual([
+      ["none", true],
+      ["sent", false],
+      ["failed", true],
+      ["none", false],
+    ]);
+    expect(t.comments[0]).toMatchObject({ text: "GUIDE please", mediaType: "REELS" });
+    expect(t.comments[0].id).toMatch(/^[0-9a-f-]{36}$/);
+    // Instagram's own ids and the commenter's handle aren't part of it: the conversation says who it is.
+    expect(JSON.stringify(t.comments)).not.toContain("C-new");
+    expect(JSON.stringify(t.comments)).not.toContain("priya.fit");
+  });
+
+  it("only this conversation's comments, and at most the newest 20", async () => {
+    await comment({ id: "C-loose", ago: H, thread: null, text: "not linked" });
+    for (let i = 0; i < 25; i++) await comment({ id: `C${i}`, ago: (i + 2) * 60_000, text: `n${i}` });
+    const t = await view();
+    expect(t.comments).toHaveLength(20);
+    expect(t.comments[0].text).toBe("n0");
+    expect(JSON.stringify(t.comments)).not.toContain("not linked");
+  });
+
+  it("a conversation with no comments says so with an empty list", async () => {
+    expect((await view()).comments).toEqual([]);
+  });
+
+  it("the flow a conversation is in while it runs or waits; none once it's done or stopped", async () => {
+    const flowId = randomUUID();
+    const versionId = randomUUID();
+    await h.ownerPool.query(
+      "INSERT INTO instagram_flows (id, name, status, created_by) VALUES ($1, 'Lunch box guide', 'draft', $2)",
+      [flowId, admin.id],
+    );
+    await h.ownerPool.query(
+      "INSERT INTO instagram_flow_versions (id, flow_id, version, steps, created_by) VALUES ($1, $2, 1, '[]', $3)",
+      [versionId, flowId, admin.id],
+    );
+    const run = randomUUID();
+    await h.queryAll(
+      `INSERT INTO instagram_flow_runs (id, flow_id, version_id, thread_id, lead_id, status, state, started_by)
+       VALUES ($1, $2, $3, $4, $5, 'waiting', '{}', 'comment')`,
+      [run, flowId, versionId, threadId, leadId],
+    );
+    expect((await view()).flow).toEqual({ id: flowId, name: "Lunch box guide", waiting: true });
+    await h.queryAll("UPDATE instagram_flow_runs SET status = 'running' WHERE id = $1", [run]);
+    expect((await view()).flow).toEqual({ id: flowId, name: "Lunch box guide", waiting: false });
+    for (const s of ["done", "stopped", "handed", "failed"]) {
+      await h.queryAll("UPDATE instagram_flow_runs SET status = $2 WHERE id = $1", [run, s]);
+      expect((await view()).flow, s).toBeNull();
+    }
+    await h.queryAll(
+      `INSERT INTO instagram_outbox (id, thread_id, lead_id, account_id, user_id, client_key, kind, text, flow_run_id, step_key, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'dm', 'Here you go: the guide', $7, 's1', 'sent')`,
+      [randomUUID(), threadId, leadId, account.id, admin.id, randomUUID(), run],
+    );
+    const sentByFlow = (await view()).messages.find(
+      (m: { text: string }) => m.text === "Here you go: the guide",
+    );
+    expect(sentByFlow.flow).toBe("Lunch box guide");
+    await send(rep);
+    const mine = (await view()).messages.find(
+      (m: { text: string }) => m.text === "Yes, the batch starts Monday",
+    );
+    expect(mine).toMatchObject({ flow: null, sentBy: { id: rep.id, name: "Rhea Rep" } });
+    await h.ownerPool.query("DELETE FROM instagram_flows WHERE id = $1", [flowId]);
+  });
+});

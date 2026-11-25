@@ -1,0 +1,352 @@
+/* New flow (plan 2026-11-25-instagram-screens D4; canvas board NewFlow, approved 2026-11-25). Neutral icon tiles; the
+   chosen card is the accent (docs/design/icons.md). */
+.sheet {
+  display: flex;
+  flex-direction: column;
+  height: min(720px, calc(100dvh - 32px));
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+.head {
+  padding: 22px 26px 8px;
+}
+.title {
+  margin: 0;
+  font-size: var(--fs-xl);
+  letter-spacing: var(--ls-xl);
+  font-weight: var(--fw-bold);
+}
+.lead {
+  margin: 4px 0 0;
+  font-size: var(--fs-md);
+  color: var(--text-2);
+}
+.bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  padding: 8px 26px 14px;
+  min-width: 0;
+}
+.search {
+  flex: 0 1 300px;
+  min-width: 160px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 11px;
+  border-radius: 10px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+  color: var(--text-3);
+}
+.search:focus-within {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--fs-md);
+  color: var(--text);
+  outline: none;
+}
+.groups {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.group {
+  height: 32px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.group:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.group[aria-selected="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: var(--fw-semibold);
+}
+/* Full strength in its group's colour: a faded count failed contrast on the chosen group's tint (axe). */
+.count {
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+}
+.body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.grid {
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 18px 24px 26px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  gap: 10px;
+  align-content: start;
+}
+.card {
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px 14px 12px;
+  border-radius: 14px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  cursor: pointer;
+  transition:
+    box-shadow 0.2s,
+    background 0.2s;
+}
+.card:hover {
+  box-shadow:
+    inset 0 0 0 0.5px var(--line-2),
+    var(--shadow-sheet);
+}
+.card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.card[aria-selected="true"] {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  background: var(--accent-soft);
+}
+.card b {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
+}
+.what {
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.trig {
+  margin-top: auto;
+  padding-top: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tile {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--sunk);
+  color: var(--text);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+}
+.card[aria-selected="true"] .tile {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: none;
+}
+.none {
+  grid-column: 1 / -1;
+  margin: 18px 4px;
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+.preview {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 22px;
+  box-shadow: inset 0.5px 0 0 var(--line);
+  background: var(--sunk);
+  overflow: auto;
+}
+.ph {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+.ph > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ph b {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
+}
+.ph span {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.why {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--text-2);
+}
+.starts {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+  font-size: var(--fs-sm);
+}
+.cap {
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.steps li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 10px;
+  padding: 7px 0;
+}
+.steps li::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  top: 30px;
+  bottom: -6px;
+  width: 1.5px;
+  background: var(--line-2);
+}
+.steps li:last-child::before {
+  display: none;
+}
+.n {
+  position: relative;
+  z-index: 1;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+.steps li[data-hand] .n {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.steps li > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.steps b {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.steps span {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.fill {
+  margin: 0;
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  color: var(--text-3);
+}
+.fill svg {
+  flex: none;
+  margin-top: 1px;
+}
+.error {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--danger-ink);
+}
+.go {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 6px;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+/* A phone: the cards, then the preview under them; the sheet scrolls as one. */
+@media (max-width: 760px) {
+  .sheet {
+    height: calc(100dvh - 32px);
+    overflow: auto !important;
+  }
+  .body {
+    display: flex;
+    flex-direction: column;
+  }
+  .grid,
+  .preview {
+    overflow: visible;
+  }
+  .grid {
+    padding: 14px 16px;
+  }
+}

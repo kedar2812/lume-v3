@@ -18,6 +18,8 @@ const autopilotListeners = new Set<(e: AutopilotEvent) => void>();
  */
 export type WhatsAppEvent = { lead: string; kind: "in" | "out" | "status" | "reconnected"; owner?: string };
 const whatsappListeners = new Set<(e: WhatsAppEvent) => void>();
+/** Instagram messages on leads' conversations (plan 2026-11-25-instagram-screens D2): the same shape as WhatsApp's. */
+const instagramListeners = new Set<(e: WhatsAppEvent) => void>();
 /** A live sheet's progress or status (2026-11-14). Sheet "*": the stream was away, so any sheet may have moved on. */
 export type LiveSheetEvent = { sheet: string; kind: "progress" | "status" | "reconnected" };
 const liveSheetListeners = new Set<(e: LiveSheetEvent) => void>();
@@ -35,6 +37,9 @@ export type ChatEvent = {
   e: string;
   m?: number;
   u?: string;
+  /** A thread's: the message it hangs on; `f`: it's one they follow. */
+  t?: number;
+  f?: true;
   /** A direct message; a lead's thread. */
   d?: true;
   l?: true;
@@ -49,6 +54,7 @@ const anyone = () =>
     leadListeners.size +
     autopilotListeners.size +
     whatsappListeners.size +
+    instagramListeners.size +
     liveSheetListeners.size +
     chatListeners.size +
     presenceListeners.size +
@@ -74,6 +80,7 @@ function catchUpSoon() {
       // A run may have moved on meanwhile too: "*" is every run.
       for (const l of autopilotListeners) l({ run: "*", lead: null, kind: "reconnected" });
       for (const l of whatsappListeners) l({ lead: "*", kind: "reconnected" });
+      for (const l of instagramListeners) l({ lead: "*", kind: "reconnected" });
       for (const l of liveSheetListeners) l({ sheet: "*", kind: "reconnected" });
       for (const l of chatListeners) l({ c: "*", e: "reconnected" });
     },
@@ -132,6 +139,23 @@ function open() {
     };
     for (const l of whatsappListeners) l(said);
   });
+  s.addEventListener("instagram", (e) => {
+    let ev: Partial<WhatsAppEvent>;
+    try {
+      ev = JSON.parse((e as MessageEvent<string>).data) as Partial<WhatsAppEvent>;
+    } catch {
+      return;
+    }
+    if (typeof ev.lead !== "string" || (ev.kind !== "in" && ev.kind !== "out" && ev.kind !== "status"))
+      return;
+    failures = 0;
+    const said: WhatsAppEvent = {
+      lead: ev.lead,
+      kind: ev.kind,
+      ...(typeof ev.owner === "string" ? { owner: ev.owner } : {}),
+    };
+    for (const l of instagramListeners) l(said);
+  });
   s.addEventListener("unread", (e) => {
     let ev: { unread?: unknown };
     try {
@@ -169,6 +193,8 @@ function open() {
       ...(typeof ev.c === "string" ? { c: ev.c } : {}),
       ...(typeof ev.m === "number" ? { m: ev.m } : {}),
       ...(typeof ev.u === "string" ? { u: ev.u } : {}),
+      ...(typeof ev.t === "number" ? { t: ev.t } : {}),
+      ...(ev.f === true ? { f: true } : {}),
       ...(ev.d === true ? { d: true } : {}),
       ...(ev.l === true ? { l: true } : {}),
       ...(typeof ev.w === "number" && ev.w > 0 ? { w: ev.w } : {}),
@@ -310,6 +336,23 @@ export function useWhatsApp(on: (e: WhatsAppEvent) => void): void {
   const latest = useRef(on);
   latest.current = on;
   useEffect(() => subscribeWhatsApp((e) => latest.current(e)), []);
+}
+
+/** Instagram messages on leads' conversations (plan 2026-11-25-instagram-screens D2), on the tab's one stream. */
+export function subscribeInstagram(listener: (e: WhatsAppEvent) => void): () => void {
+  instagramListeners.add(listener);
+  if (!source) open();
+  return () => {
+    instagramListeners.delete(listener);
+    closeIfUnused();
+  };
+}
+
+/** Calls `on` for each Instagram message in, out or tick while the component is mounted. */
+export function useInstagram(on: (e: WhatsAppEvent) => void): void {
+  const latest = useRef(on);
+  latest.current = on;
+  useEffect(() => subscribeInstagram((e) => latest.current(e)), []);
 }
 
 /** Live sheets' progress and status (2026-11-14), on the tab's one stream. */

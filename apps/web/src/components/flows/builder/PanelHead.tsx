@@ -2,6 +2,9 @@
 import { useRef, type KeyboardEvent } from "react";
 import b from "./builder.module.css";
 import p from "./panels.module.css";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
+
+const { close: X } = UI_ICONS;
 
 /** The builder's side panel for the flow as a whole (approved canvas board BuilderTest): Test, Replay, Versions. */
 export type Tool = "test" | "replay" | "versions";
@@ -64,7 +67,7 @@ export function PanelHead({
         ))}
       </span>
       <button type="button" className={b.x} aria-label="Close" onClick={onClose}>
-        ×
+        <X size={ICON_SIZE.md} aria-hidden />
       </button>
     </div>
   );

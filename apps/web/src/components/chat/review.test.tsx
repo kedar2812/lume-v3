@@ -58,6 +58,7 @@ const list = (o: Partial<ChatList> = {}): ChatList => ({
   direct: [],
   leads: [],
   folds: { channels: false, direct: false, leads: false },
+  threads: { any: false, unread: 0 },
   unread: 0,
   ...o,
 });
@@ -69,6 +70,9 @@ const msg = (n: number, authorId: string, body: string, o: Partial<MessageView> 
   kind: "text",
   body,
   replyTo: null,
+  threadRoot: null,
+  alsoSent: false,
+  thread: null,
   files: [],
   reactions: [],
   editedAt: null,
@@ -114,6 +118,19 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   vi.restoreAllMocks();
+});
+
+it("a conversation nothing happens in draws nothing again, however long drawing takes", async () => {
+  // Each look at the clock is a moment later, as on a slow machine.
+  let t = Date.UTC(2026, 10, 24, 11);
+  const clock = vi.spyOn(Date, "now").mockImplementation(() => (t += 7));
+  show();
+  await screen.findByText("Morning");
+  say({ c: CH, e: "typing", u: SANA });
+  await screen.findByText("Sana Iqbal is typing…");
+  const before = clock.mock.calls.length;
+  await new Promise((r) => setTimeout(r, 300));
+  expect(clock.mock.calls.length - before).toBeLessThan(30);
 });
 
 describe("writing", () => {

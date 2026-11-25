@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   bigserial,
   date,
   integer,
@@ -78,6 +79,10 @@ export const notifications = pgTable("notifications", {
     .default(sql`'{}'::jsonb`),
   createdAt: tz("created_at").notNull().defaultNow(),
   readAt: tz("read_at"),
+  /** Team Chat's (0132): the conversation, the thread in it (0: none), and the newest message it speaks of. */
+  conversationId: uuid("conversation_id"),
+  chatRoot: bigint("chat_root", { mode: "number" }).notNull().default(0),
+  chatMessageId: bigint("chat_message_id", { mode: "number" }),
   /** Hidden by "Clear read" (0062); the sweep removes it later, as any read notification. */
   clearedAt: tz("cleared_at"),
 });

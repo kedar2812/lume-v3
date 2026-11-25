@@ -243,8 +243,11 @@ test.describe("Your day", () => {
     for (let i = 0; i < 3; i++) await full(page).getByRole("button", { name: "Zoom in" }).click();
     await expect(full(page).getByTestId("zoom-level")).toHaveText("246%");
     const scroller = full(page).locator("[data-day-scroller]");
+    // The percentage says it at once; the timeline grows to it.
+    const room = () => scroller.evaluate((el) => el.scrollWidth - el.clientWidth);
+    await expect.poll(room).toBeGreaterThan(200);
+    await settle(page);
     const [before, max] = await scroller.evaluate((el) => [el.scrollLeft, el.scrollWidth - el.clientWidth]);
-    expect(max).toBeGreaterThan(200);
     // Late in the day it opens near the end: drag the way there's room to go.
     const by = before > max / 2 ? 120 : -120;
     const box = (await scroller.boundingBox())!;

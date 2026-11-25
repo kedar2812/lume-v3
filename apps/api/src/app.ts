@@ -321,7 +321,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(whatsappRoutes, deps);
         await scope.register(instagramRoutes, deps);
         await scope.register(instagramFlowRoutes, deps);
-        await scope.register(chatRoutes);
+        await scope.register(chatRoutes, deps);
         await scope.register(chatFileRoutes, deps);
         await scope.register(fileLinkRoutes, deps);
         await scope.register(mediaRoutes, deps);

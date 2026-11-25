@@ -371,3 +371,201 @@ describe("team chat's tables", () => {
     ).rejects.toThrow(/row-level security/);
   });
 });
+
+describe("threads (migration 0131)", () => {
+  const OTHER = "0190e0c0-0000-7000-8000-0000000002b9";
+  const said = (user: string, conv: string, more: { root?: number; also?: boolean } = {}) =>
+    app(user, async (c) =>
+      Number(
+        (
+          await c.query<{ id: string }>(
+            "INSERT INTO chat_messages (conversation_id, author_id, body, thread_root, also_sent) VALUES ($1, $2, 'Hi', $3, $4) RETURNING id",
+            [conv, user, more.root ?? null, more.also ?? false],
+          )
+        ).rows[0]!.id,
+      ),
+    );
+  beforeAll(async () => {
+    await owner(async (c) => {
+      await c.query("INSERT INTO chat_conversations (id, kind, name) VALUES ($1, 'channel', 'threads')", [
+        OTHER,
+      ]);
+      await c.query("INSERT INTO chat_members (conversation_id, user_id) VALUES ($1, $2), ($1, $3)", [
+        OTHER,
+        U.rep,
+        U.boss,
+      ]);
+    });
+  });
+
+  it("a reply hangs on a message of its own conversation that isn't itself a reply", async () => {
+    const root = await said(U.rep, OTHER);
+    const r = await said(U.boss, OTHER, { root });
+    const elsewhere = await said(U.rep, SALES);
+    for (const bad of [r, elsewhere, 9_999_999_999])
+      await expect(said(U.rep, OTHER, { root: bad })).rejects.toThrow(/own conversation/);
+    // Also sent is a reply's alone.
+    await expect(said(U.rep, OTHER, { also: true })).rejects.toThrow(/chat_messages_also_sent/);
+    // Nor is one moved to another thread afterwards.
+    await expect(
+      app(U.boss, (c) => c.query("UPDATE chat_messages SET thread_root = NULL WHERE id = $1", [r])),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it("a thread is seen by whoever may read its conversation, and written by nobody's own hand", async () => {
+    const root = await said(U.rep, OTHER);
+    await said(U.boss, OTHER, { root });
+    const seen = (u: string) =>
+      app(
+        u,
+        async (c) => (await c.query("SELECT 1 FROM chat_threads WHERE root_id = $1", [root])).rows.length,
+      );
+    expect([await seen(U.rep), await seen(U.boss), await seen(U.mate)]).toEqual([1, 1, 0]);
+    for (const q of [
+      "UPDATE chat_threads SET replies = 99",
+      "DELETE FROM chat_threads",
+      "INSERT INTO chat_threads (root_id, conversation_id, last_reply_id, last_at) SELECT 1, id, 1, now() FROM chat_conversations LIMIT 1",
+    ])
+      await expect(app(U.rep, (c) => c.query(q))).rejects.toThrow(/permission denied/);
+    await expect(app(U.rep, (c) => c.query("SELECT lume_chat_reply_landed()"))).rejects.toThrow();
+    const worker = (q: string) => as("lume_worker", { scope: "all", user: U.rep }, (c) => c.query(q));
+    await expect(worker("SELECT 1 FROM chat_threads")).rejects.toThrow(/permission denied/);
+    await expect(worker("SELECT 1 FROM chat_thread_places")).rejects.toThrow(/permission denied/);
+  });
+
+  it("a place in a thread is one's own: not another's to see, make, move or take away", async () => {
+    const root = await said(U.rep, OTHER);
+    const reply = await said(U.boss, OTHER, { root });
+    const places = (u: string) =>
+      app(u, async (c) =>
+        (
+          await c.query<{ user_id: string; last_read_id: string; last_reply_id: string }>(
+            "SELECT user_id, last_read_id, last_reply_id FROM chat_thread_places WHERE root_id = $1",
+            [root],
+          )
+        ).rows.map((r) => ({
+          ...r,
+          last_read_id: Number(r.last_read_id),
+          last_reply_id: Number(r.last_reply_id),
+        })),
+      );
+    expect(await places(U.rep)).toEqual([{ user_id: U.rep, last_read_id: 0, last_reply_id: reply }]);
+    expect(await places(U.boss)).toEqual([{ user_id: U.boss, last_read_id: reply, last_reply_id: reply }]);
+    const make = (u: string, whose: string, on: number) =>
+      app(u, (c) =>
+        c.query("INSERT INTO chat_thread_places (root_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [
+          on,
+          whose,
+        ]),
+      );
+    await expect(make(U.mate, U.mate, root)).rejects.toThrow(/row-level security/);
+    await expect(make(U.rep, U.mate, root)).rejects.toThrow(/row-level security/);
+    // On a reply there is no thread to have a place in.
+    await expect(make(U.rep, U.rep, reply)).rejects.toThrow(/row-level security/);
+    for (const q of [
+      "UPDATE chat_thread_places SET last_reply_id = 0",
+      "UPDATE chat_thread_places SET user_id = lume_user()",
+      "DELETE FROM chat_thread_places",
+    ])
+      await expect(app(U.rep, (c) => c.query(q))).rejects.toThrow(/permission denied/);
+    await app(U.rep, (c) =>
+      c.query("UPDATE chat_thread_places SET following = false WHERE root_id = $1", [root]),
+    );
+    // Every row at once, read or not: still only their own.
+    const all = await app(U.rep, (c) => c.query("UPDATE chat_thread_places SET following = true"));
+    expect(all.rowCount).toBeGreaterThan(0);
+    await app(U.rep, (c) => c.query("UPDATE chat_thread_places SET following = false"));
+    const bosses = await app(
+      U.boss,
+      async (c) =>
+        (await c.query("SELECT following FROM chat_thread_places WHERE root_id = $1", [root])).rows,
+    );
+    expect(bosses).toEqual([{ following: true }]);
+  });
+
+  it("a reply marked deleted twice is one fewer, once", async () => {
+    const root = await said(U.rep, OTHER);
+    const [a] = [await said(U.rep, OTHER, { root }), await said(U.rep, OTHER, { root })];
+    for (let i = 0; i < 2; i++)
+      await app(U.rep, (c) => c.query("UPDATE chat_messages SET deleted_at = now() WHERE id = $1", [a]));
+    const t = await app(
+      U.rep,
+      async (c) => (await c.query("SELECT replies FROM chat_threads WHERE root_id = $1", [root])).rows,
+    );
+    expect(t).toEqual([{ replies: 1 }]);
+  });
+
+  it("a message deleted for good takes its thread with it, and its replies", async () => {
+    const root = await said(U.rep, OTHER);
+    await said(U.boss, OTHER, { root });
+    await owner((c) => c.query("DELETE FROM chat_conversations WHERE id = $1", [OTHER]));
+    const left = await owner(
+      async (c) =>
+        (
+          await c.query<{ t: number; p: number }>(
+            "SELECT (SELECT count(*)::int FROM chat_threads WHERE root_id = $1) AS t, (SELECT count(*)::int FROM chat_thread_places WHERE root_id = $1) AS p",
+            [root],
+          )
+        ).rows[0],
+    );
+    expect(left).toEqual({ t: 0, p: 0 });
+  });
+});
+
+describe("who a message names (migration 0132)", () => {
+  it("is written by its author alone, and seen with the message", async () => {
+    const m = await app(U.rep, async (c) =>
+      Number(
+        (
+          await c.query<{ id: string }>(
+            "INSERT INTO chat_messages (conversation_id, author_id, body) VALUES ($1, $2, 'Hi') RETURNING id",
+            [SALES, U.rep],
+          )
+        ).rows[0]!.id,
+      ),
+    );
+    const name = (u: string, conv = SALES) =>
+      app(u, (c) =>
+        c.query(
+          "INSERT INTO chat_mentions (message_id, user_id, by_name, conversation_id) VALUES ($1, $2, true, $3)",
+          [m, U.boss, conv],
+        ),
+      );
+    await expect(name(U.mate)).rejects.toThrow(/row-level security/);
+    await owner((c) =>
+      c.query("INSERT INTO chat_members (conversation_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [
+        SALES,
+        U.mate,
+      ]),
+    );
+    await expect(name(U.mate)).rejects.toThrow(/row-level security/);
+    // Not as said somewhere else.
+    const general = await app(
+      U.rep,
+      async (c) =>
+        (await c.query<{ id: string }>("SELECT id FROM chat_conversations WHERE name = 'general'")).rows[0]!
+          .id,
+    );
+    await expect(name(U.rep, general)).rejects.toThrow(/row-level security/);
+    await name(U.rep);
+    const seen = (u: string) =>
+      app(
+        u,
+        async (c) => (await c.query("SELECT 1 FROM chat_mentions WHERE message_id = $1", [m])).rows.length,
+      );
+    expect([await seen(U.rep), await seen(U.mate), await seen(U.boss)]).toEqual([1, 1, 0]);
+    // Whom it names says they've seen it; nobody else does.
+    const look = (u: string) =>
+      app(
+        u,
+        async (c) =>
+          (await c.query("UPDATE chat_mentions SET seen = true WHERE message_id = $1", [m])).rowCount,
+      );
+    expect(await look(U.mate)).toBe(0);
+    for (const q of ["UPDATE chat_mentions SET user_id = user_id", "DELETE FROM chat_mentions"])
+      await expect(app(U.rep, (c) => c.query(q))).rejects.toThrow(/permission denied/);
+    await expect(
+      as("lume_worker", { scope: "all", user: U.rep }, (c) => c.query("SELECT 1 FROM chat_mentions")),
+    ).rejects.toThrow(/permission denied/);
+  });
+});

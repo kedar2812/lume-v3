@@ -9,6 +9,7 @@ import type { AppDeps } from "../../app";
 import { onSessionsRevoked } from "../../auth/sessions";
 import {
   alertIdOf,
+  chatOf,
   countUnread,
   missedSince,
   readSignal,
@@ -77,6 +78,7 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
         createdAt: n.createdAt.toISOString(),
         read: n.readAt !== null,
         alertId: alertIdOf(n.kind, n.data),
+        ...chatOf(n.conversationId, n.chatRoot),
       })),
       unread: await unreadOf(req),
     };

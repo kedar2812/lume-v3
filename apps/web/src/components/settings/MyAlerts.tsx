@@ -16,6 +16,16 @@ const SWITCHES: { key: keyof Alerts; label: string; hint: string }[] = [
     hint: "When one of your leads writes to a connected WhatsApp number. Once a lead at most every 10 minutes.",
   },
   {
+    key: "chatMentions",
+    label: "Someone mentions me",
+    hint: "In Team Chat: by name, with a team, or everyone.",
+  },
+  {
+    key: "chatDirect",
+    label: "Direct messages",
+    hint: "One line for each conversation in Team Chat, and none for a muted one.",
+  },
+  {
     key: "emailDigest",
     label: "Morning email",
     hint: "Your day ahead, on your working days. First names and times only.",

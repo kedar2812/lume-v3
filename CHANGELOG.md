@@ -15,6 +15,35 @@ column in the release that stops using it.
   Chat's own unread is in the sidebar and, on a phone, on More. A half-written message waits while another conversation
   is open, and a send that couldn't go waits with a way to try again. New permissions **Use Team Chat** (everyone) and
   **Manage channels** (whoever manages roles). Migration 0130. Settings › Storage counts chat's files.
+- **Team Chat, threads** (`docs/superpowers/plans/2026-11-25-team-chat-2b.md`): any message can be answered in a thread
+  beside its conversation (over it where there isn't room), which leaves the conversation's unread and order alone;
+  **Also send to** puts a reply in both. A message shows its thread's people, how many replies and when the last came;
+  whoever starts or answers a thread follows it, and **Threads** at the top of the list holds the ones a person follows
+  with what's new in them. Migration 0131.
+- **Team Chat, mentions:** **@** names a person, a team or everyone in a channel (in one of more than 50 people, only by
+  whoever manages channels), from a menu that works by keyboard. Only people who can read the conversation are told, in
+  the bell: one line for each conversation, with a name and a count and never a word of what was said. Direct messages
+  tell there too. Reading the conversation anywhere clears it; a deleted message takes its line back; a muted
+  conversation tells only of one's own name. Two new switches in My account. Messages show _bold_, _italic_, `code` and
+  links. Migration 0132.
+- A chat nothing happens in no longer redraws itself; the lead drawer's They replied button leaves nothing running when
+  the drawer is closed.
+- **Instagram, connected from Settings** (`docs/superpowers/plans/2026-11-25-instagram-screens.md`, D1): Settings ›
+  Integrations › Instagram switches it on, connects a professional account through Instagram's own sign-in (in the same
+  window), and says before anything happens what connecting does. Each account: whose it is, whether new people who
+  write become leads or wait in Not a lead yet, and Disconnect (asked first). Who answers what, in order, on the card.
+- **Instagram on the lead** (D2): an **Instagram** tab in the lead drawer with the conversation, who has it now (a flow,
+  a person, your team) with Take over and Hand back, Instagram's window in words, the reply box while a person may
+  answer (counted in Instagram's own way), and each comment's one private reply while it can still go.
+- **Flows** (D3): a Flows page in the sidebar, while Instagram is on, for whoever may build flows: what the flows did over
+  the last 7, 30 or 90 days, and every flow with what starts it, who is in it now, and on or off.
+- **Ready-made flows** (D4): **New flow** offers 15 flows businesses use most (a link or a freebie for a comment, story
+  replies and mentions, ad greetings, prices, booking, a waitlist, common questions, giveaways and more), searchable and
+  by what they're for, each with its steps in words before it's made. What only the business knows is left for it:
+  links, and words marked [[…]], which a flow can't go live without.
+- **Not a lead yet** (D5) holds Instagram's people beside WhatsApp's, with a filter by channel.
+- **LUME's icons**: one set of line icons, each saying what the thing does, the same everywhere (`docs/design/icons.md`),
+  starting with the flow builder and the Instagram screens.
 - **Flow builder:** Stop stays ready as LUME AI's answer arrives; Fit keeps clear of the plan while it's on screen.
 - A list drawn just as a minute ticks over is no longer drawn twice (Leads, Who replied, Calendar).
 

@@ -9,6 +9,7 @@ import {
   Settings,
   Sun,
   Users,
+  Workflow,
 } from "lucide-react";
 import type { LucideProps } from "lucide-react";
 import type { IconName } from "./nav";
@@ -50,6 +51,7 @@ const MAP = {
   replies: MessageCircle,
   chat: MessagesSquare,
   autopilot: Loop,
+  flows: Workflow,
   pipeline: Columns3,
   livesheets: LiveSheet,
   calendar: CalendarDays,

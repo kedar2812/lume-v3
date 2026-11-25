@@ -24,6 +24,11 @@ vi.mock("@/lib/chat/client", async (orig) => ({
   ...(await orig<typeof import("@/lib/chat/client")>()),
   chatClient: {
     list: vi.fn(),
+    mentionable: vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      data: { members: [], teams: [], everyone: true },
+    })),
     fold: vi.fn(async () => ({ ok: true, status: 204, data: undefined })),
     mute: vi.fn(async () => ({ ok: true, status: 204, data: undefined })),
     direct: vi.fn(),
@@ -71,6 +76,7 @@ const list = (o: Partial<ChatList> = {}): ChatList => ({
   direct: [],
   leads: [],
   folds: { channels: false, direct: false, leads: false },
+  threads: { any: false, unread: 0 },
   unread: 0,
   ...o,
 });
@@ -87,6 +93,9 @@ const msg = (
   kind: "text",
   body,
   replyTo: null,
+  threadRoot: null,
+  alsoSent: false,
+  thread: null,
   files: [],
   reactions: [],
   editedAt: null,

@@ -219,3 +219,9 @@
 .link:hover {
   background: var(--hover);
 }
+/* What came with an Instagram message (a story reply, a photo), above its words. */
+.extra {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}

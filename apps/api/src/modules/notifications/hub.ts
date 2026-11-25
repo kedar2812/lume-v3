@@ -45,6 +45,8 @@ export type NotificationView = {
   read: boolean;
   /** A security alert's id (6A), so Review opens it; null for every other kind. */
   alertId: string | null;
+  /** Team Chat's: the conversation it opens, and the thread in it. */
+  chat?: { conversation: string; thread: number | null };
   /** The person's unread count once this arrived (2026-11-15): the bell says it, it never counts by itself. */
   unread?: number;
 };
@@ -58,7 +60,11 @@ type Row = {
   created_at: Date;
   read_at: Date | null;
   data: Record<string, unknown> | null;
+  conversation_id: string | null;
+  chat_root: string;
 };
+export const chatOf = (conversation: string | null, root: number) =>
+  conversation ? { chat: { conversation, thread: root || null } } : {};
 export const toView = (r: Row): NotificationView => ({
   id: Number(r.id),
   kind: r.kind,
@@ -69,6 +75,7 @@ export const toView = (r: Row): NotificationView => ({
   createdAt: r.created_at.toISOString(),
   read: r.read_at !== null,
   alertId: alertIdOf(r.kind, r.data),
+  ...chatOf(r.conversation_id, Number(r.chat_root)),
 });
 
 export const alertIdOf = (kind: string, data: unknown): string | null =>
@@ -110,7 +117,7 @@ export const missedSince = (pool: pg.Pool, userId: string, afterId: number) =>
     let after = afterId;
     for (let page = 0; page < 5; page++) {
       const { rows } = await c.query<Row>(
-        "SELECT id, kind, title, body, lead_id, task_id, created_at, read_at, data FROM notifications WHERE id > $1 ORDER BY id LIMIT 200",
+        "SELECT id, kind, title, body, lead_id, task_id, created_at, read_at, data, conversation_id, chat_root FROM notifications WHERE id > $1 ORDER BY id LIMIT 200",
         [after],
       );
       out.push(...rows.map(toView));
@@ -195,6 +202,7 @@ export type ChatEvent = {
   c?: string;
   e:
     | "message"
+    | "reply"
     | "edited"
     | "deleted"
     | "reaction"
@@ -206,6 +214,8 @@ export type ChatEvent = {
     | "presence";
   m?: number;
   u?: string;
+  /** A thread's: the message it hangs on. */
+  t?: number;
   lead?: true;
   /** A direct message: its read marks are the other person's business too. */
   d?: true;
@@ -214,6 +224,7 @@ export type ChatEvent = {
 };
 const CHAT_KINDS = new Set([
   "message",
+  "reply",
   "edited",
   "deleted",
   "reaction",
@@ -237,6 +248,10 @@ export function chatEventOf(payload: string): ChatEvent | null {
     if (x.m !== undefined) {
       if (typeof x.m !== "number" || !Number.isSafeInteger(x.m) || x.m < 0) return null;
       out.m = x.m;
+    }
+    if (x.t !== undefined) {
+      if (typeof x.t !== "number" || !Number.isSafeInteger(x.t) || x.t <= 0) return null;
+      out.t = x.t;
     }
     if (x.u !== undefined) {
       if (typeof x.u !== "string" || !ID.test(x.u)) return null;
@@ -312,7 +327,7 @@ export async function startHub(pool: pg.Pool) {
     const [row] = await readAs(pool, msg.u, async (c) => {
       const rows = (
         await c.query<Row>(
-          "SELECT id, kind, title, body, lead_id, task_id, created_at, read_at, data FROM notifications WHERE id = $1",
+          "SELECT id, kind, title, body, lead_id, task_id, created_at, read_at, data, conversation_id, chat_root FROM notifications WHERE id = $1",
           [msg.n],
         )
       ).rows.map(toView);

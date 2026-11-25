@@ -1006,6 +1006,11 @@ export const PROBES: Record<string, Probe> = {
     access: "instagram.flows.manage",
     body: () => ({ text: "price", keywords: ["price"], mode: "word" }),
   },
+  "GET /api/v1/instagram/flows/summary": {
+    access: "instagram.flows.manage",
+    path: () => "/api/v1/instagram/flows/summary",
+    query: "days=30",
+  },
   "GET /api/v1/instagram/flows/:id/stats": {
     access: "instagram.flows.manage",
     path: () => `/api/v1/instagram/flows/${uuid}/stats`,
@@ -1209,6 +1214,30 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/chat/unread": { access: "chat.use" },
   "GET /api/v1/chat/people": { access: "chat.use" },
   "GET /api/v1/chat/channels": { access: "chat.channels.manage" },
+  "GET /api/v1/chat/threads": { access: "chat.use" },
+  "GET /api/v1/chat/:id/mentionable": {
+    access: "chat.use",
+    path: () => `/api/v1/chat/${uuid}/mentionable`,
+  },
+  "GET /api/v1/chat/messages/:mid/thread": {
+    access: "chat.use",
+    path: () => "/api/v1/chat/messages/1/thread",
+  },
+  "POST /api/v1/chat/messages/:mid/thread": {
+    access: "chat.use",
+    path: () => "/api/v1/chat/messages/1/thread",
+    body: () => ({ clientId: uuid, body: "Probe" }),
+  },
+  "PUT /api/v1/chat/messages/:mid/thread/read": {
+    access: "chat.use",
+    path: () => "/api/v1/chat/messages/1/thread/read",
+    body: () => ({ upTo: 1 }),
+  },
+  "PUT /api/v1/chat/messages/:mid/thread/following": {
+    access: "chat.use",
+    path: () => "/api/v1/chat/messages/1/thread/following",
+    body: () => ({ on: true }),
+  },
   "GET /api/v1/chat/:id": { access: "chat.use", path: () => `/api/v1/chat/${uuid}` },
   "POST /api/v1/chat/:id/typing": { access: "chat.use", path: () => `/api/v1/chat/${uuid}/typing` },
   "GET /api/v1/chat/files/:id": { access: "chat.use" },

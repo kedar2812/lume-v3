@@ -1,23 +1,22 @@
 import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { flowGraphSchema, flowStepsSchema } from "@lume/core";
+import { READY_KEYS, flowGraphSchema, flowStepsSchema, readyFlow, type ReadyKey } from "@lume/core";
 import {
-  FLOW_TEMPLATES,
   archiveFlow,
   createFlow,
   duplicateFlow,
   flowView,
   flowsView,
   publishFlow,
+  requireFlows,
   saveDraft,
   setFlowStatus,
   setTriggers,
-  type TemplateKey,
 } from "./flow-admin";
 import type { AppDeps } from "../../app";
 import { aiBuildFlow } from "./flow-ai";
-import { flowStats } from "./flow-stats";
+import { flowStats, flowsSummary } from "./flow-stats";
 import { flowPeople, flowVersions, leadRuns, restoreVersion, testKeyword } from "./flow-history";
 
 /** Flows (NEW_FEATURES_PLAN §4.5; plan 1B Task 3): whoever may manage Instagram flows. */
@@ -42,8 +41,30 @@ export async function instagramFlowRoutes(app: FastifyInstance, d: AppDeps): Pro
     .strict();
 
   r.get("/api/v1/instagram/flows", manage, (req) => flowsView(req));
+  // Every flow's numbers over one range (plan 2026-11-25-instagram-screens D3): the Flows page's table and tiles.
+  const range = z
+    .object({
+      from: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional(),
+      to: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional(),
+      days: z.coerce.number().int().min(1).max(366).optional(),
+    })
+    .strict();
+  r.get("/api/v1/instagram/flows/summary", { ...manage, schema: { querystring: range } }, async (req) => {
+    await requireFlows(req);
+    return flowsSummary(req, req.query, d.clock());
+  });
   r.get("/api/v1/instagram/flows/templates", manage, () => ({
-    templates: Object.entries(FLOW_TEMPLATES).map(([key, t]) => ({ key, name: t.name })),
+    // The ready-made flows (plan 2026-11-25-instagram-screens D4), in the order the New flow sheet shows them.
+    templates: READY_KEYS.map((key) => {
+      const f = readyFlow(key);
+      return { key, group: f.group, name: f.name, what: f.what, starts: f.starts, trigger: f.trigger };
+    }),
   }));
   r.post(
     "/api/v1/instagram/flows",
@@ -53,7 +74,7 @@ export async function instagramFlowRoutes(app: FastifyInstance, d: AppDeps): Pro
         body: z
           .object({
             name: z.string().max(200),
-            template: z.enum(Object.keys(FLOW_TEMPLATES) as [TemplateKey, ...TemplateKey[]]).optional(),
+            template: z.enum(READY_KEYS as [ReadyKey, ...ReadyKey[]]).optional(),
           })
           .strict(),
       },
@@ -121,7 +142,7 @@ export async function instagramFlowRoutes(app: FastifyInstance, d: AppDeps): Pro
           .strict(),
       },
     },
-    (req) => flowStats(req, req.params.id, req.query),
+    (req) => flowStats(req, req.params.id, req.query, d.clock()),
   );
   // Versions, one brought back, a lead's way through the flow, the keyword tester (plan 2026-11-23-flow-builder A3).
   r.get("/api/v1/instagram/flows/:id/versions", { ...manage, schema: { params: id } }, (req) =>

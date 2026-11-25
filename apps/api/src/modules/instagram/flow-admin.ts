@@ -2,18 +2,23 @@ import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import {
   blocking,
+  can,
   foldKeyword,
   flowRefs,
   graphRefs,
   isGraph,
   newId,
+  readyFlow,
+  readyTags,
   toGraph,
   validateFlow,
   validateGraph,
+  withTags,
   type FlowGraph,
   type FlowProblem,
   type FlowStep,
   type KeywordMode,
+  type ReadyKey,
 } from "@lume/core";
 import { audit } from "../../audit/audit";
 import { HttpError, badRequest, conflict, notFound } from "../../http/errors";
@@ -94,6 +99,7 @@ export async function flowsView(req: FastifyRequest) {
       name: string;
       status: string;
       priority: number;
+      rev: number;
       version: number | null;
       updated_at: Date;
       triggers: TriggerIn[] | null;
@@ -102,7 +108,7 @@ export async function flowsView(req: FastifyRequest) {
     WITH active AS (
       SELECT flow_id, count(*)::int AS n FROM instagram_flow_runs
        WHERE status IN ('running', 'waiting') GROUP BY flow_id)
-    SELECT f.id, f.name, f.status, f.priority, v.version, f.updated_at,
+    SELECT f.id, f.name, f.status, f.priority, f.rev, v.version, f.updated_at,
            (SELECT json_agg(json_build_object(
                      'id', t.id, 'kind', t.kind, 'accountId', t.account_id, 'keywords', t.keywords, 'mode', t.mode,
                      'mediaIds', t.media_ids, 'adIds', t.ad_ids, 'publicReplies', t.public_replies,
@@ -120,6 +126,7 @@ export async function flowsView(req: FastifyRequest) {
       name: f.name,
       status: f.status,
       priority: f.priority,
+      rev: f.rev,
       version: f.version,
       updatedAt: f.updated_at,
       triggers: f.triggers ?? [],
@@ -184,19 +191,54 @@ const cleanName = (name: string) => {
   return n;
 };
 
-export async function createFlow(req: FastifyRequest, body: { name: string; template?: TemplateKey }) {
+/**
+ * A new draft: from nothing, or from a ready-made flow (plan 2026-11-25-instagram-screens D4) as its graph with what
+ * starts it. A tag the ready-made flow names is the business's own tag of that name; when there's none it's made for
+ * someone who may make tags, and left for the builder to choose for anyone else.
+ */
+export async function createFlow(req: FastifyRequest, body: { name: string; template?: ReadyKey }) {
   await requireFlows(req);
   const id = newId();
-  const steps = body.template ? FLOW_TEMPLATES[body.template].steps() : [];
+  const ready = body.template ? readyFlow(body.template) : null;
+  let draft: FlowStep[] | FlowGraph = [];
+  if (ready) {
+    const graph = ready.graph();
+    const ids: Record<string, string> = {};
+    for (const label of readyTags(graph)) {
+      const found = async () =>
+        (await req.db.execute<{ id: string }>(sql`SELECT id FROM tags WHERE label = ${label}`)).rows[0]?.id;
+      let tagId = await found();
+      if (!tagId && can(req.actor!, "settings.manage")) {
+        const made = newId();
+        const r = await req.db.execute(
+          sql`INSERT INTO tags (id, label) VALUES (${made}, ${label}) ON CONFLICT (label) DO NOTHING`,
+        );
+        if (r.rowCount) {
+          await audit(req, { action: "tag.created", entityType: "tag", entityId: made, diff: { label } });
+          tagId = made;
+        } else tagId = await found(); // made by someone else meanwhile: theirs
+      }
+      if (tagId) ids[label] = tagId;
+    }
+    draft = withTags(graph, ids);
+  }
   const name = cleanName(body.name);
   await req.db.execute(sql`
     INSERT INTO instagram_flows (id, name, status, draft_steps, created_by)
-    VALUES (${id}, ${name}, 'draft', ${JSON.stringify(steps)}::jsonb, ${req.actor!.userId})`);
+    VALUES (${id}, ${name}, 'draft', ${JSON.stringify(draft)}::jsonb, ${req.actor!.userId})`);
+  if (ready) {
+    const t = ready.trigger;
+    await req.db.execute(sql`
+      INSERT INTO instagram_triggers
+        (id, flow_id, account_id, kind, keywords, mode, media_ids, ad_ids, public_replies, cooldown_hours, enabled)
+      VALUES (${newId()}, ${id}, NULL, ${t.kind}, ${pgArray(t.keywords)}::text[], ${t.keywords.length ? "word" : "any"},
+              '{}'::text[], '{}'::text[], '{}'::text[], 24, true)`);
+  }
   await audit(req, {
     action: "instagram.flow.created",
     entityType: "instagram_flow",
     entityId: id,
-    diff: { name },
+    diff: { name, ...(ready ? { template: ready.key } : {}) },
   });
   return flowView(req, id);
 }
@@ -484,74 +526,3 @@ export async function setTriggers(
   });
   return flowView(req, flowId);
 }
-
-/**
- * Ready-made starts (generic copy, LUME's voice; every link the business must fill is left empty so the flow can't
- * be published until it is). Step ids are fresh each time.
- */
-const sid = () => newId().replace(/-/g, "").slice(-12);
-export const FLOW_TEMPLATES = {
-  lead_magnet: {
-    name: "Lead magnet",
-    steps: (): FlowStep[] => [
-      {
-        id: sid(),
-        type: "send",
-        text: "Thanks for your comment! Here's the guide you asked for.",
-        buttons: [{ title: "Get the guide", url: "" }],
-      },
-      {
-        id: sid(),
-        type: "ask",
-        text: "Want more like this? What's your email?",
-        save: { field: "email", kind: "email" },
-        fallback: "That doesn't look like an email. Could you check it?",
-      },
-      { id: sid(), type: "handoff", to: "person", note: "Got the guide" },
-    ],
-  },
-  qualify_and_book: {
-    name: "Qualify and book",
-    steps: (): FlowStep[] => {
-      const q = sid();
-      return [
-        {
-          id: q,
-          type: "ask",
-          text: "Happy to help! What are you looking for?",
-          save: { field: "interest", kind: "choice" },
-          choices: ["Prices", "Book a call", "Something else"],
-          fallback: "Tap one of the options above.",
-        },
-        {
-          id: sid(),
-          type: "condition",
-          when: { on: "answer", key: "interest", op: "is", value: "Something else" },
-          then: [{ id: sid(), type: "handoff", to: "person", note: "Asked about something else" }],
-          else: [
-            {
-              id: sid(),
-              type: "book",
-              text: "The quickest way is a short call. Pick a time that suits you.",
-              url: "",
-            },
-          ],
-        },
-      ];
-    },
-  },
-  story_reply_thanks: {
-    name: "Story reply thanks",
-    steps: (): FlowStep[] => [
-      { id: sid(), type: "send", text: "Thanks for replying to our story! What caught your eye?" },
-    ],
-  },
-  ad_welcome: {
-    name: "Ad welcome",
-    steps: (): FlowStep[] => [
-      { id: sid(), type: "send", text: "Hi! Thanks for reaching out from our ad. How can we help?" },
-      { id: sid(), type: "handoff", to: "person", note: "Came from an ad" },
-    ],
-  },
-} as const;
-export type TemplateKey = keyof typeof FLOW_TEMPLATES;

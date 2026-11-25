@@ -2,10 +2,10 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { chatClient } from "./client";
 import { APART_MS, CHECK_MS, SOON_MS, useChatUnread } from "./useChatUnread";
-import { setViewing, tellMuted } from "./viewing";
+import { setViewing, tellMuted, threadKey } from "./viewing";
 
 /** The sidebar's number (review 2, C1): counted here, asked for seldom, whatever a busy channel does. */
-type E = { c?: string; e: string; m?: number; u?: string; l?: true };
+type E = { c?: string; e: string; m?: number; u?: string; l?: true; t?: number; f?: true };
 const stream = vi.hoisted(() => ({ chat: new Set<(e: E) => void>() }));
 vi.mock("@/lib/notifications/stream", () => ({
   subscribeChat: (l: never) => {
@@ -29,7 +29,7 @@ const start = async () => {
 beforeEach(() => {
   vi.useFakeTimers();
   vi.clearAllMocks();
-  setViewing(null);
+  setViewing(CH, false);
   server(2);
 });
 afterEach(() => void vi.useRealTimers());
@@ -40,7 +40,7 @@ it("a hundred messages are counted without asking; muted, and the one on screen,
   for (let i = 0; i < 100; i++) say({ c: CH, e: "message", m: i, u: SANA });
   expect(n.current).toBe(102);
   say({ c: QUIET, e: "message", m: 500, u: SANA });
-  setViewing(CH);
+  setViewing(CH, true);
   say({ c: CH, e: "message", m: 501, u: SANA });
   expect(n.current).toBe(102);
   await wait(CHECK_MS - 1000);
@@ -50,6 +50,29 @@ it("a hundred messages are counted without asking; muted, and the one on screen,
   await wait(CHECK_MS + 1000);
   expect(n.current).toBe(3);
   expect(chatClient.unread).toHaveBeenCalledTimes(2);
+});
+
+it("a followed thread's reply counts, once; not one's own, not muted, not the one open, not another's", async () => {
+  const n = await start();
+  say({ c: CH, e: "reply", m: 9, u: SANA, t: 5, f: true });
+  expect(n.current).toBe(3);
+  // A lead's thread says who follows it too: counted here, with nothing asked.
+  say({ c: "lead", e: "reply", m: 10, u: SANA, t: 6, f: true, l: true });
+  expect(n.current).toBe(4);
+  say({ c: CH, e: "reply", m: 11, u: SANA, t: 7 });
+  say({ c: QUIET, e: "reply", m: 12, u: SANA, t: 8, f: true });
+  setViewing(threadKey(5), true);
+  say({ c: CH, e: "reply", m: 13, u: SANA, t: 5, f: true });
+  setViewing(threadKey(5), false);
+  expect(n.current).toBe(4);
+  await wait(SOON_MS + 100);
+  expect(chatClient.unread).toHaveBeenCalledTimes(1);
+  // One's own, from another tab, has read what came before it: the server says what's left.
+  await wait(APART_MS);
+  server(1);
+  say({ c: CH, e: "reply", m: 14, u: ME, t: 5, f: true });
+  await wait(SOON_MS + 100);
+  expect(n.current).toBe(1);
 });
 
 it("what can't be counted here is asked for, soon and then seldom", async () => {

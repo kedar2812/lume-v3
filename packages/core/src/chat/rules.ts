@@ -13,6 +13,10 @@ export const CHAT_LIMITS = {
   page: 50,
   /** The browser says "typing" at most this often while keys are pressed. */
   typingEveryMs: 3000,
+  /** People and teams one message may name. */
+  mentions: 50,
+  /** Anyone may name everyone in a channel of at most this many; past it, whoever manages channels. */
+  channelWide: 50,
   /** Others show it this long after the last. */
   typingShowsMs: 5000,
   /** Online: a live stream open in this long. */
@@ -49,6 +53,38 @@ export function typingWords(names: string[]): string {
   if (names.length === 1) return `${names[0]} is typing…`;
   if (names.length === 2) return `${names[0]} and ${names[1]} are typing…`;
   return "Several people are typing…";
+}
+
+/** A thread's replies, in words. */
+export const repliesWords = (n: number): string => (n === 1 ? "1 reply" : `${n} replies`);
+
+/**
+ * What the bell says of a mention or a direct message: who and how many, and never a word of what was said (it may
+ * hold a lead's number). `name`: the channel's or the lead's; `n` is counted to 100.
+ */
+export function chatNotice(o: {
+  kind: "chat_mention" | "chat_direct";
+  in: "channel" | "direct" | "lead";
+  name: string | null;
+  by: string;
+  n: number;
+  /** A direct message of more than two people. */
+  group: boolean;
+}): string {
+  const many = o.n > 99 ? "99+" : String(o.n);
+  if (o.kind === "chat_direct") {
+    if (o.n === 1) return `New message from ${o.by}${o.group ? " in your group" : ""}`;
+    return o.group
+      ? `${many} new messages in your group, the last from ${o.by}`
+      : `${many} new messages from ${o.by}`;
+  }
+  const where =
+    o.in === "channel"
+      ? `in #${o.name}`
+      : o.in === "lead"
+        ? `about ${o.name?.trim() || "a lead with no name"}`
+        : "in a direct message";
+  return o.n === 1 ? `${o.by} mentioned you ${where}` : `You were mentioned ${many} times ${where}`;
 }
 
 /** A folded list's unread, as its heading says it: nothing at none, 99+ past 99. */

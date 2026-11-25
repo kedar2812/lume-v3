@@ -1,10 +1,12 @@
 "use client";
+import { plainOf, repliesWords } from "@lume/core/shared";
 import { memo, useState } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import type { MessageView } from "@/lib/chat/client";
+import { Words, type NameOf } from "./Words";
 import s from "./chat.module.css";
 
-export type Who = { name: string; color?: string; photo?: string };
+export type Who = { name: string; color?: string; photo?: string; active?: boolean };
 export type Shown = MessageView & {
   side: "in" | "mine";
   head: boolean;
@@ -34,6 +36,11 @@ export const Bubble = memo(function Bubble({
   onDelete,
   onRetry,
   onDiscard,
+  onThread,
+  lastReply,
+  faceOf,
+  nameOf,
+  me,
 }: {
   m: Shown;
   who: Who;
@@ -47,6 +54,13 @@ export const Bubble = memo(function Bubble({
   onDelete: (m: Shown) => void;
   onRetry: (m: Shown) => void;
   onDiscard: (m: Shown) => void;
+  /** Opens the thread on this message (or the one it was said in); none inside a thread itself. */
+  onThread?: (m: Shown) => void;
+  /** When its thread was last answered, in words; its people, by id. */
+  lastReply?: string | null;
+  faceOf?: (id: string) => Who;
+  nameOf: NameOf;
+  me: string;
 }) {
   const gone = m.deletedAt !== null;
   /** On a touch screen, a tap on the bubble brings what can be done with it. */
@@ -114,10 +128,17 @@ export const Bubble = memo(function Bubble({
               {who.name}
             </span>
           )}
+          {onThread && m.threadRoot !== null && (
+            <button type="button" className={s.inthread} onClick={() => onThread(m)}>
+              Replied in a thread
+            </button>
+          )}
           {!gone && m.replyTo && (
             <div className={s.quote}>
               <b>{quoteWho ?? "Someone"}</b>
-              <span>{m.replyTo.body ?? "This message was deleted"}</span>
+              <span>
+                {m.replyTo.body === null ? "This message was deleted" : plainOf(m.replyTo.body, nameOf)}
+              </span>
             </div>
           )}
           {!gone &&
@@ -139,7 +160,7 @@ export const Bubble = memo(function Bubble({
             </div>
           ) : m.body ? (
             <div className={s.mtext}>
-              {m.body}
+              <Words body={m.body} nameOf={nameOf} me={me} />
               {meta}
             </div>
           ) : (
@@ -162,6 +183,23 @@ export const Bubble = memo(function Bubble({
               </button>
             ))}
           </div>
+        )}
+        {onThread && m.thread && (
+          <button type="button" className={s.tlink} onClick={() => onThread(m)}>
+            <span className={s.tfaces} aria-hidden>
+              {m.thread.faces.map((f) => (
+                <Avatar key={f} size={18} {...(faceOf?.(f) ?? { name: "Someone" })} />
+              ))}
+            </span>
+            <b>{repliesWords(m.thread.replies)}</b>
+            {lastReply && <span className={s.tlast}>Last reply {lastReply}</span>}
+          </button>
+        )}
+        {m.notTold && m.notTold.length > 0 && !gone && (
+          <span className={s.why}>
+            Not told, as they can&apos;t read this:{" "}
+            {m.notTold.map((p) => nameOf("person", p) ?? "someone").join(", ")}
+          </span>
         )}
         {m.pending === "failed" && (
           <span className={s.failed}>
@@ -203,6 +241,19 @@ export const Bubble = memo(function Bubble({
           >
             Reply
           </button>
+          {onThread && (
+            <button
+              type="button"
+              tabIndex={stop}
+              className={s.tbtn}
+              onClick={() => {
+                done();
+                onThread(m);
+              }}
+            >
+              Thread
+            </button>
+          )}
           {m.side === "mine" && (
             <>
               <button

@@ -3,7 +3,8 @@ import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 import { memo } from "react";
 import type { GNode } from "@lume/core/shared";
 import { exitsOfNode } from "./graph-edit";
-import { KINDS, summary, waitWords } from "./kinds";
+import { KINDS, summary, waitWords, type StepKind } from "./kinds";
+import { ICON_SIZE, STEP_ICONS } from "@/components/ui/icons";
 import s from "./builder.module.css";
 
 export type StepData = {
@@ -19,21 +20,10 @@ export type StepData = {
 };
 export type StepNode = Node<StepData, "step">;
 
-/** A step's icon, 16×16 strokes. */
-export function KindIcon({ d }: { d: string }) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d={d} />
-    </svg>
-  );
+/** A step's icon: LUME's own for its kind (components/ui/icons.tsx). */
+export function KindIcon({ kind }: { kind: StepKind }) {
+  const Icon = STEP_ICONS[kind];
+  return <Icon size={ICON_SIZE.md} aria-hidden />;
 }
 
 /** Long words shortened on the card, whole in the panel: never a line cut in half. */
@@ -102,7 +92,7 @@ function StepCardImpl({ data, selected }: NodeProps<StepNode>) {
       <Handle type="target" position={Position.Left} id="in" className={s.pin} />
       <span className={s.nh}>
         <span className={s.nt}>
-          <KindIcon d={kind.icon} />
+          <KindIcon kind={n.type} />
         </span>
         <span className={s.titles}>
           <span className={s.nk}>{kind.label}</span>

@@ -4,6 +4,8 @@ import type { FastifyRequest } from "fastify";
 import { audit } from "../../audit/audit";
 import { badRequest, notFound } from "../../http/errors";
 import { bigints, convOf, tell, uuids } from "./conversations";
+import { keepMentions, mentionedIn, namedIn, readersOf } from "./mentions";
+import { noteChat, settleNotices, type Notices } from "./notices";
 
 /**
  * Team Chat's messages (plan 2026-11-24-team-chat-2a, Task 4): read and written as the person, so a conversation they
@@ -21,14 +23,21 @@ export type MessageView = {
   kind: "text" | "system";
   body: string | null;
   replyTo: { id: number; authorId: string | null; body: string | null } | null;
+  /** A reply in a thread (plan 2026-11-25-team-chat-2b): the message it hangs on, and whether it's in the conversation too. */
+  threadRoot: number | null;
+  alsoSent: boolean;
+  /** The thread on this message, once it has a reply: its last three people's ids. */
+  thread: { replies: number; lastAt: string; faces: string[] } | null;
   files: FileView[];
   reactions: { emoji: string; count: number; mine: boolean }[];
   editedAt: string | null;
   deletedAt: string | null;
   createdAt: string;
+  /** To its sender, as it's sent: people it names who can't read it, and so weren't told. */
+  notTold?: string[];
 };
 
-type Row = {
+export type Row = {
   id: string;
   conversation_id: string;
   author_id: string | null;
@@ -36,6 +45,8 @@ type Row = {
   kind: "text" | "system";
   body: string | null;
   reply_to: string | null;
+  thread_root: string | null;
+  also_sent: boolean;
   edited_at: Date | null;
   deleted_at: Date | null;
   created_at: Date;
@@ -43,7 +54,7 @@ type Row = {
 const iso = (d: Date | null) => (d ? new Date(d).toISOString() : null);
 
 /** Messages as the screen shows them: with what they reply to, their files and reactions; deleted ones emptied. */
-async function viewsOf(req: FastifyRequest, rows: Row[]): Promise<MessageView[]> {
+export async function viewsOf(req: FastifyRequest, rows: Row[]): Promise<MessageView[]> {
   if (!rows.length) return [];
   const me = req.actor!.userId;
   const ids = rows.map((r) => Number(r.id));
@@ -78,7 +89,13 @@ async function viewsOf(req: FastifyRequest, rows: Row[]): Promise<MessageView[]>
       FROM chat_reactions WHERE message_id = ANY(${bigints(ids)})
       GROUP BY message_id, emoji ORDER BY count(*) DESC, emoji`)
   ).rows;
+  const threads = (
+    await req.db.execute<{ root_id: string; replies: number; last_at: Date; faces: string[] }>(sql`
+      SELECT root_id, replies, last_at, faces::text[] AS faces FROM chat_threads
+      WHERE root_id = ANY(${bigints(ids)}) AND replies > 0`)
+  ).rows;
   return rows.map((r) => {
+    const t = threads.find((x) => x.root_id === r.id);
     const gone = r.deleted_at !== null;
     const q = r.reply_to ? replies.find((x) => x.id === r.reply_to) : undefined;
     return {
@@ -90,6 +107,10 @@ async function viewsOf(req: FastifyRequest, rows: Row[]): Promise<MessageView[]>
       body: gone ? null : r.body,
       replyTo:
         q && !gone ? { id: Number(q.id), authorId: q.author_id, body: q.deleted_at ? null : q.body } : null,
+      threadRoot: r.thread_root === null ? null : Number(r.thread_root),
+      alsoSent: r.also_sent,
+      // Kept when its first message is deleted: what was answered there stands.
+      thread: t ? { replies: t.replies, lastAt: iso(t.last_at)!, faces: t.faces } : null,
       files: gone
         ? []
         : files
@@ -114,7 +135,9 @@ async function viewsOf(req: FastifyRequest, rows: Row[]): Promise<MessageView[]>
   });
 }
 
-const COLS = sql`id, conversation_id, author_id, client_id, kind, body, reply_to, edited_at, deleted_at, created_at`;
+export const COLS = sql`id, conversation_id, author_id, client_id, kind, body, reply_to, thread_root, also_sent, edited_at, deleted_at, created_at`;
+/** A conversation's own messages: a thread's replies are in it only when also sent there. */
+export const MAIN = sql`(thread_root IS NULL OR also_sent)`;
 
 export type MessagePage = {
   messages: MessageView[];
@@ -138,12 +161,12 @@ export async function messagesOf(
     q.after !== undefined
       ? (
           await req.db.execute<Row>(
-            sql`SELECT ${COLS} FROM chat_messages WHERE conversation_id = ${id} AND id > ${q.after} ORDER BY id LIMIT ${n + 1}`,
+            sql`SELECT ${COLS} FROM chat_messages WHERE conversation_id = ${id} AND ${MAIN} AND id > ${q.after} ORDER BY id LIMIT ${n + 1}`,
           )
         ).rows
       : (
           await req.db.execute<Row>(sql`
-            SELECT ${COLS} FROM chat_messages WHERE conversation_id = ${id}
+            SELECT ${COLS} FROM chat_messages WHERE conversation_id = ${id} AND ${MAIN}
               ${q.before !== undefined ? sql`AND id < ${q.before}` : sql``}
             ORDER BY id DESC LIMIT ${n + 1}`)
         ).rows;
@@ -172,7 +195,7 @@ export async function messagesOf(
   };
 }
 
-async function oneOf(req: FastifyRequest, mid: number): Promise<MessageView> {
+export async function oneOf(req: FastifyRequest, mid: number): Promise<MessageView> {
   const rows = (await req.db.execute<Row>(sql`SELECT ${COLS} FROM chat_messages WHERE id = ${mid}`)).rows;
   return (await viewsOf(req, rows))[0]!;
 }
@@ -204,6 +227,7 @@ async function markRead(
 
 export async function sendMessage(
   req: FastifyRequest,
+  notices: Notices,
   id: string,
   b: {
     clientId: string;
@@ -211,6 +235,8 @@ export async function sendMessage(
     replyTo?: number | undefined;
     files?: string[] | undefined;
   },
+  /** A reply in this message's thread; `also`: in the conversation too. */
+  thread?: { root: number; also: boolean },
 ): Promise<{ created: boolean; message: MessageView }> {
   const me = req.actor!.userId;
   const c = await convOf(req, id);
@@ -220,6 +246,15 @@ export async function sendMessage(
     throw badRequest("FILES", `A message can carry at most ${CHAT_LIMITS.files} files.`);
   const problem = bodyProblem(text, files.length > 0);
   if (problem) throw badRequest("BODY", problem);
+  const named = await namedIn(req, c, text);
+  const readers = await readersOf(req, c, named);
+  const root = thread && !thread.also ? thread.root : 0;
+  /** The message as kept, and whom it names that wasn't told: the same answer however often it's sent. */
+  const answer = async (id2: number, created: boolean) => {
+    const notTold = await keepMentions(req, notices, c, { id: id2, root }, named, readers);
+    const message = await oneOf(req, id2);
+    return { created, message: notTold.length ? { ...message, notTold } : message };
+  };
   // The same send again (a retry, another tab): it is that message, whether it landed already or lands meanwhile.
   const again = async () =>
     (
@@ -231,11 +266,12 @@ export async function sendMessage(
   // newest has every one before it, and a retry sees the send it repeats.
   await req.db.execute(sql`SELECT 1 FROM chat_conversations WHERE id = ${id} FOR NO KEY UPDATE`);
   const had = await again();
-  if (had) return { created: false, message: await oneOf(req, Number(had.id)) };
+  if (had) return answer(Number(had.id), false);
   if (b.replyTo !== undefined) {
     const to = (
       await req.db.execute<{ id: string }>(
-        sql`SELECT id FROM chat_messages WHERE id = ${b.replyTo} AND conversation_id = ${id} AND deleted_at IS NULL`,
+        sql`SELECT id FROM chat_messages WHERE id = ${b.replyTo} AND conversation_id = ${id} AND deleted_at IS NULL
+          AND ${thread ? sql`(id = ${thread.root} OR thread_root = ${thread.root})` : MAIN}`,
       )
     ).rows[0];
     if (!to) throw badRequest("REPLY", "That message can't be replied to.");
@@ -252,19 +288,30 @@ export async function sendMessage(
   }
   const made = (
     await req.db.execute<{ id: string }>(sql`
-      INSERT INTO chat_messages (conversation_id, author_id, body, reply_to, client_id)
-      VALUES (${id}, ${me}, ${text || null}, ${b.replyTo ?? null}, ${b.clientId})
+      INSERT INTO chat_messages (conversation_id, author_id, body, reply_to, client_id, thread_root, also_sent)
+      VALUES (${id}, ${me}, ${text || null}, ${b.replyTo ?? null}, ${b.clientId}, ${thread?.root ?? null}, ${thread?.also ?? false})
       ON CONFLICT (conversation_id, author_id, client_id) DO NOTHING RETURNING id`)
   ).rows[0];
   if (!made) {
     const raced = await again();
-    return { created: false, message: await oneOf(req, Number(raced!.id)) };
+    return answer(Number(raced!.id), false);
   }
   const mid = Number(made.id);
   if (files.length)
     await req.db.execute(
       sql`UPDATE chat_files SET message_id = ${mid} WHERE id = ANY(${uuids(files)}) AND message_id IS NULL`,
     );
+  if (thread && !thread.also) {
+    // Only in its thread: the conversation stays as it was, for everyone. Someone writing here for the first time about
+    // a lead keeps a place in its thread from now on, with nothing said before it waiting for them.
+    if (c.kind === "lead")
+      await req.db.execute(sql`
+        INSERT INTO chat_members (conversation_id, user_id, via, last_read_id, last_delivered_id)
+        SELECT id, ${me}, 'lead', coalesce(last_message_id, 0), coalesce(last_message_id, 0)
+        FROM chat_conversations WHERE id = ${id} ON CONFLICT DO NOTHING`);
+    await tell(req, { c: id, e: "reply", m: mid, u: me, t: thread.root });
+    return answer(mid, true);
+  }
   await req.db.execute(sql`
     UPDATE chat_conversations SET last_message_id = greatest(coalesce(last_message_id, 0), ${mid}), last_at = now()
     WHERE id = ${id}`);
@@ -276,9 +323,20 @@ export async function sendMessage(
     await req.db.execute(sql`SELECT lume_chat_follow_owner(${id})`);
   }
   await markRead(req, c, mid);
-  await tell(req, { c: id, e: "message", m: mid, u: me });
-  return { created: true, message: await oneOf(req, mid) };
+  await tell(req, { c: id, e: "message", m: mid, u: me, ...(thread ? { t: thread.root } : {}) });
+  if (c.kind === "direct")
+    for (const to of await othersIn(req, id))
+      noteChat(req, notices, { userId: to, conv: id, kind: "chat_direct", root: 0 });
+  return answer(mid, true);
 }
+
+/** Everyone else in a conversation. */
+const othersIn = async (req: FastifyRequest, id: string): Promise<string[]> =>
+  (
+    await req.db.execute<{ user_id: string }>(
+      sql`SELECT user_id FROM chat_members WHERE conversation_id = ${id} AND user_id <> ${req.actor!.userId}`,
+    )
+  ).rows.map((r) => r.user_id);
 
 /** 404 unless it's the person's own message (someone else's can't be changed, and isn't said to exist). */
 async function ownOf(req: FastifyRequest, mid: number) {
@@ -287,23 +345,34 @@ async function ownOf(req: FastifyRequest, mid: number) {
       conversation_id: string;
       body: string | null;
       deleted_at: Date | null;
+      thread_root: string | null;
+      also_sent: boolean;
       files: number;
     }>(sql`
-      SELECT m.conversation_id, m.body, m.deleted_at, (SELECT count(*)::int FROM chat_files f WHERE f.message_id = m.id) AS files
+      SELECT m.conversation_id, m.body, m.deleted_at, m.thread_root, m.also_sent, (SELECT count(*)::int FROM chat_files f WHERE f.message_id = m.id) AS files
       FROM chat_messages m WHERE m.id = ${mid} AND m.author_id = ${req.actor!.userId} FOR UPDATE OF m`)
   ).rows[0];
   if (!row || row.deleted_at) throw notFound("NOT_FOUND", "That message isn't there.");
   // Nothing changes in an archived channel.
-  await convOf(req, row.conversation_id);
-  return row;
+  const conv = await convOf(req, row.conversation_id);
+  const root = row.thread_root !== null && !row.also_sent ? Number(row.thread_root) : 0;
+  return { ...row, conv, root };
 }
 
-export async function editMessage(req: FastifyRequest, mid: number, body: string): Promise<MessageView> {
+export async function editMessage(
+  req: FastifyRequest,
+  notices: Notices,
+  mid: number,
+  body: string,
+): Promise<MessageView> {
   const m = await ownOf(req, mid);
   const text = bodyOf(body);
   const problem = bodyProblem(text, m.files > 0);
   if (problem) throw badRequest("BODY", problem);
+  let notTold: string[] = [];
   if (text !== (m.body ?? "")) {
+    const named = await namedIn(req, m.conv, text, m.body ?? "");
+    const readers = await readersOf(req, m.conv, named);
     if (m.body !== null)
       await req.db.execute(sql`INSERT INTO chat_message_edits (message_id, body) VALUES (${mid}, ${m.body})`);
     await req.db.execute(
@@ -311,15 +380,30 @@ export async function editMessage(req: FastifyRequest, mid: number, body: string
     );
     await audit(req, { action: "chat.message.edited", entityType: "chat_message", entityId: String(mid) });
     await tell(req, { c: m.conversation_id, e: "edited", m: mid });
+    notTold = await keepMentions(req, notices, m.conv, { id: mid, root: m.root }, named, readers);
   }
-  return oneOf(req, mid);
+  const message = await oneOf(req, mid);
+  return notTold.length ? { ...message, notTold } : message;
 }
 
-export async function deleteMessage(req: FastifyRequest, mid: number): Promise<void> {
+export async function deleteMessage(req: FastifyRequest, notices: Notices, mid: number): Promise<void> {
   const m = await ownOf(req, mid);
   await req.db.execute(sql`UPDATE chat_messages SET deleted_at = now() WHERE id = ${mid}`);
   await audit(req, { action: "chat.message.deleted", entityType: "chat_message", entityId: String(mid) });
-  await tell(req, { c: m.conversation_id, e: "deleted", m: mid });
+  // Whatever the bell said of it is said again without it, or taken back.
+  const conv = m.conversation_id;
+  for (const userId of await mentionedIn(req, mid))
+    noteChat(req, notices, { userId, conv, kind: "chat_mention", root: m.root }, true);
+  if (m.conv.kind === "direct" && m.root === 0)
+    for (const userId of await othersIn(req, conv))
+      noteChat(req, notices, { userId, conv, kind: "chat_direct", root: 0 }, true);
+  // A thread's reply: its first message says one fewer.
+  await tell(req, {
+    c: m.conversation_id,
+    e: "deleted",
+    m: mid,
+    ...(m.thread_root === null ? {} : { t: Number(m.thread_root) }),
+  });
 }
 
 const segmenter = new Intl.Segmenter("en", { granularity: "grapheme" });
@@ -356,6 +440,7 @@ export async function read(req: FastifyRequest, id: string, upTo: number): Promi
   const c = await convOf(req, id);
   const at = await markRead(req, c, upTo);
   if (at !== null) await tell(req, { c: id, e: "read", m: at, u: req.actor!.userId });
+  await settleNotices(req, id, 0, upTo);
 }
 
 /** A message reached one of the person's devices: a direct message's Delivered, and nothing anywhere else. */

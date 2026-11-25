@@ -1304,3 +1304,8 @@ select.input {
     animation: none;
   }
 }
+/* What starts it, beside its words. */
+.trigIc {
+  flex: none;
+  color: var(--text-3);
+}

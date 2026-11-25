@@ -4,6 +4,7 @@ export type IconName =
   | "replies"
   | "chat"
   | "autopilot"
+  | "flows"
   | "pipeline"
   | "livesheets"
   | "calendar"
@@ -17,8 +18,8 @@ export type NavItem = {
   href: string;
   icon: IconName;
   permission?: string;
-  /** Shown only while this is on for the person: LUME AI (Autopilot A3). */
-  needs?: "ai";
+  /** Shown only while this is on for the person: LUME AI (Autopilot A3), Instagram (its flows). */
+  needs?: "ai" | "instagram";
   phase: number;
 };
 
@@ -46,6 +47,16 @@ export const NAV_ITEMS: NavItem[] = [
     icon: "autopilot",
     permission: "leads.view",
     phase: 11,
+  },
+  {
+    // Instagram flows (plan 2026-11-25-instagram-screens D3; canvas board Flows): for whoever may build them.
+    id: "flows",
+    label: "Flows",
+    href: "/instagram/flows",
+    icon: "flows",
+    permission: "instagram.flows.manage",
+    needs: "instagram",
+    phase: 15,
   },
   {
     id: "pipeline",
@@ -107,8 +118,11 @@ export const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-export const visibleNav = (items: NavItem[], can: (p: string) => boolean, on: { ai?: boolean } = {}) =>
-  items.filter((i) => (!i.permission || can(i.permission)) && (i.needs !== "ai" || on.ai === true));
+export const visibleNav = (
+  items: NavItem[],
+  can: (p: string) => boolean,
+  on: { ai?: boolean; instagram?: boolean } = {},
+) => items.filter((i) => (!i.permission || can(i.permission)) && (!i.needs || on[i.needs] === true));
 
 export const activeNav = (items: NavItem[], pathname: string) =>
   items.find((i) => pathname === i.href || pathname.startsWith(`${i.href}/`));

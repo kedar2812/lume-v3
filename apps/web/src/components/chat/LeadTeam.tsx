@@ -23,6 +23,7 @@ export function LeadTeam({
 }) {
   const [conv, setConv] = useState<ConvRow | null>(null);
   const [said, setSaid] = useState<string | null>(null);
+  const [thread, setThread] = useState<number | null>(null);
   const who = useMemo(
     () => new Map<string, Who>(people.map((p) => [p.id, { name: p.name, ...lookOf(p.id, p.avatar) }])),
     [people],
@@ -32,6 +33,7 @@ export function LeadTeam({
     let live = true;
     setConv(null);
     setSaid(null);
+    setThread(null);
     void chatClient.leadThread(id).then((r) => {
       if (!live) return;
       if (r.ok)
@@ -65,7 +67,14 @@ export function LeadTeam({
               ? `Only people who can see ${first}'s lead read this. ${first} never does.`
               : "Only people who can see this lead read this. The lead never does."}
           </p>
-          <Conversation conv={{ ...conv, lead: { id, name, stage } }} me={me} people={who} zone={zone} />
+          <Conversation
+            conv={{ ...conv, lead: { id, name, stage } }}
+            me={me}
+            people={who}
+            zone={zone}
+            thread={thread}
+            onThread={setThread}
+          />
         </div>
       )}
     </div>

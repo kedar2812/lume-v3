@@ -10,9 +10,12 @@ import {
 } from "@lume/core/shared";
 import { useState, type ReactNode } from "react";
 import type { Catalog } from "@/lib/leads/types";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { KindIcon } from "./StepCard";
 import { KINDS } from "./kinds";
 import s from "./builder.module.css";
+
+const { close: X } = UI_ICONS;
 
 /** Flows a "Go to another flow" step may name. */
 export type FlowChoice = { id: string; name: string; status: string };
@@ -45,7 +48,7 @@ function Field({
 }
 const Remove = ({ onClick, what }: { onClick: () => void; what: string }) => (
   <button type="button" className={s.x} aria-label={`Remove ${what}`} onClick={onClick}>
-    ×
+    <X size={ICON_SIZE.md} aria-hidden />
   </button>
 );
 
@@ -91,14 +94,14 @@ export function Inspector({
     <aside className={s.insp} aria-label={`${kind.label} step`} data-tool>
       <div className={s.ih}>
         <span className={s.nt}>
-          <KindIcon d={kind.icon} />
+          <KindIcon kind={node.type} />
         </span>
         <b className={s.ihTitle}>{kind.label}</b>
         <button type="button" className={s.ghostBtn} onClick={onDelete}>
           Delete
         </button>
         <button type="button" className={s.x} aria-label="Close" onClick={onClose}>
-          ×
+          <X size={ICON_SIZE.md} aria-hidden />
         </button>
       </div>
       <div className={s.ib}>

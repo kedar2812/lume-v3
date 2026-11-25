@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Suspense } from "react";
 import { SidebarViews } from "@/components/views/SidebarViews";
 import { useAiOn } from "@/lib/ai/use-ai-on";
+import { useInstagramOn } from "@/lib/instagram/use-instagram-on";
 import { useLiveRuns } from "@/lib/autopilot/use-run";
 import { useUploadBatch } from "@/lib/media/uploads";
 import { SPRINGS, toMotion } from "@/lib/motion";
@@ -31,7 +32,8 @@ type Props = {
 export function Sidebar({ businessName, user, can, chatUnread = 0, onFeedback }: Props) {
   const pathname = usePathname();
   const ai = useAiOn();
-  const items = visibleNav(NAV_ITEMS, can, { ai });
+  const instagram = useInstagramOn(can("instagram.flows.manage"));
+  const items = visibleNav(NAV_ITEMS, can, { ai, instagram });
   const current = activeNav(items, pathname);
   // Autopilot's Live pill: a run this person can see is going (§2).
   const live = useLiveRuns(ai && can("leads.view")) > 0;

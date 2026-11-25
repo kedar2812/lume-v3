@@ -11,7 +11,7 @@ import { SNOOZE } from "@/components/tasks/NextFollowUp";
 import { Popover } from "@/components/ui/Popover";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { relativeTime } from "@/lib/leads/format";
-import { notificationsClient, sayUnread, type NotificationView } from "@/lib/notifications/client";
+import { chatHref, notificationsClient, sayUnread, type NotificationView } from "@/lib/notifications/client";
 import { useStream } from "@/lib/notifications/stream";
 import { tasksClient } from "@/lib/tasks/client";
 import { timezoneOf, whenInWords } from "@/lib/tasks/format";
@@ -201,6 +201,11 @@ export function NotificationCentre({
     router.push(`/leads?lead=${leadId}`);
     onClose();
   };
+  /** Team Chat, at the conversation (and thread) it's about. */
+  const openChat = (n: NotificationView & { chat: NonNullable<NotificationView["chat"]> }) => {
+    router.push(chatHref(n));
+    onClose();
+  };
   const snooze = async (t: TaskView, preset: (typeof SNOOZE)[number]["preset"]) => {
     const r = await tasksClient.snooze(t.id, { preset });
     if (!r.ok) return setError(r.message);
@@ -253,6 +258,9 @@ export function NotificationCentre({
     } else if (key === "s" && current?.type === "task") {
       e.preventDefault();
       items[at]!.querySelector<HTMLButtonElement>("[data-snooze] button[aria-haspopup]")?.click();
+    } else if (e.key === "Enter" && current?.type === "note" && current.n.chat && focused === row) {
+      e.preventDefault();
+      openChat({ ...current.n, chat: current.n.chat });
     } else if (e.key === "Enter" && current && leadOf(current) && focused === row) {
       e.preventDefault();
       openLead(leadOf(current)!);
@@ -565,6 +573,15 @@ export function NotificationCentre({
     const n = e.n;
     return (
       <>
+        {n.chat && (
+          <button
+            type="button"
+            className={`${s.btn} ${s.primary}`}
+            onClick={() => openChat({ ...n, chat: n.chat! })}
+          >
+            Open chat
+          </button>
+        )}
         {n.leadId && (
           <button type="button" className={s.btn} onClick={() => openLead(n.leadId!)}>
             Open lead
@@ -615,9 +632,11 @@ function icon(e: Entry): ReactNode {
         ? "M8 1.8 3 4v3.6c0 2.9 2.1 5.4 5 6.6 2.9-1.2 5-3.7 5-6.6V4L8 1.8Zm0 3.7v3m0 2v.1" // a shield: security
         : e.n.kind === "task_escalated" || e.n.kind === "system_alert"
           ? "M8 2 14.5 13.5h-13L8 2Zm0 4.5V9m0 2.2v.1" // a warning triangle
-          : e.n.kind === "lead_assigned"
-            ? "M5.5 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM1 14c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4M12 5v5m-2.5-2.5h5" // a person, added
-            : "M3 6.5a5 5 0 0 1 10 0c0 4 1.5 5 1.5 5h-13S3 10.5 3 6.5ZM6.5 13.5a1.6 1.6 0 0 0 3 0"; // a bell
+          : e.n.kind === "chat_mention" || e.n.kind === "chat_direct"
+            ? "M2 3.5h12v8H7l-3 2.5v-2.5H2v-8Z" // a bubble: Team Chat
+            : e.n.kind === "lead_assigned"
+              ? "M5.5 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM1 14c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4M12 5v5m-2.5-2.5h5" // a person, added
+              : "M3 6.5a5 5 0 0 1 10 0c0 4 1.5 5 1.5 5h-13S3 10.5 3 6.5ZM6.5 13.5a1.6 1.6 0 0 0 3 0"; // a bell
   return (
     <svg viewBox="0 0 16 16" width="16" height="16">
       <path

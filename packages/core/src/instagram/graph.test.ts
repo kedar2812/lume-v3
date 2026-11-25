@@ -96,6 +96,29 @@ describe("what stops a graph going live", () => {
     nodes: g.nodes.map((x) => (x.id === id ? ({ ...x, ...n } as GNode) : x)),
   });
 
+  it("words a ready-made flow left for the business ([[…]]) stop it going live until they're written", () => {
+    const FILL = "Write your own words where it says [[…]].";
+    const text = swap(base(), "hello", {
+      text: "Your code: [[YOUR CODE]]. Use it at checkout.",
+    } as Partial<GNode>);
+    expect(validateGraph(text, ok)).toContainEqual({ nodeId: "hello", words: FILL });
+    const choice = swap(base(), "q", {
+      save: { field: "service", kind: "choice" },
+      choices: [
+        { id: "c1", title: "[[Service one]]", next: null },
+        { id: "c2", title: "Something else", next: null },
+      ],
+    } as Partial<GNode>);
+    expect(validateGraph(choice, ok)).toContainEqual({ nodeId: "q", words: FILL });
+    const reply = swap(base(), "hello", {
+      replies: [{ id: "r1", title: "[[Hours]]", next: null }],
+    } as Partial<GNode>);
+    expect(words(validateGraph(reply, ok))).toContain(FILL);
+    // Brackets people use themselves are fine: only the doubled ones a template leaves.
+    const own = swap(base(), "hello", { text: "Prices [from 999] and [[ ]] art" } as Partial<GNode>);
+    expect(words(validateGraph(own, ok))).not.toContain(FILL);
+  });
+
   it("a line to a step that isn't there; two steps with one id; no first step", () => {
     expect(words(validateGraph(swap(base(), "w", { next: "gone" } as Partial<GNode>), ok))).toContain(
       "A line leads to a step that isn't there.",

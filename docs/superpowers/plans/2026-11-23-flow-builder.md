@@ -153,6 +153,37 @@ Edge-case sheet for C1: roles (rep without `instagram.flows.manage` refused; a v
 
 Each: the board's copy and states as approved, wired to the 1A/1B API that already serves them, its RTL tests, its Playwright pass with axe and the no-overflow check at 375/768/1280/1440 in both themes.
 
+### Task D7: Ready-made flows (owner 2026-11-25)
+
+Owner: "a bunch of template flows that are ready to use and most commonly used". Research 2026-11-25 (vendors' own
+guides and template packs): comment-to-DM is by far the most used, then story replies, keyword DMs for prices and FAQs,
+ad greetings and welcome messages; lead magnets ask for an email before the freebie. Meta gives third parties no
+follow event, so nothing waits on a follow or checks one. Generic names and LUME's own copy only; every link the
+business must fill is empty, so a template can't be published until it is. Each a graph (A1), with its trigger:
+
+| Key | Starts on | What it does |
+|---|---|---|
+| comment_link | comment, keyword | private reply with a button to the link; a tap sends it; then hands to a person if they write |
+| comment_freebie | comment, keyword | private reply → tap → email asked (saved) → the freebie's link → tagged, owner told |
+| price_question | comment or DM, "price" words | the prices link or text, then Book a call / Ask a question / Not now |
+| qualify_and_book | DM keyword | what they want, budget, when; a good fit gets the booking link, others go to a person |
+| faq_menu | DM keyword or welcome | quick replies (prices, hours, where, talk to a person), each its answer, then back to the menu |
+| welcome | first DM from someone new | hello, what LUME can help with, the menu; anything else goes to a person |
+| story_reply | story reply | thanks, what caught their eye, then a person |
+| story_mention | story mention | thanks for the mention, an offer to share more |
+| ad_greeting | ad (click to message) | the ad's offer, a question, the lead's stage set to the ad's |
+| event_signup | comment or DM keyword | the event, email asked, the link, a reminder a day before (wait), tagged |
+| giveaway | comment keyword | the entry confirmed in a private reply, the rules link, tagged "giveaway" (no follow check) |
+| discount_code | comment or DM keyword | the code and where to use it, tagged, a follow-up after 2 days if no reply |
+| waitlist | DM keyword | email asked, saved to the waitlist tag, told when it opens (owner sends) |
+| appointment | DM keyword | service chosen, the booking link, a person if none fits |
+| feedback | DM keyword after a sale | a rating by quick reply; 4–5 asks for a review link, 1–3 goes to a person |
+
+The New flow sheet shows them as cards by goal (Get leads, Sell, Answer questions, Events), each with a preview of
+its steps, then opens on the canvas ready to fill. Its look comes to the owner as a canvas board first.
+Tests: each template is a valid graph; publish refuses each until its links are filled; each runs end to end in the
+interpreter on its trigger (fixtures); byte limits and Meta's 13 quick replies / 20-character titles hold.
+
 ## Finish
 
 - [ ] Full gate (`dev.sh test-db clean` and no stale toolbox first), fresh reviewer on the whole branch, fixes, push per part (A, B, C, D) so each lands green on its own.

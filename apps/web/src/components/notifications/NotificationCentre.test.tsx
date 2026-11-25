@@ -15,7 +15,8 @@ vi.mock("@/components/feedback/SoundProvider", () => ({ useSound: () => ({ play 
 vi.mock("@/lib/tasks/client", () => ({
   tasksClient: { today: vi.fn(), done: vi.fn(), snooze: vi.fn(), nudge: vi.fn() },
 }));
-vi.mock("@/lib/notifications/client", () => ({
+vi.mock("@/lib/notifications/client", async (orig) => ({
+  ...(await orig<typeof import("@/lib/notifications/client")>()),
   notificationsClient: {
     list: vi.fn(),
     read: vi.fn(),
@@ -189,6 +190,33 @@ describe("the notification centre (3B Task 5)", () => {
     await act(() => new Promise((r) => setTimeout(r, 1200)));
     expect(updates()).toHaveTextContent("Karim Aziz was assigned");
     expect(updates()).not.toHaveTextContent("Tomorrow Lead");
+  });
+
+  it("a mention opens Chat at its conversation, and at the thread it was in; Enter does too", async () => {
+    vi.mocked(notificationsClient.list).mockResolvedValue(
+      ok({
+        items: [
+          note(9, "chat_mention", "Maya Kapoor mentioned you in #sales", {
+            leadId: null,
+            chat: { conversation: "c-1", thread: 44 },
+          }),
+          note(8, "chat_direct", "3 new messages from Sana Iqbal", {
+            leadId: null,
+            chat: { conversation: "c-2", thread: null },
+          }),
+        ],
+        unread: 2,
+      }),
+    );
+    const onClose = await open();
+    const mention = screen.getByRole("listitem", { name: "Maya Kapoor mentioned you in #sales" });
+    expect(within(mention).queryByRole("button", { name: "Open lead" })).toBeNull();
+    await userEvent.click(within(mention).getByRole("button", { name: "Open chat" }));
+    expect(push).toHaveBeenLastCalledWith("/chat?c=c-1&t=44&n=9");
+    expect(onClose).toHaveBeenCalledTimes(1);
+    screen.getByRole("listitem", { name: "3 new messages from Sana Iqbal" }).focus();
+    await userEvent.keyboard("{Enter}");
+    expect(push).toHaveBeenLastCalledWith("/chat?c=c-2&n=8");
   });
 
   it("filters: Needs you keeps follow-ups and escalations; Updates keeps the rest", async () => {

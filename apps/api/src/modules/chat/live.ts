@@ -27,6 +27,11 @@ export function createChatLive(pool: pg.Pool, hub: Hub) {
     new Set(
       (await pool.query<{ ids: string[] }>("SELECT lume_chat_member_ids($1) AS ids", [c])).rows[0]?.ids ?? [],
     );
+  const followersOf = async (root: number) =>
+    new Set(
+      (await pool.query<{ ids: string[] }>("SELECT lume_chat_thread_followers($1) AS ids", [root])).rows[0]
+        ?.ids ?? [],
+    );
   const membersOf = (c: string) => {
     let p = members.get(c);
     if (!p) {
@@ -53,7 +58,9 @@ export function createChatLive(pool: pg.Pool, hub: Hub) {
     const c = e.c!;
     let hears: (l: Listener) => boolean;
     // Where someone has read to is theirs alone (their other tabs), but in a direct message.
-    if ((e.e === "read" || e.e === "delivered") && !e.d) hears = (l) => l.userId === e.u;
+    // A thread's mark is theirs alone even there.
+    if ((e.e === "read" || e.e === "delivered") && (!e.d || e.t !== undefined))
+      hears = (l) => l.userId === e.u;
     else if (e.lead) hears = (l) => chats(l) && canOnRecord(l.actor, "leads.view", e.o ?? null);
     else {
       if (e.e === "members") members.delete(c);
@@ -70,11 +77,15 @@ export function createChatLive(pool: pg.Pool, hub: Hub) {
       e: e.e,
       ...(e.m !== undefined ? { m: e.m } : {}),
       ...(e.u ? { u: e.u } : {}),
+      ...(e.t !== undefined ? { t: e.t } : {}),
       ...(e.d ? { d: true } : {}),
       ...(e.lead ? { l: true } : {}),
       ...(w ? { w } : {}),
     };
-    for (const l of to) l.say("chat", data);
+    // A thread's reply counts for those who follow it, and for no one else.
+    const follow =
+      e.e === "reply" && e.t !== undefined && to.length ? await followersOf(e.t) : new Set<string>();
+    for (const l of to) l.say("chat", follow.has(l.userId) ? { ...data, f: true } : data);
   };
   const off = hub.onChat((e) => void heard(e).catch(() => undefined));
   // The listener lost its connection for a while: whoever joined or left meanwhile is unknown, and so is every

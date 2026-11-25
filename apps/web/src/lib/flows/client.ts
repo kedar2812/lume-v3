@@ -79,9 +79,38 @@ export type FlowStats = {
 /** What LUME AI answers (C1): its plan, what it did in LUME's words, and the steps; refused: nothing to play. */
 export type FlowAiBuild = { plan: string[]; said: string; ops: GraphOp[]; refused: boolean };
 
+/** One flow in the Flows list (GET /api/v1/instagram/flows). */
+export type FlowListItem = {
+  id: string;
+  name: string;
+  status: "draft" | "live" | "paused";
+  priority: number;
+  rev: number;
+  version: number | null;
+  updatedAt: string;
+  triggers: FlowTrigger[];
+  /** Conversations in it now. */
+  active: number;
+};
+/** Every flow's numbers over the business's last days (GET /api/v1/instagram/flows/summary). */
+export type FlowCounts = { triggered: number; leads: number; handed: number; booked: number; won: number };
+export type FlowsSummary = {
+  from: string;
+  to: string;
+  total: FlowCounts;
+  flows: (FlowCounts & { id: string })[];
+};
+
 const flow = (id: string) => `/api/v1/instagram/flows/${encodeURIComponent(id)}`;
 
 export const flowsClient = {
+  list: () => api.get<{ flows: FlowListItem[] }>("/api/v1/instagram/flows"),
+  summary: (days: number) => api.get<FlowsSummary>(`/api/v1/instagram/flows/summary?days=${days}`),
+  /** A new draft: from nothing, or from a ready-made flow. */
+  create: (body: { name: string; template?: string }) => api.post<FlowView>("/api/v1/instagram/flows", body),
+  /** On (live) or off (paused): only a flow that has been published. */
+  setStatus: (id: string, rev: number, to: "live" | "paused") =>
+    api.post<FlowView>(`${flow(id)}/status`, { rev, to }),
   get: (id: string) => api.get<FlowView>(flow(id)),
   save: (id: string, body: { rev: number; graph?: FlowGraph; name?: string }) =>
     api.put<FlowView>(flow(id), body),

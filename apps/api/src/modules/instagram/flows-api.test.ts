@@ -68,6 +68,12 @@ describe("who may build flows", () => {
     expect((await call(rep, "POST", "/api/v1/instagram/flows", { name: "x" })).statusCode).toBe(403);
   });
 
+  it("the list carries each flow's rev, so the Flows page can switch one on or off without a stale write", async () => {
+    const made = (await call(builder, "POST", "/api/v1/instagram/flows", { name: "Rev check" })).json();
+    const list = (await call(builder, "GET", "/api/v1/instagram/flows")).json();
+    expect(list.flows.find((f: { id: string }) => f.id === made.id)).toMatchObject({ rev: made.rev });
+  });
+
   it("Instagram switched off: flows say so, in words", async () => {
     await h.ownerPool.query(
       `UPDATE settings SET integrations = jsonb_set(integrations, '{instagram}', '{"enabled": false}'::jsonb) WHERE id = 1`,
@@ -263,30 +269,84 @@ describe("review fixes", () => {
   });
 });
 
-describe("templates", () => {
-  it("each starts as a draft that can't go live until the business adds its own links", async () => {
+describe("ready-made flows (plan 2026-11-25-instagram-screens D4)", () => {
+  type Made = {
+    id: string;
+    rev: number;
+    problems: string[];
+    draft: { v: number; nodes: { type: string; actions?: { kind: string; tagId: string }[] }[] };
+    triggers: { kind: string; keywords: string[]; enabled: boolean }[];
+  };
+  const make = async (u: U, template: string, name = "From a ready one") =>
+    (await call(u, "POST", "/api/v1/instagram/flows", { name, template })).json() as Made;
+  const tagIds = (f: Made) =>
+    f.draft.nodes
+      .flatMap((n) => n.actions ?? [])
+      .filter((a) => a.kind === "tag")
+      .map((a) => a.tagId);
+
+  it("the fifteen, in their order, each with its group", async () => {
     const list = (await call(builder, "GET", "/api/v1/instagram/flows/templates")).json().templates;
-    expect(list.map((t: { name: string }) => t.name)).toEqual([
-      "Lead magnet",
-      "Qualify and book",
-      "Story reply thanks",
-      "Ad welcome",
+    expect(list).toHaveLength(15);
+    expect(list[0]).toMatchObject({ key: "comment_link", name: "Link for a comment", group: "leads" });
+    expect(list.map((t: { key: string }) => t.key)).toContain("giveaway");
+  });
+
+  it("a draft on the canvas, with what starts it, that can't go live until its links are added", async () => {
+    const f = await make(admin, "comment_freebie");
+    expect(f.draft.v).toBe(2);
+    expect(f.triggers).toEqual([
+      expect.objectContaining({ kind: "comment", keywords: ["GUIDE"], enabled: true }),
     ]);
-    const lm = (
-      await call(builder, "POST", "/api/v1/instagram/flows", { name: "Guide", template: "lead_magnet" })
-    ).json();
-    expect(lm.problems).toContain("A button's link must start with https://.");
-    const qb = (
-      await call(builder, "POST", "/api/v1/instagram/flows", { name: "Book", template: "qualify_and_book" })
-    ).json();
-    expect(qb.problems).toContain("Add the link people book a call on (https://…).");
-    const st = (
-      await call(builder, "POST", "/api/v1/instagram/flows", {
-        name: "Thanks",
-        template: "story_reply_thanks",
-      })
-    ).json();
-    expect(st.problems).toEqual([]);
+    expect(f.problems).toContain("A button's link must start with https://.");
+    expect(
+      (await call(admin, "POST", `/api/v1/instagram/flows/${f.id}/publish`, { rev: f.rev })).statusCode,
+    ).toBe(422);
+  });
+
+  it("words left to write ([[…]]) stop it going live too", async () => {
+    const f = await make(admin, "faq_menu");
+    expect(f.problems).toContain("Write your own words where it says [[…]].");
+  });
+
+  it("a ready one needs nothing: it can go live as it is", async () => {
+    const f = await make(admin, "story_reply");
+    expect(f.problems).toEqual([]);
+  });
+
+  it("its tag: the business's own when one has that name (any case), never a second", async () => {
+    const { id } = (
+      await h.ownerPool.query<{ id: string }>(
+        "INSERT INTO tags (id, label) VALUES (gen_random_uuid(), 'Waitlist') RETURNING id",
+      )
+    ).rows[0]!;
+    const f = await make(admin, "waitlist");
+    expect(tagIds(f)).toEqual([id]);
+    expect(f.problems).toEqual([]);
+    const { rows } = await h.ownerPool.query("SELECT 1 FROM tags WHERE lower(label) = 'waitlist'");
+    expect(rows).toHaveLength(1);
+    await h.ownerPool.query("DELETE FROM tags WHERE id = $1", [id]);
+  });
+
+  it("no such tag: made for someone who may make tags; left to choose for someone who may not", async () => {
+    await h.ownerPool.query("DELETE FROM tags WHERE lower(label) = 'giveaway'");
+    const mine = await make(builder, "giveaway");
+    expect(tagIds(mine)).toEqual([""]);
+    expect(mine.problems).toContain("Choose the tag.");
+    expect((await h.ownerPool.query("SELECT 1 FROM tags WHERE lower(label) = 'giveaway'")).rows).toHaveLength(
+      0,
+    );
+    const theirs = await make(admin, "giveaway");
+    const [made] = (
+      await h.ownerPool.query<{ id: string }>("SELECT id FROM tags WHERE lower(label) = 'giveaway'")
+    ).rows;
+    expect(tagIds(theirs)).toEqual([made!.id]);
+    await h.ownerPool.query("DELETE FROM tags WHERE id = $1", [made!.id]);
+  });
+
+  it("a key that isn't one is refused", async () => {
+    const r = await call(admin, "POST", "/api/v1/instagram/flows", { name: "x", template: "lead_magnet_v0" });
+    expect(r.statusCode).toBe(400);
   });
 });
 

@@ -9,6 +9,7 @@ describe("navigation", () => {
       "Who replied",
       "Chat",
       "LUME AI",
+      "Flows",
       "Pipeline",
       "Live sheets",
       "Calendar",
@@ -48,6 +49,20 @@ describe("navigation", () => {
     expect(ids.indexOf("livesheets")).toBe(ids.indexOf("pipeline") + 1);
     expect(visibleNav(NAV_ITEMS, (p) => p === "leads.view").map((i) => i.id)).not.toContain("livesheets");
     expect(activeNav(NAV_ITEMS, "/live-sheets/connected")?.id).toBe("livesheets");
+  });
+
+  it("Flows sits after LUME AI, for whoever may build flows, and only while Instagram is on (plan 2026-11-25 D3)", () => {
+    const can = (p: string) => p === "leads.view" || p === "instagram.flows.manage";
+    expect(visibleNav(NAV_ITEMS, can).map((i) => i.id)).not.toContain("flows");
+    const ids = visibleNav(NAV_ITEMS, can, { instagram: true }).map((i) => i.id);
+    expect(ids.indexOf("flows")).toBe(ids.indexOf("autopilot") + 1);
+    // On, but this person can't build flows: not there.
+    expect(
+      visibleNav(NAV_ITEMS, (p) => p === "leads.view", { instagram: true }).map((i) => i.id),
+    ).not.toContain("flows");
+    // LUME AI being on is not Instagram being on.
+    expect(visibleNav(NAV_ITEMS, can, { ai: true }).map((i) => i.id)).not.toContain("flows");
+    expect(activeNav(NAV_ITEMS, "/instagram/flows/abc")?.id).toBe("flows");
   });
 
   it("matches nested paths to their section", () => {

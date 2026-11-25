@@ -32,11 +32,11 @@ export const dayIn = (zone: string, at: Date) =>
     day: "2-digit",
   }).format(at);
 
-export async function flowStats(
+/** The business's days a range names (its time zone, at most a year), and the moments they start and end. */
+async function statsRange(
   req: FastifyRequest,
-  flowId: string,
   ask: { from?: string; to?: string; days?: number },
-  now: Date = new Date(),
+  now: Date,
 ) {
   const zone =
     (await req.db.execute<{ tz: string | null }>(sql`SELECT timezone AS tz FROM settings WHERE id = 1`))
@@ -59,6 +59,73 @@ export async function flowStats(
   // The business's days: from midnight of `from` to the end of `to`, in its own time zone.
   const start = sql`(${q.from}::date)::timestamp AT TIME ZONE ${zone}`;
   const end = sql`((${q.to}::date + 1))::timestamp AT TIME ZONE ${zone}`;
+  return { q, start, end };
+}
+
+/**
+ * Every flow's totals over one range, in one answer (plan 2026-11-25-instagram-screens D3): what the Flows page lists.
+ * Each flow reads only its own slice of the (flow, kind, at) index, as one flow's numbers do.
+ */
+export async function flowsSummary(
+  req: FastifyRequest,
+  ask: { from?: string; to?: string; days?: number },
+  now: Date = new Date(),
+) {
+  const { q, start, end } = await statsRange(req, ask, now);
+  const r = await withAllScope(req, () =>
+    req.db.execute<{
+      id: string;
+      triggered: number;
+      leads: number;
+      handed: number;
+      booked: number;
+      won: number;
+    }>(sql`
+      SELECT f.id, n.triggered, n.leads, n.handed, n.booked, n.won
+        FROM instagram_flows f
+        CROSS JOIN LATERAL (
+          WITH ev AS (
+            SELECT kind, run_id, lead_id, at FROM instagram_flow_events e
+             WHERE e.flow_id = f.id AND e.kind IN ('triggered', 'lead_created', 'handed')
+               AND e.at >= ${start} AND e.at < ${end}),
+          runs AS (
+            SELECT DISTINCT ON (run_id) lead_id, at FROM ev WHERE kind = 'triggered' ORDER BY run_id, at)
+          SELECT count(*) FILTER (WHERE kind = 'triggered')::int AS triggered,
+                 count(*) FILTER (WHERE kind = 'lead_created')::int AS leads,
+                 count(*) FILTER (WHERE kind = 'handed')::int AS handed,
+                 (SELECT count(*) FROM runs r WHERE EXISTS (
+                    SELECT 1 FROM meetings m WHERE m.lead_id = r.lead_id AND m.created_at >= r.at
+                       AND m.status <> 'cancelled'))::int AS booked,
+                 (SELECT count(*) FROM runs r WHERE EXISTS (
+                    SELECT 1 FROM lead_stage_history h JOIN stages s ON s.id = h.to_stage_id
+                     WHERE h.lead_id = r.lead_id AND h.changed_at >= r.at AND s.kind = 'won'))::int AS won
+            FROM ev) n
+       WHERE f.status <> 'archived'
+       ORDER BY f.priority DESC, f.created_at`),
+  );
+  const sum = (k: "triggered" | "leads" | "handed" | "booked" | "won") =>
+    r.rows.reduce((n, x) => n + x[k], 0);
+  return {
+    from: q.from,
+    to: q.to,
+    total: {
+      triggered: sum("triggered"),
+      leads: sum("leads"),
+      handed: sum("handed"),
+      booked: sum("booked"),
+      won: sum("won"),
+    },
+    flows: r.rows,
+  };
+}
+
+export async function flowStats(
+  req: FastifyRequest,
+  flowId: string,
+  ask: { from?: string; to?: string; days?: number },
+  now: Date = new Date(),
+) {
+  const { q, start, end } = await statsRange(req, ask, now);
   const r = await withAllScope(req, () =>
     req.db.execute<Row>(sql`
       WITH ev AS (

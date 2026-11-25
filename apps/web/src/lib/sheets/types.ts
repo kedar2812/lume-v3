@@ -20,6 +20,8 @@ export type IntegrationsView = {
     /** Replying from LUME (plan W3a): off until an admin switches it on. */
     replyFromLume?: boolean;
   };
+  /** Instagram (plan 2026-11-25-instagram-screens): connecting goes through LUME's relay. */
+  instagram?: { enabled: boolean; available: boolean; inPlan: boolean };
 };
 /** A file picked with Connect with Google, ready to be set up. */
 export type PickedFile = { connectId: string; file: { id: string; name: string } };

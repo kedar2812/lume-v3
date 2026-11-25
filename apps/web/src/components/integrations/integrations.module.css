@@ -719,3 +719,140 @@
     padding-left: 0;
   }
 }
+
+/* Instagram (plan 2026-11-25-instagram-screens D1; canvas boards Main, Connect). Icons on neutral tiles (docs/design/icons.md). */
+.igPoints {
+  margin: 0;
+  padding: 4px 6px;
+  list-style: none;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.igPoints li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px;
+}
+.igPoints li + li {
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.igPointIcon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--text-2);
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.igWarn {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.igWarn svg {
+  flex: none;
+  margin-top: 2px;
+}
+.igEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--sunk);
+}
+.igEmpty b {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.igEmpty p {
+  margin: 0 0 4px;
+  max-width: 60ch;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.igHandle,
+.igMeta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.igHandle {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.igMeta {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.igQuestion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.igQuestionTitle {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.igQuestionNote {
+  margin: 0;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.igOrder {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.igOrderTitle {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.igOrder ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.igOrder li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.igOrderN {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}

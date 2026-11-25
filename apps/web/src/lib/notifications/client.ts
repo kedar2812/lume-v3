@@ -13,7 +13,13 @@ export type NotificationView = {
   read: boolean;
   /** A security alert's id (6A), so Review opens it. Absent from an API before the watch. */
   alertId?: string | null;
+  /** Team Chat's (2B): the conversation it opens, and the thread in it. */
+  chat?: { conversation: string; thread: number | null };
 };
+
+/** Where a chat notice opens. Its own id, so the same conversation asked for again opens again. */
+export const chatHref = (n: { id: number; chat: { conversation: string; thread: number | null } }) =>
+  `/chat?c=${encodeURIComponent(n.chat.conversation)}${n.chat.thread ? `&t=${n.chat.thread}` : ""}&n=${n.id}`;
 
 /**
  * Said on the window whenever LUME learns how many are unread (a read, Mark all read, the centre loading),

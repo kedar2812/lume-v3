@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import "@xyflow/react/dist/base.css";
 import {
   Background,
@@ -51,6 +52,8 @@ import { PlanCard } from "./PlanCard";
 import type { FlowTrigger } from "@/lib/flows/client";
 import type { Catalog } from "@/lib/leads/types";
 import s from "./builder.module.css";
+
+const { back: ChevronLeft, versions: VersionsIcon, play: Play, close: X } = UI_ICONS;
 
 /** Where Starts when sits, kept with the steps' places. */
 export const START = "_start";
@@ -883,18 +886,9 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
   return (
     <div className={s.fb} onKeyDown={onKey} data-full-canvas="">
       <header className={s.top}>
-        <Link href="/settings/integrations" className={s.back}>
-          <svg
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            aria-hidden
-          >
-            <path d="M10 3 5 8l5 5" />
-          </svg>
-          Instagram
+        <Link href="/instagram/flows" className={s.back}>
+          <ChevronLeft size={ICON_SIZE.md} aria-hidden />
+          Flows
         </Link>
         <span className={s.name} title={view.name}>
           {view.name}
@@ -956,17 +950,7 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
             onClick={() => openTool(tool === "versions" ? null : "versions")}
             title="Versions"
           >
-            <svg
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              aria-hidden
-            >
-              <circle cx="8" cy="8" r="5.5" />
-              <path d="M8 5v3l2 1.5" />
-            </svg>
+            <VersionsIcon size={ICON_SIZE.md} aria-hidden />
             <span className={s.wide}>Versions</span>
           </button>
           <button
@@ -977,16 +961,7 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
             onClick={() => openTool(tool === "test" ? null : "test")}
             title="Test"
           >
-            <svg
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <path d="M5 3.5v9l7-4.5z" />
-            </svg>
+            <Play size={ICON_SIZE.md} aria-hidden />
             <span className={s.wide}>Test</span>
           </button>
           <button
@@ -1035,7 +1010,7 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
         <div role="status" className={s.toast}>
           {notice}
           <button type="button" aria-label="Close" onClick={() => setNotice(null)}>
-            ×
+            <X size={ICON_SIZE.md} aria-hidden />
           </button>
         </div>
       )}
@@ -1098,7 +1073,7 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
               disabled={aiLocked}
               onClick={() => add(k)}
             >
-              <KindIcon d={KINDS[k].icon} />
+              <KindIcon kind={k} />
             </button>
           ))}
         </nav>

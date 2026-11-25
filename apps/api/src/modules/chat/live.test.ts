@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../../../test/harness";
 import { chatEventOf } from "../notifications/hub";
 import { spacingMs } from "./live";
+import { noticeTuning } from "./notices";
 
 /** Team Chat, live (plan 2026-11-24-team-chat-2a, Task 6): who hears what on the stream, typing, online. */
 let h: Harness;
@@ -40,7 +41,8 @@ async function heard(u: SeededUser, act: () => Promise<unknown>, ms = 1200): Pro
           buf = buf.slice(i + 2);
           const event = /^event: (.*)$/m.exec(block)?.[1];
           const data = /^data: (.*)$/m.exec(block)?.[1];
-          if ((event === "chat" || event === "presence") && data) out.push({ event, data: JSON.parse(data) });
+          if ((event === "chat" || event === "presence" || event === "unread") && data)
+            out.push({ event, data: JSON.parse(data) });
         }
       }
     } catch {
@@ -55,8 +57,12 @@ async function heard(u: SeededUser, act: () => Promise<unknown>, ms = 1200): Pro
   await reading;
   return out;
 }
-const as = async (u: SeededUser, method: "POST" | "PUT", url: string, payload?: Record<string, unknown>) =>
-  (await h.signIn(u)).inject({ method, url, ...(payload ? { payload } : {}) });
+const as = async (
+  u: SeededUser,
+  method: "POST" | "PUT" | "DELETE",
+  url: string,
+  payload?: Record<string, unknown>,
+) => (await h.signIn(u)).inject({ method, url, ...(payload ? { payload } : {}) });
 const send = (u: SeededUser, conv: string, body: string) =>
   as(u, "POST", `/api/v1/chat/${conv}/messages`, { clientId: crypto.randomUUID(), body });
 const messages = (hs: Heard[], c: string) =>
@@ -140,7 +146,7 @@ describe("the stream", () => {
     const quiet = await heard(mate, () =>
       h.ownerPool.query("INSERT INTO team_members (team_id, user_id) VALUES ($1, $2)", [other, mate.id]),
     );
-    expect(quiet).toEqual([]);
+    expect(quiet.filter((x) => x.event !== "unread")).toEqual([]);
   });
 
   it("the more people hear an event, the further apart each screen reads", () => {
@@ -161,6 +167,91 @@ describe("the stream", () => {
     await h.queryAll("UPDATE leads SET owner_id = $1 WHERE id = $2 RETURNING id", [mate.id, lead]);
     expect(messages(await heard(rep, () => send(admin, t, "Moved to 5")), t)).toEqual([]);
     expect(messages(await heard(mate, () => send(admin, t, "Moved to 5 again")), t)).toHaveLength(1);
+  });
+
+  it("a thread's reply reaches everyone in the channel, and says who it counts for", async () => {
+    const root = (await send(rep, ch, "Root")).json().id as number;
+    const url = `/api/v1/chat/messages/${root}/thread`;
+    const answer = () => as(mate, "POST", url, { clientId: crypto.randomUUID(), body: "Secret words" });
+    await answer();
+    const replies = (hs: Heard[]) => hs.filter((x) => x.event === "chat" && x.data.e === "reply");
+    const theirs = heard(outsider, async () => undefined, 1800);
+    const looking = heard(admin, async () => undefined, 1800);
+    const mine = await heard(rep, answer);
+    expect(replies(mine).map((x) => x.data)).toEqual([
+      { c: ch, e: "reply", m: expect.any(Number), u: mate.id, t: root, f: true },
+    ]);
+    expect(replies(await looking).map((x) => x.data)).toEqual([
+      { c: ch, e: "reply", m: expect.any(Number), u: mate.id, t: root },
+    ]);
+    expect(replies(await theirs)).toEqual([]);
+    expect(JSON.stringify(mine)).not.toContain("Secret");
+    // Someone who stopped following it: a reply like any other.
+    await as(rep, "PUT", `${url}/following`, { on: false });
+    expect(replies(await heard(rep, answer)).map((x) => x.data.f)).toEqual([undefined]);
+    // Also sent: a message like any other, that says its thread.
+    const both = await heard(rep, () =>
+      as(mate, "POST", url, { clientId: crypto.randomUUID(), body: "x", alsoSend: true }),
+    );
+    expect(messages(both, ch).map((x) => x.data)).toEqual([
+      { c: ch, e: "message", m: expect.any(Number), u: mate.id, t: root },
+    ]);
+  });
+
+  it("a thread's reply deleted says its thread, so its message counts one fewer", async () => {
+    const root = (await send(rep, ch, "Root")).json().id as number;
+    const r = await as(rep, "POST", `/api/v1/chat/messages/${root}/thread`, {
+      clientId: crypto.randomUUID(),
+      body: "One",
+    });
+    const c = await h.signIn(rep);
+    const hs = await heard(mate, () =>
+      c.inject({ method: "DELETE", url: `/api/v1/chat/messages/${r.json().id}` }),
+    );
+    expect(hs.filter((x) => x.data.e === "deleted").map((x) => x.data)).toEqual([
+      { c: ch, e: "deleted", m: r.json().id, t: root },
+    ]);
+  });
+
+  it("a mention taken back by deleting it: the bell's number goes down on every open stream", async () => {
+    const was = { ...noticeTuning };
+    Object.assign(noticeTuning, { mention: 50, direct: 50 });
+    try {
+      const m = (await send(rep, ch, `<@${mate.id}> look`)).json().id as number;
+      await new Promise((r) => setTimeout(r, 400));
+      const hs = await heard(mate, () => as(rep, "DELETE", `/api/v1/chat/messages/${m}`), 1200);
+      const counts = hs.filter((x) => x.event === "unread").map((x) => x.data.unread);
+      expect(counts.at(-1)).toBe(0);
+      expect(counts.slice(1)).toContain(0);
+      // Read where it was said, the same.
+      const n = (await send(rep, ch, `<@${mate.id}> again`)).json().id as number;
+      await new Promise((r) => setTimeout(r, 400));
+      const read = await heard(mate, () => as(mate, "PUT", `/api/v1/chat/${ch}/read`, { upTo: n }), 1200);
+      expect(
+        read
+          .filter((x) => x.event === "unread")
+          .map((x) => x.data.unread)
+          .slice(1),
+      ).toContain(0);
+    } finally {
+      Object.assign(noticeTuning, was);
+    }
+  });
+
+  it("where someone has read a thread to is theirs alone, in a direct message too", async () => {
+    const dm = (await as(rep, "POST", "/api/v1/chat/direct", { people: [mate.id] })).json().id;
+    const root = (await send(rep, dm, "Root")).json().id as number;
+    const r = await as(mate, "POST", `/api/v1/chat/messages/${root}/thread`, {
+      clientId: crypto.randomUUID(),
+      body: "One",
+    });
+    const reads = (hs: Heard[]) => hs.filter((x) => x.data.e === "read");
+    const other = heard(mate, async () => undefined, 1800);
+    const own = await heard(rep, () =>
+      as(rep, "PUT", `/api/v1/chat/messages/${root}/thread/read`, { upTo: r.json().id }),
+    );
+    expect(reads(own).map((x) => x.data)).toMatchObject([{ c: dm, e: "read", t: root, u: rep.id }]);
+    expect(reads(await other)).toEqual([]);
   });
 
   it("typing is said to the others at most every 3 s, never to the one typing", async () => {

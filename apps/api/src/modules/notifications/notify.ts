@@ -23,6 +23,9 @@ export type NotifyKind =
   | "template_decided"
   | "whatsapp_usage"
   // Autopilot (A2): something LUME AI waits on a tap for; a lead ready for a person (converted, or needing one).
+  // Team Chat (2B): someone named you; a direct message (chat/notices.ts writes them).
+  | "chat_mention"
+  | "chat_direct"
   | "autopilot_ask"
   | "autopilot_ready";
 export type NewNotification = {
@@ -43,6 +46,8 @@ const SWITCH: Partial<Record<NotifyKind, keyof Preferences["alerts"]>> = {
   lead_assigned: "assigned",
   lead_replied: "replies",
   lead_stopped: "replies",
+  chat_mention: "chatMentions",
+  chat_direct: "chatDirect",
 };
 /**
  * Whether this person wants this kind. Escalations to managers, and a manager's "Remind them", always go:

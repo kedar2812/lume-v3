@@ -5,6 +5,8 @@ import {
   bodyProblem,
   channelNameProblem,
   runsOf,
+  chatNotice,
+  repliesWords,
   ticksOf,
   typingWords,
   unreadSum,
@@ -87,4 +89,47 @@ describe("team chat's rules", () => {
     ).toBe("delivered");
     expect(ticksOf(5, [{ lastDeliveredId: 0, lastReadId: 5 }])).toBe("seen");
   });
+});
+
+it("a thread's replies in words: one, then several", () => {
+  expect(repliesWords(1)).toBe("1 reply");
+  expect(repliesWords(2)).toBe("2 replies");
+  expect(repliesWords(1200)).toBe("1200 replies");
+});
+
+it("what the bell says: who, where and how many", () => {
+  const mention = {
+    kind: "chat_mention",
+    in: "channel",
+    name: "sales",
+    by: "Maya Kapoor",
+    n: 1,
+    group: false,
+  } as const;
+  expect(chatNotice(mention)).toBe("Maya Kapoor mentioned you in #sales");
+  expect(chatNotice({ ...mention, n: 3 })).toBe("You were mentioned 3 times in #sales");
+  expect(chatNotice({ ...mention, in: "lead", name: "Asha Rao" })).toBe(
+    "Maya Kapoor mentioned you about Asha Rao",
+  );
+  expect(chatNotice({ ...mention, in: "lead", name: " " })).toBe(
+    "Maya Kapoor mentioned you about a lead with no name",
+  );
+  expect(chatNotice({ ...mention, in: "direct", name: null })).toBe(
+    "Maya Kapoor mentioned you in a direct message",
+  );
+  const direct = {
+    kind: "chat_direct",
+    in: "direct",
+    name: null,
+    by: "Sana Iqbal",
+    n: 1,
+    group: false,
+  } as const;
+  expect(chatNotice(direct)).toBe("New message from Sana Iqbal");
+  expect(chatNotice({ ...direct, n: 40 })).toBe("40 new messages from Sana Iqbal");
+  expect(chatNotice({ ...direct, n: 100 })).toBe("99+ new messages from Sana Iqbal");
+  expect(chatNotice({ ...direct, group: true })).toBe("New message from Sana Iqbal in your group");
+  expect(chatNotice({ ...direct, group: true, n: 2 })).toBe(
+    "2 new messages in your group, the last from Sana Iqbal",
+  );
 });

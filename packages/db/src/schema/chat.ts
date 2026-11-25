@@ -1,4 +1,4 @@
-import { bigint, bigserial, boolean, pgTable, primaryKey, text, uuid } from "drizzle-orm/pg-core";
+import { bigint, bigserial, boolean, integer, pgTable, primaryKey, text, uuid } from "drizzle-orm/pg-core";
 import { citext, tz } from "./types";
 
 /** Team Chat (migration 0130; plan 2026-11-24-team-chat-2a): a channel, a direct message, or a lead's thread. */
@@ -41,6 +41,10 @@ export const chatMessages = pgTable("chat_messages", {
   kind: text("kind").$type<"text" | "system">().notNull().default("text"),
   body: text("body"),
   replyTo: bigint("reply_to", { mode: "number" }),
+  /** A reply in a thread: the message it hangs on. */
+  threadRoot: bigint("thread_root", { mode: "number" }),
+  /** A thread's reply also sent to the conversation. */
+  alsoSent: boolean("also_sent").notNull().default(false),
   clientId: uuid("client_id"),
   editedAt: tz("edited_at"),
   deletedAt: tz("deleted_at"),
@@ -93,4 +97,43 @@ export const chatListFolds = pgTable(
     folded: boolean("folded").notNull(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.list] })],
+);
+
+/** A thread as its root shows it (migration 0131): kept by triggers as replies land and are deleted. */
+export const chatThreads = pgTable("chat_threads", {
+  rootId: bigint("root_id", { mode: "number" }).primaryKey(),
+  conversationId: uuid("conversation_id").notNull(),
+  replies: integer("replies").notNull().default(0),
+  lastReplyId: bigint("last_reply_id", { mode: "number" }).notNull(),
+  lastAt: tz("last_at").notNull(),
+  faces: uuid("faces").array().notNull().default([]),
+});
+
+/** Who follows a thread and where each has read to. */
+export const chatThreadPlaces = pgTable(
+  "chat_thread_places",
+  {
+    rootId: bigint("root_id", { mode: "number" }).notNull(),
+    userId: uuid("user_id").notNull(),
+    following: boolean("following").notNull().default(true),
+    lastReadId: bigint("last_read_id", { mode: "number" }).notNull().default(0),
+    lastReplyId: bigint("last_reply_id", { mode: "number" }).notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.rootId, t.userId] })],
+);
+
+/** Who a message names (migration 0132): by their own name, or through a team or the whole channel. */
+export const chatMentions = pgTable(
+  "chat_mentions",
+  {
+    messageId: bigint("message_id", { mode: "number" }).notNull(),
+    userId: uuid("user_id").notNull(),
+    byName: boolean("by_name").notNull(),
+    conversationId: uuid("conversation_id").notNull(),
+    /** The thread it was said in; 0: none. */
+    root: bigint("root", { mode: "number" }).notNull().default(0),
+    /** They have looked there since it named them. */
+    seen: boolean("seen").notNull().default(false),
+  },
+  (t) => [primaryKey({ columns: [t.messageId, t.userId] })],
 );

@@ -1,6 +1,9 @@
 "use client";
 import { AiGlyph } from "@/components/ai/AiGlyph";
 import s from "./builder.module.css";
+import { UI_ICONS } from "@/components/ui/icons";
+
+const { done: Check } = UI_ICONS;
 
 /**
  * What LUME AI is building (plan 2026-11-23-flow-builder, Task C2; approved canvas, board Builder): its plan, the row
@@ -33,17 +36,7 @@ export function PlanCard({
         {rows.map((t, i) => (
           <li key={i} data-state={done || i < at ? "done" : i === at ? "now" : undefined} title={t}>
             <span className={s.planTick}>
-              <svg
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="m3.5 8.5 3 3 6-7" />
-              </svg>
+              <Check size={12} strokeWidth={3} aria-hidden />
             </span>
             <span className={s.planText}>{t}</span>
           </li>

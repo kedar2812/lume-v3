@@ -1,8 +1,9 @@
-import { within, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, within, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { aiClient } from "@/lib/ai/client";
 import type { AiStatus } from "@/lib/ai/types";
+import { instagramClient } from "@/lib/instagram/client";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import { leadsClient } from "@/lib/leads/client";
 import { testCatalog, testLead } from "@/lib/leads/test-catalog";
@@ -54,6 +55,15 @@ const aiOff: AiStatus = {
 vi.mock("@/lib/whatsapp/client", () => ({
   whatsappClient: { thread: vi.fn(), mediaInfo: vi.fn() },
   mediaUrl: (id: string) => `/api/v1/whatsapp/media/${id}`,
+}));
+vi.mock("@/lib/instagram/client", () => ({
+  instagramClient: {
+    threads: vi.fn(),
+    send: vi.fn(),
+    privateReply: vi.fn(),
+    takeOver: vi.fn(),
+    handBack: vi.fn(),
+  },
 }));
 vi.mock("@/lib/ai/client", () => ({
   aiClient: {
@@ -124,6 +134,7 @@ beforeEach(() => {
   vi.mocked(aiClient.status).mockResolvedValue(ok(aiOff));
   vi.mocked(aiClient.lead).mockResolvedValue(ok({ offerCatchUp: false, pending: null }));
   vi.mocked(whatsappClient.thread).mockResolvedValue(ok({ on: false, reply: null, messages: [] }));
+  vi.mocked(instagramClient.threads).mockResolvedValue(ok({ threads: [] }));
 });
 
 describe("LeadDrawer", () => {
@@ -263,6 +274,25 @@ describe("LeadDrawer", () => {
     window.dispatchEvent(new Event("focus"));
     const prompt = await screen.findByRole("group", { name: "Was the WhatsApp message sent?" });
     expect(prompt.closest("[data-sent-slot]")).not.toBeNull();
+  });
+
+  it("closed just after They replied: nothing of it is left running", async () => {
+    vi.mocked(leadsClient.replied).mockResolvedValue(ok({ moved: null }));
+    const set = vi.spyOn(globalThis, "setTimeout");
+    const clear = vi.spyOn(globalThis, "clearTimeout");
+    try {
+      open();
+      await userEvent.click(await screen.findByRole("button", { name: "They replied" }));
+      const rests = set.mock.calls.flatMap((c, i) =>
+        c[1] === 2000 ? [set.mock.results[i]!.value as unknown] : [],
+      );
+      expect(rests.length).toBeGreaterThan(0);
+      cleanup();
+      for (const t of rests) expect(clear.mock.calls.map((c) => c[0] as unknown)).toContain(t);
+    } finally {
+      set.mockRestore();
+      clear.mockRestore();
+    }
   });
 
   it("They replied: one tap (or R), the sent sound, and the move it made, with Undo", async () => {
@@ -757,6 +787,54 @@ describe("LeadDrawer: meetings (5D Task 11)", () => {
       await userEvent.click(within(card).getByRole("button", { name: "Open chat" }));
       expect(screen.getByRole("dialog", { name: "WhatsApp with Aisha Khan" })).toBeInTheDocument();
     });
+  });
+});
+
+describe("LeadDrawer: Instagram (plan 2026-11-25-instagram-screens D2)", () => {
+  const igThread = {
+    id: "t1",
+    account: { id: "a1", username: "harbour.studio", connected: true },
+    person: { name: "Aisha Khan", username: "@ai•••" },
+    window: { state: "open" as const, until: "2099-01-01T00:00:00.000Z" },
+    takenOver: null,
+    flow: null,
+    comments: [],
+    source: null,
+    messages: [
+      {
+        id: "m1",
+        direction: "in" as const,
+        at: "2026-09-24T10:00:00Z",
+        text: "Saw your reel",
+        detail: {},
+        unsent: false,
+        sentBy: null,
+        status: null,
+        problem: null,
+        reaction: null,
+        outboxId: null,
+        flow: null,
+        fromPhone: false,
+        humanAgent: false,
+        privateReply: false,
+      },
+    ],
+  };
+
+  it("no Instagram tab for a lead with no conversation there", async () => {
+    open();
+    await screen.findByRole("dialog", { name: "Aisha Khan" });
+    await waitFor(() => expect(instagramClient.threads).toHaveBeenCalledWith("l1"));
+    expect(screen.queryByRole("tab", { name: "Instagram" })).toBeNull();
+  });
+
+  it("a lead with a conversation: the tab, and the conversation in it", async () => {
+    vi.mocked(instagramClient.threads).mockResolvedValue(ok({ threads: [igThread] }));
+    open();
+    await userEvent.click(await screen.findByRole("tab", { name: "Instagram" }));
+    const tab = await screen.findByRole("region", { name: "Instagram with Aisha Khan" });
+    expect(tab).toHaveTextContent("Saw your reel");
+    expect(tab).toHaveTextContent("@ai•••");
   });
 });
 

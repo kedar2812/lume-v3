@@ -16,6 +16,9 @@ export type Preferences = {
     weeklyAnalytics?: boolean;
     /** A lead replies on WhatsApp (spec 2026-10-18 §4.2). Absent: on. */
     replies?: boolean;
+    /** Team Chat: someone names you; a direct message. Absent: on. */
+    chatMentions?: boolean;
+    chatDirect?: boolean;
   };
   /** Guides this person has put away, so they stay away on every device (Media's, 2026-10-20). Absent: none yet. */
   hints?: { mediaGuide?: boolean };
@@ -43,6 +46,8 @@ const full = z.strictObject({
     emailDigest: z.boolean(),
     weeklyAnalytics: z.boolean().optional(),
     replies: z.boolean().optional(),
+    chatMentions: z.boolean().optional(),
+    chatDirect: z.boolean().optional(),
   }),
   hints: z.strictObject({ mediaGuide: z.boolean().optional() }).optional(),
 });

@@ -606,6 +606,48 @@ describe("what a flow brought", () => {
   });
 });
 
+describe("every flow's numbers at once (plan 2026-11-25-instagram-screens D3)", () => {
+  it("each flow's totals over the business's days, in one answer; a flow with none says zeros", async () => {
+    // Months past the real date: the server's clock decides "the last 7 days", never the machine's.
+    h.clock.now = new Date(Math.max(h.clock.now.getTime(), Date.parse("2027-06-01T06:00:00Z")));
+    const magnetFlow = await liveFlow("Lead magnet", magnet, { keywords: ["guide"] });
+    const quiet = await liveFlow("Quiet one", magnet, { keywords: ["quiet"] });
+    const t = Math.floor(h.clock.now.getTime() / 1000);
+    await deliverIg(h, igComment({ id: "1", text: "guide", time: t }));
+    await deliverIg(
+      h,
+      igComment({ id: "2", from: "6512000000000002", username: "ana", text: "guide", time: t }),
+    );
+    await h.runInstagram();
+    const admin1 = await h.signIn(admin);
+    const r = await admin1.inject({ method: "GET", url: "/api/v1/instagram/flows/summary?days=7" });
+    expect(r.statusCode, r.body).toBe(200);
+    const byId = Object.fromEntries(
+      r.json().flows.map((f: { id: string; triggered: number; leads: number }) => [f.id, f]),
+    );
+    expect(byId[magnetFlow.id]).toMatchObject({ triggered: 2, leads: 2, handed: 0, booked: 0, won: 0 });
+    expect(byId[quiet.id]).toMatchObject({ triggered: 0, leads: 0, handed: 0, booked: 0, won: 0 });
+    expect(r.json().total).toMatchObject({ triggered: 2, leads: 2 });
+    expect(r.json().to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    // The same range rules as one flow's numbers.
+    const bad = await admin1.inject({ method: "GET", url: "/api/v1/instagram/flows/summary?days=400" });
+    expect(bad.statusCode).toBe(400);
+    const both = await admin1.inject({
+      method: "GET",
+      url: "/api/v1/instagram/flows/summary?days=7&from=2026-01-01",
+    });
+    expect(both.json().error.message).toBe("Choose the days: a start and an end, or how many days back.");
+  });
+
+  it("someone who can't build flows can't read them", async () => {
+    const rep = await h.seedUser({ grants: [{ key: "leads.view", scope: "all" }] });
+    const r = await (
+      await h.signIn(rep)
+    ).inject({ method: "GET", url: "/api/v1/instagram/flows/summary?days=7" });
+    expect(r.statusCode).toBe(403);
+  });
+});
+
 describe("the scale bar", () => {
   it("650 keyword comments on one reel in a burst: one run and one private reply each, paced at 600 an hour", async () => {
     await liveFlow("Lead magnet", magnet);

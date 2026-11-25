@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { CHAT_LIMITS } from "@lume/core";
+import type { AppDeps } from "../../app";
 import {
   changeChannel,
   channelsToManage,
@@ -19,10 +20,15 @@ import {
   tell,
 } from "./conversations";
 import { deleteMessage, delivered, editMessage, messagesOf, react, read, sendMessage } from "./messages";
+import { mentionable } from "./mentions";
+import { createNotices } from "./notices";
 import { typingAllowed } from "./live";
+import { followThread, readThread, replyInThread, threadPage, threadsOf } from "./threads";
 
 /** Team Chat 2A (plan 2026-11-24-team-chat-2a, Tasks 3 and 4): everyone who chats; channels for whoever manages them. */
-export async function chatRoutes(app: FastifyInstance): Promise<void> {
+export async function chatRoutes(app: FastifyInstance, d: Pick<AppDeps, "pool">): Promise<void> {
+  const notices = createNotices(d.pool, (err) => app.log.error({ err }, "couldn't write a chat notice"));
+  app.addHook("onClose", () => notices.stop());
   const r = app.withTypeProvider<ZodTypeProvider>();
   const use = { config: { permission: "chat.use" as const } };
   // The same done twice is the same (marks, typing, reactions): no row kept to remember it by.
@@ -34,6 +40,21 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
   const group = z.object({ kind: z.enum(["everyone", "team", "role"]), id: z.uuid().optional() }).strict();
   // Long enough to say why it's too long (the rules say it in words), short enough never to be a burden.
   const words = z.string().max(CHAT_LIMITS.body * 4);
+
+  const window = z
+    .object({
+      before: z.coerce.number().int().positive().optional(),
+      after: z.coerce.number().int().min(0).optional(),
+    })
+    .strict();
+  const sent = z
+    .object({
+      clientId: z.uuid(),
+      body: words.optional(),
+      replyTo: z.number().int().positive().optional(),
+      files: z.array(z.uuid()).max(50).optional(),
+    })
+    .strict();
 
   r.get("/api/v1/chat", use, (req) => chatList(req));
   r.get("/api/v1/chat/unread", use, (req) => chatUnread(req));
@@ -105,6 +126,9 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     { ...use, schema: { params: z.object({ leadId: z.uuid() }) } },
     (req) => leadThread(req, req.params.leadId),
   );
+  r.get("/api/v1/chat/:id/mentionable", { ...use, schema: { params: id } }, async (req) =>
+    mentionable(req, await convOf(req, req.params.id)),
+  );
   r.put(
     "/api/v1/chat/:id/mute",
     { ...light, schema: { params: id, body: z.object({ muted: z.boolean() }).strict() } },
@@ -120,12 +144,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       ...use,
       schema: {
         params: id,
-        querystring: z
-          .object({
-            before: z.coerce.number().int().positive().optional(),
-            after: z.coerce.number().int().min(0).optional(),
-          })
-          .strict(),
+        querystring: window,
       },
     },
     (req) => messagesOf(req, req.params.id, req.query),
@@ -136,28 +155,21 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       config: { permission: "chat.use" as const, idempotent: false },
       schema: {
         params: id,
-        body: z
-          .object({
-            clientId: z.uuid(),
-            body: words.optional(),
-            replyTo: z.number().int().positive().optional(),
-            files: z.array(z.uuid()).max(50).optional(),
-          })
-          .strict(),
+        body: sent,
       },
     },
     async (req, reply) => {
-      const r2 = await sendMessage(req, req.params.id, req.body);
+      const r2 = await sendMessage(req, notices, req.params.id, req.body);
       return reply.code(r2.created ? 201 : 200).send(r2.message);
     },
   );
   r.patch(
     "/api/v1/chat/messages/:mid",
     { ...use, schema: { params: mid, body: z.object({ body: words }).strict() } },
-    (req) => editMessage(req, req.params.mid, req.body.body),
+    (req) => editMessage(req, notices, req.params.mid, req.body.body),
   );
   r.delete("/api/v1/chat/messages/:mid", { ...use, schema: { params: mid } }, async (req, reply) => {
-    await deleteMessage(req, req.params.mid);
+    await deleteMessage(req, notices, req.params.mid);
     return reply.code(204).send();
   });
   const reaction = mid.extend({ emoji: z.string().max(64) });
@@ -184,6 +196,40 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       await tell(req, { c: req.params.id, e: "typing", u: req.actor!.userId });
     return reply.code(204).send();
   });
+  // Threads (2B, Task 1): replies on a message, asked for by it or by any reply in it.
+  r.get("/api/v1/chat/threads", use, (req) => threadsOf(req));
+  r.get(
+    "/api/v1/chat/messages/:mid/thread",
+    { ...use, schema: { params: mid, querystring: window } },
+    (req) => threadPage(req, req.params.mid, req.query),
+  );
+  r.post(
+    "/api/v1/chat/messages/:mid/thread",
+    {
+      config: { permission: "chat.use" as const, idempotent: false },
+      schema: { params: mid, body: sent.extend({ alsoSend: z.boolean().optional() }).strict() },
+    },
+    async (req, reply) => {
+      const r2 = await replyInThread(req, notices, req.params.mid, req.body);
+      return reply.code(r2.created ? 201 : 200).send(r2.message);
+    },
+  );
+  r.put(
+    "/api/v1/chat/messages/:mid/thread/read",
+    { ...light, schema: { params: mid, body: z.object({ upTo: z.number().int().min(0) }).strict() } },
+    async (req, reply) => {
+      await readThread(req, req.params.mid, req.body.upTo);
+      return reply.code(204).send();
+    },
+  );
+  r.put(
+    "/api/v1/chat/messages/:mid/thread/following",
+    { ...light, schema: { params: mid, body: z.object({ on: z.boolean() }).strict() } },
+    async (req, reply) => {
+      await followThread(req, req.params.mid, req.body.on);
+      return reply.code(204).send();
+    },
+  );
   const upTo = z.object({ upTo: z.number().int().min(0) }).strict();
   r.put("/api/v1/chat/:id/read", { ...light, schema: { params: id, body: upTo } }, async (req, reply) => {
     await read(req, req.params.id, req.body.upTo);

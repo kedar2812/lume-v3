@@ -18,8 +18,8 @@ export default async function Page() {
       <header className={s.pageHead}>
         <h1>Not a lead yet</h1>
         <p>
-          Messages from numbers no lead has. LUME never makes them leads by itself, and clears them after 14
-          days.
+          Messages from people who aren&rsquo;t leads yet. LUME never makes them leads by itself, and clears
+          them after 14 days.
         </p>
       </header>
       <NotYet tz={zoneOf(session.user)} mayDecide={can(session.actor, "leads.create")} />

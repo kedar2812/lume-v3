@@ -7,6 +7,7 @@ import {
   useAutopilot,
   useLeadsChanged,
   useStream,
+  useInstagram,
   useWhatsApp,
 } from "./stream";
 
@@ -247,6 +248,29 @@ describe("Autopilot on the stream (A2 Task 9)", () => {
     src.emitText("whatsapp", JSON.stringify({ lead: "l1", kind: "typing" }));
     src.emitText("whatsapp", JSON.stringify({ kind: "in" }));
     expect(on).toHaveBeenCalledTimes(2);
+  });
+  it("useInstagram hears Instagram's own events, never WhatsApp's, and drops anything malformed (plan 2026-11-25 D2)", () => {
+    const ig = vi.fn();
+    const wa = vi.fn();
+    renderHook(() => useInstagram(ig));
+    renderHook(() => useWhatsApp(wa));
+    const src = FakeSource.made[0]!;
+    src.emitText("instagram", JSON.stringify({ lead: "l1", kind: "in", owner: "u1" }));
+    src.emitText("instagram", JSON.stringify({ lead: "l1", kind: "typing" }));
+    src.emitText("instagram", "not json");
+    src.emitText("whatsapp", JSON.stringify({ lead: "l2", kind: "in" }));
+    expect(ig.mock.calls).toEqual([[{ lead: "l1", kind: "in", owner: "u1" }]]);
+    expect(wa.mock.calls).toEqual([[{ lead: "l2", kind: "in" }]]);
+  });
+  it("back after a drop, an Instagram conversation hears that it may have missed messages (lead '*')", async () => {
+    vi.useFakeTimers();
+    const on = vi.fn();
+    renderHook(() => useInstagram(on));
+    FakeSource.made[0]!.opened();
+    FakeSource.made[0]!.opened();
+    await vi.advanceTimersByTimeAsync(CATCH_UP_SPREAD_MS);
+    expect(on).toHaveBeenCalledWith({ lead: "*", kind: "reconnected" });
+    vi.useRealTimers();
   });
   it("back after a drop, a chat hears that it may have missed messages (lead '*')", async () => {
     vi.useFakeTimers();

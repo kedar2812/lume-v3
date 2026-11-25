@@ -49,6 +49,35 @@ for (const size of [
       expect(await spills(page)).toEqual([]);
       await expect(page.getByRole("button", { name: "Send" })).toBeInViewport();
       await box.fill("");
+      // A thread, beside the conversation or over it: long words, ten replies, and the box on screen.
+      const root = await callApi<{ id: number }>(page, "POST", `/api/v1/chat/${general.id}/messages`, {
+        clientId: crypto.randomUUID(),
+        body: `Thread ${LONG}`,
+      });
+      for (const body of [LONG, "word ".repeat(300).trim(), "ok"])
+        await callApi(page, "POST", `/api/v1/chat/messages/${root.data.id}/thread`, {
+          clientId: crypto.randomUUID(),
+          body,
+        });
+      await page
+        .getByRole("log", { name: "Messages" })
+        .getByRole("button", { name: /^3 replies/ })
+        .last()
+        .click();
+      const thread = page.getByRole("complementary", { name: "Thread in #general" });
+      await expect(thread.getByText("ok", { exact: true })).toBeVisible();
+      await settle(page);
+      expect(await spills(page)).toEqual([]);
+      expect(await cutText(page)).toEqual([]);
+      const answer = thread.getByRole("textbox", { name: "Reply in the thread" });
+      await expect(answer).toBeInViewport();
+      await answer.fill("line\n".repeat(40));
+      expect(await spills(page)).toEqual([]);
+      await expect(thread.getByRole("button", { name: "Send" })).toBeInViewport();
+      await expect(thread.getByRole("checkbox", { name: "Also send to #general" })).toBeInViewport();
+      await answer.fill("");
+      await page.keyboard.press("Escape");
+      await expect(thread).toHaveCount(0);
       if (size.width < 700) await page.getByRole("button", { name: "Back" }).click();
       for (const [open, sheet] of [
         ["New direct message", "New direct message"],
@@ -69,6 +98,12 @@ for (const size of [
         await page.keyboard.press("Escape");
         await expect(page.getByRole("dialog")).toHaveCount(0);
       }
+      await page.getByRole("button", { name: /^Threads/ }).click();
+      await expect(
+        page.getByRole("region", { name: "The threads you follow" }).getByRole("button").first(),
+      ).toBeVisible();
+      await settle(page);
+      expect(await spills(page)).toEqual([]);
     });
 
 test("the team talks about a lead on the lead itself, and a message is deleted only when asked twice", async ({
@@ -116,5 +151,24 @@ test("two people talk live: the message lands without a reload", async ({ browse
   await p2.getByRole("textbox", { name: "Message #general" }).fill(words);
   await p2.keyboard.press("Enter");
   await expect(page.getByText(words)).toBeVisible({ timeout: 10_000 });
+
+  // Answered in a thread: said where its writer looks, and nowhere in the conversation.
+  const theirs = page.getByRole("group").filter({ hasText: words });
+  await theirs.hover();
+  await theirs.getByRole("button", { name: "Thread", exact: true }).click();
+  const answer = `Answer ${Date.now()}`;
+  await page.getByRole("textbox", { name: "Reply in the thread" }).fill(answer);
+  await page.keyboard.press("Enter");
+  const link = p2
+    .getByRole("group")
+    .filter({ hasText: words })
+    .getByRole("button", { name: /^1 reply/ });
+  await expect(link).toBeVisible({ timeout: 10_000 });
+  await expect(p2.getByRole("button", { name: /^Threads/ })).toHaveText(/1/);
+  await expect(p2.getByText(answer)).toHaveCount(0);
+  await link.click();
+  await expect(p2.getByText(answer)).toBeVisible();
+  // Read there: the Threads row says so.
+  await expect(p2.getByRole("button", { name: /^Threads/ })).toHaveText(/^Threads$/, { timeout: 15_000 });
   await other.close();
 });

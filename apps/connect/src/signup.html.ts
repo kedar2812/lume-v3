@@ -45,7 +45,17 @@ window.addEventListener("message", function (e) {
   try {
     var d = JSON.parse(e.data);
     if (d.type !== "WA_EMBEDDED_SIGNUP") return;
-    if (d.event === "ERROR") { msg.textContent = "Facebook stopped the connection: " + ((d.data && d.data.error_message) || "something went wrong.") + " Choose Continue with Facebook to try again."; return; }
+    if (d.event === "ERROR") {
+      var dd = d.data || {}, code = String(dd.error_id || dd.error_code || "");
+      // Meta 2655093: the number is shared with another partner (a WhatsApp tool) through the Business app. Only the
+      // phone can let it go; LUME says how, instead of Meta's text alone.
+      if (code === "2655093" || /already sharing this WhatsApp Business account with a partner/i.test(dd.error_message || "")) {
+        msg.textContent = "This number is already connected to another WhatsApp tool. On the phone that has it, open the WhatsApp Business app, go to Settings → Account → Business Platform, choose the tool listed and Disconnect (that tool then stops getting this number's messages). Then wait 5 minutes and choose Continue with Facebook here again.";
+        return;
+      }
+      msg.textContent = "Facebook stopped the connection: " + (dd.error_message || "something went wrong.") + " Choose Continue with Facebook to try again.";
+      return;
+    }
     if (d.event === "CANCEL") { msg.textContent = "You didn't finish connecting. Choose Continue with Facebook to try again."; return; }
     if (d.data && d.data.waba_id && d.data.phone_number_id) { got.waba = d.data.waba_id; got.phone = d.data.phone_number_id; finish(); }
   } catch (_) {}

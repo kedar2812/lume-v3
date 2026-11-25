@@ -60,6 +60,13 @@ export async function applyRequestScope(client: pg.PoolClient, actor: Actor): Pr
   );
 }
 
+/** The request's own connection, for what takes one (one query at a time, as req.db's). */
+export function requestClient(req: FastifyRequest): pg.PoolClient {
+  const h = held.get(req);
+  if (!h) throw new Error("requestClient called outside a request transaction");
+  return oneAtATime(h.client);
+}
+
 async function finish(req: FastifyRequest): Promise<void> {
   const h = held.get(req);
   if (!h) return;

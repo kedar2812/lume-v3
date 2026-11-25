@@ -4,12 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { lookOf, type Look } from "@/lib/avatar/look";
 import { chatClient, type ChatList, type ConvRow, type ListKey } from "@/lib/chat/client";
 import { subscribeChat, subscribePresence } from "@/lib/notifications/stream";
-import { tellMuted } from "@/lib/chat/viewing";
+import { isViewing, tellMuted, threadKey } from "@/lib/chat/viewing";
 import { usePhone } from "@/lib/usePhone";
 import type { Who } from "./Bubble";
 import { Conversation } from "./Conversation";
 import { ConvList } from "./ConvList";
 import { Channels, NewDirect } from "./Sheets";
+import { Threads } from "./Threads";
 import s from "./chat.module.css";
 
 export type ChatPerson = { id: string; name: string; avatar: Look | null; active?: boolean };
@@ -37,6 +38,8 @@ export function ChatScreen({
   me,
   zone,
   openId: firstOpen,
+  thread: firstThread = null,
+  asked = null,
   canManage = false,
 }: {
   initial: ChatList;
@@ -44,6 +47,10 @@ export function ChatScreen({
   me: string;
   zone: string;
   openId: string | null;
+  /** A thread to open beside it. */
+  thread?: number | null;
+  /** Which press asked for them: the same conversation asked for again opens again. */
+  asked?: string | null;
   /** Makes and changes channels. */
   canManage?: boolean;
 }) {
@@ -54,10 +61,17 @@ export function ChatScreen({
   const [extra, setExtra] = useState<ConvRow | null>(null);
   const [sheet, setSheet] = useState<"direct" | "channels" | null>(null);
   const [gone, setGone] = useState<string | null>(null);
+  /** The message whose thread is open beside its conversation. */
+  const [thread, setThread] = useState<number | null>(firstThread);
+  /** Their threads are on the right, in the place of a conversation. */
+  const [threads, setThreads] = useState(false);
   const phone = usePhone();
   const [online, setOnline] = useState<ReadonlySet<string>>(new Set());
   const who = useMemo(
-    () => new Map<string, Who>(people.map((p) => [p.id, { name: p.name, ...lookOf(p.id, p.avatar) }])),
+    () =>
+      new Map<string, Who>(
+        people.map((p) => [p.id, { name: p.name, active: p.active !== false, ...lookOf(p.id, p.avatar) }]),
+      ),
     [people],
   );
 
@@ -113,6 +127,18 @@ export function ChatScreen({
           }));
           // Once in a while, as the server counts it.
           refresh(SLOW_MS + spread(SLOW_MS / 2));
+        } else if (e.e === "reply") {
+          // It counts for those who follow the thread; one's own is read as it's sent.
+          if (!e.f || e.t === undefined) return;
+          if (e.u === me) return refresh(1000 + spread(1000));
+          const l = listRef.current;
+          const muted = [...l.channels, ...l.direct, ...l.leads].some((c) => c.id === e.c && c.muted);
+          const counts = !muted && !isViewing(threadKey(e.t));
+          setList((x) => ({ ...x, threads: { any: true, unread: x.threads.unread + (counts ? 1 : 0) } }));
+          refresh(SLOW_MS + spread(SLOW_MS / 2));
+        } else if (e.e === "read" && e.t !== undefined) {
+          // A thread read, followed or left in another of their tabs.
+          refresh(1000 + spread(1000));
         } else if (e.e === "members" || e.e === "changed") refresh(1000 + spread(e.w ?? 1000));
         else if (e.e === "deleted") refresh(SLOW_MS / 3 + spread(SLOW_MS / 3));
         else if (e.e === "read" && e.u === me && e.c) {
@@ -171,7 +197,7 @@ export function ChatScreen({
     };
   }, [openId, listed, extra]);
   // On a computer the first channel is open until one is chosen; on a phone, the list comes first.
-  const shownId = openId ?? (phone || gone ? null : (list.channels[0]?.id ?? null));
+  const shownId = threads ? null : (openId ?? (phone || gone ? null : (list.channels[0]?.id ?? null)));
   const open = all.find((c) => c.id === shownId) ?? (extra?.id === shownId ? extra : null);
   openRef.current = open?.id ?? null;
   // A lead's thread open here stays open when it drops off the end of the list.
@@ -179,10 +205,18 @@ export function ChatScreen({
   useEffect(() => {
     if (last) setExtra(last);
   }, [last?.id]);
-  const onOpen = (id: string) => {
+  const onOpen = (id: string, root: number | null = null) => {
     setGone(null);
+    setThreads(false);
+    setThread(root);
     setOpenId(id);
   };
+  // Opened from the bell while Chat is already on screen.
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) first.current = false;
+    else if (firstOpen) onOpen(firstOpen, firstThread);
+  }, [firstOpen, firstThread, asked]);
   const onMute = (id: string, muted: boolean) => {
     const on = (c: ConvRow) => (c.id === id ? { ...c, muted } : c);
     setList((l) => ({
@@ -198,23 +232,29 @@ export function ChatScreen({
     });
   };
   return (
-    <div className={s.cx} data-full-canvas="" data-open={openId && open ? "" : undefined}>
+    <div className={s.cx} data-full-canvas="" data-open={(openId && open) || threads ? "" : undefined}>
       <ConvList
         list={list}
         openId={shownId}
         online={online}
         onOpen={onOpen}
+        onThreads={() => setThreads(true)}
+        threadsOpen={threads}
         onNewDirect={() => setSheet("direct")}
         {...(canManage ? { onChannels: () => setSheet("channels") } : {})}
         onFold={onFold}
       />
-      {open ? (
+      {threads ? (
+        <Threads me={me} people={who} zone={zone} onOpen={onOpen} onBack={() => setThreads(false)} />
+      ) : open ? (
         <Conversation
           key={open.id}
           conv={open}
           me={me}
           people={who}
           zone={zone}
+          thread={thread}
+          onThread={setThread}
           onBack={() => setOpenId(null)}
           {...(all.some((c) => c.id === open.id) ? { onMute: (m: boolean) => onMute(open.id, m) } : {})}
         />

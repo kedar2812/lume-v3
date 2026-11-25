@@ -209,6 +209,10 @@ export const TIME_SPAN = /^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/;
 
 export type Problem = { nodeId: string | null; words: string; fix?: string; warning?: boolean };
 
+/** Words a ready-made flow leaves for the business to write: [[Your opening hours]]. Never a person's own [brackets]. */
+export const FILL_IN = /\[\[\s*[^\]\s][^\]]*\]\]/;
+const FILL_WORDS = "Write your own words where it says [[…]].";
+
 /** Everything that stops a graph going live, in words, each with the step it's on; warnings don't stop it. */
 export function validateGraph(
   g: FlowGraph,
@@ -229,6 +233,16 @@ export function validateGraph(
   }
   if (!ids.has(g.start)) at(null, "Starts when leads to a step that isn't there.");
   for (const n of g.nodes) {
+    // What a person reads, left as a ready-made flow wrote it: said once on the step, before Meta's own limits.
+    const read =
+      n.type === "message"
+        ? [n.text, ...n.buttons.map((b) => b.title), ...n.replies.map((r) => r.title)]
+        : n.type === "ask"
+          ? [n.text, n.retry, ...(n.choices ?? []).map((c) => c.title)]
+          : n.type === "book" || n.type === "notify"
+            ? [n.text]
+            : [];
+    if (read.some((t) => FILL_IN.test(t))) at(n.id, FILL_WORDS);
     for (const e of exitsOf(n))
       if (e !== null && !ids.has(e)) at(n.id, "A line leads to a step that isn't there.");
     switch (n.type) {

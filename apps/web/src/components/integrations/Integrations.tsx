@@ -10,6 +10,7 @@ import { sheetsClient } from "@/lib/sheets/client";
 import type { IntegrationsView, SheetSourceView } from "@/lib/sheets/types";
 import { AttentionBanner } from "./AttentionBanner";
 import { AiCard } from "./AiCard";
+import { InstagramCard } from "./InstagramCard";
 import { WhatsAppCard } from "./WhatsAppCard";
 import { CalendlyCard } from "./CalendlyCard";
 import { GoogleCalendarCard } from "./GoogleCalendarCard";
@@ -192,6 +193,9 @@ export function Integrations({ tz }: { tz?: string } = {}) {
           (owner, 2026-10-20): a business never sees a card for something its server can't run. */}
       {view.whatsapp && (view.whatsapp.available || view.whatsapp.enabled) && (
         <WhatsAppCard wa={view.whatsapp} onView={setView} />
+      )}
+      {view.instagram && (view.instagram.available || view.instagram.enabled) && (
+        <InstagramCard ig={view.instagram} onView={setView} {...(tz ? { tz } : {})} />
       )}
       {view.ai && (view.ai.available || view.ai.enabled) && (
         <AiCard ai={view.ai} tz={tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone} onView={setView} />

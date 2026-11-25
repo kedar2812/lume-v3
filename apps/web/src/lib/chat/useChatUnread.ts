@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { subscribeChat } from "@/lib/notifications/stream";
 import { chatClient } from "./client";
-import { isViewing, onMuted } from "./viewing";
+import { isViewing, onMuted, threadKey } from "./viewing";
 
 /** What can change one's own count in a way only the server can say. */
 const ASKS = new Set(["deleted", "read", "members", "changed", "reconnected"]);
@@ -61,6 +61,12 @@ export function useChatUnread(on: boolean, me: string | undefined): number {
         // One's own (from another tab) has read what came before it: the server says how much is left.
         if (e.u === me) return ask(false);
         if (!isViewing(e.c) && !muted.has(e.c)) setN((x) => x + 1);
+        later(CHECK_MS + Math.floor(Math.random() * CHECK_MS));
+      } else if (e.e === "reply") {
+        // A thread's reply counts for those who follow it.
+        if (!e.f || !e.c || e.t === undefined) return;
+        if (e.u === me) return ask(false);
+        if (!isViewing(threadKey(e.t)) && !muted.has(e.c)) setN((x) => x + 1);
         later(CHECK_MS + Math.floor(Math.random() * CHECK_MS));
       } else if (e.e === "message" || ASKS.has(e.e)) ask(e.c === "*");
     });

@@ -1,0 +1,323 @@
+/* Instagram on a lead (plan 2026-11-25-instagram-screens D2; canvas boards Thread, ThreadDark, Phone). Bubbles as
+   WhatsApp's: the person's on the left in grey, the business's on the right in the accent's soft tint. */
+.tab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.glyph {
+  flex: none;
+  border-radius: 8px;
+}
+.who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.name,
+.handle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.name {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.handle {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.pick select {
+  height: 32px;
+  max-width: 160px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+/* Who has the conversation now: a chip, what it means, and the one thing a person can do about it. */
+.driver {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--sunk);
+}
+.chip {
+  flex: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.chip[data-who="person"] {
+  background: var(--accent);
+  box-shadow: none;
+  color: #fff;
+}
+.driverNote {
+  flex: 1;
+  min-width: 160px;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.list {
+  margin: 0;
+  padding: 14px 12px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 14px;
+  background: var(--sunk);
+}
+.empty {
+  align-self: center;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.day {
+  align-self: center;
+  padding: 4px 0;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-3);
+}
+/* The meta line comes first for screen readers (who, when, then what) and sits under the bubble on screen. */
+.msg {
+  max-width: 82%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  align-self: flex-start;
+}
+.msg[data-direction="out"] {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.meta {
+  padding: 0 4px;
+  font-size: 11px;
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}
+.bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 12px;
+  border-radius: 14px 14px 14px 4px;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 0.5px var(--line);
+  font-size: var(--fs-md);
+  letter-spacing: var(--ls-md);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.msg[data-direction="out"] .bubble {
+  border-radius: 14px 14px 4px 14px;
+  background: var(--accent-soft);
+  box-shadow: none;
+}
+.text {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.extra {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.unsent {
+  font-style: italic;
+  color: var(--text-3);
+}
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.choice {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  font-size: var(--fs-xs);
+  color: var(--accent-ink);
+}
+.reaction {
+  align-self: flex-end;
+  font-size: var(--fs-sm);
+}
+.failed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: var(--fs-sm);
+  color: var(--danger-ink);
+}
+.comments {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.subhead {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+.commentList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.comment {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
+}
+.comment + .comment {
+  box-shadow: inset 0 0.5px 0 var(--line);
+}
+.commentText {
+  margin: 0;
+  font-size: var(--fs-md);
+  overflow-wrap: anywhere;
+}
+.privateBox {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.window {
+  margin: 0;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+}
+.window[data-state="closed"] {
+  color: var(--warn-ink);
+}
+.error {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--danger-ink);
+}
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.input {
+  min-height: 44px;
+  max-height: 160px;
+  box-sizing: border-box;
+  resize: none;
+  field-sizing: content;
+  padding: 11px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-md);
+  line-height: 1.45;
+}
+.input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.hint {
+  flex: 1;
+  min-width: 180px;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-3);
+}
+.count {
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+.count[data-over] {
+  color: var(--danger-ink);
+  font-weight: var(--fw-semibold);
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .msg {
+    animation: in 0.2s ease-out both;
+  }
+  @keyframes in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+}

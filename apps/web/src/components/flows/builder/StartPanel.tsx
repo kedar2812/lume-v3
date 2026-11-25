@@ -1,7 +1,11 @@
 "use client";
 import { useRef, useState } from "react";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { flowsClient, withoutId, type FlowTrigger } from "@/lib/flows/client";
+import { TriggerIcon } from "./StartCard";
 import s from "./builder.module.css";
+
+const { close: X } = UI_ICONS;
 
 const KINDS: [FlowTrigger["kind"], string][] = [
   ["comment", "Comments on a post"],
@@ -128,13 +132,14 @@ export function StartPanel({
       <div className={s.ih}>
         <b className={s.ihTitle}>Starts when</b>
         <button type="button" className={s.x} aria-label="Close" onClick={onClose}>
-          ×
+          <X size={ICON_SIZE.md} aria-hidden />
         </button>
       </div>
       <div className={s.ib}>
         {list.map((t, i) => (
           <div key={i} className={s.ruleBox}>
             <div className={s.row}>
+              <TriggerIcon kind={t.kind} />
               <select
                 className={s.input}
                 aria-label={nth("Starts when someone", i)}
@@ -167,7 +172,7 @@ export function StartPanel({
                   setTexts((x) => x.filter((_, j) => j !== i));
                 }}
               >
-                ×
+                <X size={ICON_SIZE.md} aria-hidden />
               </button>
             </div>
             {WORDED.has(t.kind) && (

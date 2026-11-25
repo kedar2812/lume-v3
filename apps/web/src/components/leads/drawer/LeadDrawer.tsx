@@ -1,7 +1,7 @@
 "use client";
 import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
 import { useLoadingSignal } from "@/lib/loading";
-import { useWhatsApp } from "@/lib/notifications/stream";
+import { useInstagram, useWhatsApp } from "@/lib/notifications/stream";
 import { useChatOnScreen } from "@/lib/whatsapp/open-chats";
 import { useSearchParams } from "next/navigation";
 import { BodyPortal } from "@/components/ui/BodyPortal";
@@ -44,12 +44,15 @@ import { useLeadAi } from "./LeadAi";
 import { LogCall } from "./LogCall";
 import { ContactBox } from "./ContactBox";
 import { MeetingsTab } from "./MeetingsTab";
+import { InstagramTab } from "./InstagramTab";
 import { WhatsAppComposer } from "./WhatsAppComposer";
 import { ChatCard } from "./ChatCard";
 import { WhatsAppChat } from "./WhatsAppChat";
 import { DoNotContact } from "./DoNotContact";
 import { HandToAi } from "@/components/autopilot/HandToAi";
 import { ScheduleMeeting } from "@/components/calendar/ScheduleMeeting";
+import { instagramClient } from "@/lib/instagram/client";
+import type { IgThread } from "@/lib/instagram/types";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import type { WaThread, WaThreadMessage } from "@/lib/whatsapp/types";
 import { MessageButton } from "./MessageButton";
@@ -73,7 +76,7 @@ type Props = {
   onChanged: (lead: Lead) => void;
   onGone: (id: string, why: GoneReason) => void;
 };
-type Tab = "details" | "notes" | "history" | "meetings" | "whatsapp" | "team";
+type Tab = "details" | "notes" | "history" | "meetings" | "whatsapp" | "instagram" | "team";
 const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "details", label: "Details" },
   { id: "notes", label: "Notes" },
@@ -213,9 +216,38 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
     setWa((w) => (w ? { ...w, messages: w.messages.filter((x) => x.id !== m.id) } : w));
     waSent(r.data.message);
   };
+  // Instagram on this lead (plan 2026-11-25-instagram-screens D2): a tab when the lead has a conversation there.
+  const [ig, setIg] = useState<IgThread[] | null>(null);
+  const loadIg = useCallback(() => {
+    void instagramClient.threads(id).then((r) => r.ok && shown.current === id && setIg(r.data.threads));
+  }, [id]);
+  useEffect(() => {
+    setIg(null);
+    loadIg();
+  }, [loadIg]);
+  useInstagram((e) => {
+    if (e.lead === id || e.lead === "*") loadIg();
+  });
+  // A reply on its way: look again every 5 s until Instagram has it, for 2 minutes (as WhatsApp's).
+  const igPending = !!ig?.some((t) =>
+    t.messages.some((m) => m.status === "queued" || m.status === "sending"),
+  );
+  const igSince = useRef(0);
+  useEffect(() => {
+    if (!igPending) {
+      igSince.current = 0;
+      return;
+    }
+    if (!igSince.current) igSince.current = Date.now();
+    if (Date.now() - igSince.current > 120_000) return;
+    const t = setTimeout(loadIg, 5_000);
+    return () => clearTimeout(t);
+  }, [igPending, ig, loadIg]);
+  const seesIg = !!ig && ig.length > 0;
   const TABS: { id: Tab; label: string }[] = [
     ...BASE_TABS,
     ...(seesWa ? [{ id: "whatsapp" as const, label: "WhatsApp" }] : []),
+    ...(seesIg ? [{ id: "instagram" as const, label: "Instagram" }] : []),
     ...(seesMeetings ? [{ id: "meetings" as const, label: "Meetings" }] : []),
     // The team's talk about this lead (Team Chat 2A, Task 8), for whoever chats.
     ...(can(session.actor, "chat.use") ? [{ id: "team" as const, label: "Team" }] : []),
@@ -416,11 +448,16 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
   /** They replied (report §11.2 step 6): one tap, then whatever the stage does after a reply, undoable. */
   // One reply per tap: the button rests for a moment after each, so a double-tap logs it once.
   const [replying, setReplying] = useState(false);
+  useEffect(() => {
+    if (!replying) return;
+    // Closed meanwhile: nothing is left to rest.
+    const t = setTimeout(() => setReplying(false), 2000);
+    return () => clearTimeout(t);
+  }, [replying]);
   const shapesPipelines = can(session.actor, "pipelines.manage");
   const replied = async () => {
     if (!lead || replying) return;
     setReplying(true);
-    setTimeout(() => setReplying(false), 2000);
     const r = await leadsClient.replied(lead.id);
     if (!r.ok) return toast({ tone: "danger", title: "The reply wasn’t logged", detail: r.message });
     sound.play("sent");
@@ -921,6 +958,9 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                       }}
                     >
                       {t.id === "whatsapp" && <WhatsAppIcon size={16} className={s.tabIcon} />}
+                      {t.id === "instagram" && (
+                        <img src="/brand/instagram.png" alt="" width={16} height={16} className={s.tabIcon} />
+                      )}
                       {t.label}
                       {t.id === "meetings" && meetings.length > 0 && (
                         <span className={s.tabCount}>{meetings.length}</span>
@@ -973,6 +1013,18 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                       me={session.user.id}
                       zone={tz}
                       people={catalog.people}
+                    />
+                  )}
+                  {shownTab === "instagram" && ig && (
+                    <InstagramTab
+                      key={lead.id}
+                      leadId={lead.id}
+                      leadName={lead.name ?? "this lead"}
+                      threads={ig}
+                      me={{ id: session.user.id, name: session.user.name }}
+                      canSend={lead.can.message}
+                      tz={tz}
+                      onChanged={loadIg}
                     />
                   )}
                   {shownTab === "whatsapp" && wa && (

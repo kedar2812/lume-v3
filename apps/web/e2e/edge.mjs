@@ -7,8 +7,14 @@ const WEB = Number(process.env.E2E_WEB_PORT ?? 3102);
 const PORT = Number(process.env.E2E_EDGE_PORT ?? 3100);
 // WhatsApp's deliveries from the relay (spec 2026-10-18 §3.3) and a library file's link (/f/, W3b-1) go to the API, as
 // on a client's server (infra/Caddyfile).
+// Instagram's too (plan 2026-11-25-instagram-screens): deliveries, the relay's account list, moves and notes.
+const IG = new Set(["/instagram/in", "/instagram/accounts", "/instagram/moved", "/instagram/notes"]);
 const toApi = (url) =>
-  /^\/(api|webhooks|f)\//.test(url) || url === "/whatsapp/in" || url === "/healthz" || url === "/readyz";
+  /^\/(api|webhooks|f)\//.test(url) ||
+  url === "/whatsapp/in" ||
+  IG.has(url.split("?")[0]) ||
+  url === "/healthz" ||
+  url === "/readyz";
 
 createServer((req, res) => {
   const proxied = request(
