@@ -103,3 +103,5 @@ export {
   type FlowStep,
   type RunState,
 } from "./instagram/flows";
+// Team Chat (plan 2026-11-24-team-chat-2a): its limits and rules, the same on screen as on the server.
+export * from "./chat/rules";

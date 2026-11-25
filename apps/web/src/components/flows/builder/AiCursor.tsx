@@ -9,14 +9,27 @@ import s from "./builder.module.css";
  * in the canvas's own coordinates, so it stays on the step when the canvas moves; drawn at the size it has on screen
  * whatever the zoom. Its move is the beat: each step lands as it arrives.
  */
-export function AiCursor({ x, y, label, zoom }: { x: number; y: number; label: string; zoom: number }) {
+export function AiCursor({
+  x,
+  y,
+  label,
+  zoom,
+  moveMs,
+}: {
+  x: number;
+  y: number;
+  label: string;
+  zoom: number;
+  /** The beat: how long its move takes. */
+  moveMs: number;
+}) {
   const id = `ai-cursor-${useId().replace(/:/g, "")}`;
   return (
     <ViewportPortal>
       <div
         data-ai-cursor=""
         className={s.cursor}
-        style={{ transform: `translate(${x}px, ${y}px)` }}
+        style={{ transform: `translate(${x}px, ${y}px)`, transitionDuration: `${moveMs}ms` }}
         aria-hidden
       >
         <div className={s.cursorScale} style={{ transform: `scale(${1 / Math.max(zoom, 0.05)})` }}>

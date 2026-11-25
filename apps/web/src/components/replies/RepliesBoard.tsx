@@ -105,7 +105,7 @@ export function RepliesBoard({
   if (!shown.length)
     return (
       <div className={s.empty}>
-        <p>
+        <p suppressHydrationWarning>
           No WhatsApp replies since {relativeTime(board.since, new Date(), tz)}. When leads write back, they
           show up here, grouped by what they mean.
         </p>
@@ -130,7 +130,9 @@ export function RepliesBoard({
               <li key={l.leadId}>
                 <Link href={`/leads?lead=${l.leadId}`} className={s.lead}>
                   <b>{l.name}</b>
-                  <span className={s.when}>{relativeTime(l.at, new Date(), tz)}</span>
+                  <span className={s.when} suppressHydrationWarning>
+                    {relativeTime(l.at, new Date(), tz)}
+                  </span>
                 </Link>
                 {(l.summary ?? l.text) && <p className={s.said}>{l.summary ?? l.text}</p>}
               </li>

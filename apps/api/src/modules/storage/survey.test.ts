@@ -180,6 +180,22 @@ describe("what each clean-up would give back", () => {
     expect(cand(s, "old")).toEqual({ bytes: 4 * MB, files: 1 });
   });
 
+  it("Team Chat's files are its own line, whoever sent them and wherever", async () => {
+    const f = await file("teamchat", 6);
+    const u = (await h.queryAll<{ id: string }>("SELECT id FROM users LIMIT 1"))[0]!.id;
+    await h.ownerPool.query(
+      `INSERT INTO chat_files (id, uploader_id, sha256, name, mime, kind, size)
+       VALUES ($1, $2, $3, 'Plan.pdf', 'application/pdf', 'document', $4)`,
+      [randomUUID(), u, f, 6 * MB],
+    );
+    const s = await storage();
+    expect(s.kinds.find((k: { key: string }) => k.key === "chat")).toEqual({
+      key: "chat",
+      bytes: 6 * MB,
+      files: 1,
+    });
+  });
+
   it("an archived library file a WhatsApp template shows at its top stays", async () => {
     const lib = await file("header", 3);
     const fileId = randomUUID();

@@ -122,6 +122,7 @@ describe("seeded roles", () => {
       "calendar.view": "own",
       "calendar.connect": null,
       "analytics.view": "own",
+      "chat.use": null,
     });
   });
 });

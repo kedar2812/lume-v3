@@ -19,6 +19,7 @@ import {
   type WhatsAppEvent,
 } from "./hub";
 import { leadsDelay, leadsEveryMs } from "./budget";
+import { createChatLive } from "../chat/live";
 
 const N = schema.notifications;
 const self = { permission: "auth.self" as const };
@@ -45,8 +46,22 @@ export async function notificationRoutes(app: FastifyInstance, d: AppDeps): Prom
     for (const res of open) res.end();
     open.clear();
   });
-  app.addHook("onClose", async () => hub.stop());
+  // Team Chat, live (plan 2026-11-24-team-chat-2a, Task 6): on the same hub, so one stream carries everything.
+  const chat = createChatLive(d.pool, hub);
+  app.addHook("onClose", async () => {
+    chat.stop();
+    await hub.stop();
+  });
   const r = app.withTypeProvider<ZodTypeProvider>();
+
+  /** Who is online among the people the asker shares a conversation with (Team Chat's dots). */
+  r.get("/api/v1/chat/online", { config: { permission: "chat.use" } }, async (req) => {
+    const on = `{${chat.online().join(",")}}`;
+    const people = (
+      await req.db.execute<{ id: string }>(sql`SELECT lume_chat_share(${on}::uuid[]) AS id`)
+    ).rows.map((x) => x.id);
+    return { online: people };
+  });
 
   // Row-level security keeps these to the caller's own (0021_follow_ups.sql).
   r.get("/api/v1/notifications", { config: self }, async (req) => {
@@ -223,11 +238,22 @@ data: ${JSON.stringify(said(e))}
 `);
       });
       // Live sheets (2026-11-14): a sheet's progress or status, as its id and kind, for people who make them.
+      // Team Chat: each event as its conversation and kind, to the people it's for; who comes online and goes.
+      const offChat = chat.subscribe({
+        userId,
+        actor: req.actor!,
+        say: (name, data) =>
+          write(`event: ${name}
+data: ${JSON.stringify(data)}
+
+`),
+      });
       const makesSheets = can(req.actor!, "leads.live_sheets");
       const offLiveSheet = hub.onLiveSheet((e) => {
         if (makesSheets) write(`event: live_sheet\ndata: ${JSON.stringify(e)}\n\n`);
       });
       req.raw.on("close", () => {
+        offChat();
         offLiveSheet();
         offWhatsApp();
         offInstagram();

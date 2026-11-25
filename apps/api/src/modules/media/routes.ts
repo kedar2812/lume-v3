@@ -33,7 +33,7 @@ async function fileFor(req: FastifyRequest, id: string) {
   return row;
 }
 
-async function sendStored(
+export async function sendStored(
   req: FastifyRequest,
   reply: FastifyReply,
   d: AppDeps,

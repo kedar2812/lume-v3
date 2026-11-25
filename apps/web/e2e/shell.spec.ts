@@ -63,7 +63,8 @@ test("a short window scrolls the sidebar; nothing in it is squashed to fit", asy
     expect(box.scrolls, `${height}px: the sidebar scrolls`).toBe(true);
     // The profile stays whole on screen, and the last view can be scrolled to.
     const me = await page.getByTestId("lockup").evaluate(() => {
-      const el = document.querySelector("aside button[aria-haspopup]") as HTMLElement | null;
+      // The sidebar's last: each view's Edit, in the scroller above it, opens something too.
+      const el = [...document.querySelectorAll<HTMLElement>("aside button[aria-haspopup]")].at(-1);
       const r = el?.getBoundingClientRect();
       return r ? { top: r.top, bottom: r.bottom } : null;
     });

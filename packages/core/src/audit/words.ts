@@ -406,6 +406,12 @@ export const AUDIT_ACTIONS: Record<string, AuditActionDef> = {
   "instagram.flow.archived": { area: "Settings", phrase: "archived an Instagram flow" },
   "instagram.flow.triggers": { area: "Settings", phrase: "changed what starts an Instagram flow" },
   "instagram.flow.ai": { area: "Settings", phrase: "asked LUME AI to build an Instagram flow" },
+  "chat.channel.created": { area: "Chat", phrase: "made a channel" },
+  "chat.channel.changed": { area: "Chat", phrase: "changed a channel" },
+  "chat.channel.archived": { area: "Chat", phrase: "archived a channel" },
+  "chat.members.changed": { area: "Chat", phrase: "changed who is in a channel" },
+  "chat.message.edited": { area: "Chat", phrase: "edited a message" },
+  "chat.message.deleted": { area: "Chat", phrase: "deleted a message" },
   "instagram.flow.restored": {
     area: "Settings",
     phrase: "brought back an earlier version of an Instagram flow",

@@ -7,6 +7,7 @@ describe("navigation", () => {
       "Today",
       "Leads",
       "Who replied",
+      "Chat",
       "LUME AI",
       "Pipeline",
       "Live sheets",

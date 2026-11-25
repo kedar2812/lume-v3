@@ -170,6 +170,10 @@ export async function startWhatsAppQueue(o: WhatsAppJobDeps & { connectionString
         o.app.log.error({ err }, "whatsapp token refresh failed"),
       );
     if (!files) return;
+    // Team Chat's files nobody sent (0130), before their bytes are looked at: one place lets every file go.
+    await pool
+      .query("SELECT lume_chat_forget_files(now() - interval '1 day')")
+      .catch((err: unknown) => o.app.log.error({ err }, "chat files clean-up failed"));
     const r = await sweepWhatsAppFiles({ pool, store: files.store, log: o.app.log }).catch((err: unknown) => {
       o.app.log.error({ err }, "whatsapp files sweep failed");
       return null;

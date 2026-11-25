@@ -165,7 +165,9 @@ export function CalendarRail({
               </span>
               <span>
                 Google Calendar
-                <small>{sources.google.updated ? `updated ${sources.google.updated}` : "not read yet"}</small>
+                <small suppressHydrationWarning>
+                  {sources.google.updated ? `updated ${sources.google.updated}` : "not read yet"}
+                </small>
               </span>
               <i
                 data-ok={sources.google.healthy || undefined}

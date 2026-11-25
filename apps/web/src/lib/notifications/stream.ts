@@ -26,12 +26,32 @@ const liveSheetListeners = new Set<(e: LiveSheetEvent) => void>();
  * is read anywhere. The bell takes this number; it never counts on its own.
  */
 const unreadListeners = new Set<(unread: number) => void>();
+/**
+ * Team Chat (plan 2026-11-24-team-chat-2a): a change in a conversation, as its id and kind (the screen reads the rest
+ * under its own access), or someone online or gone. Conversation "*" (kind "reconnected"): the stream was away.
+ */
+export type ChatEvent = {
+  c?: string;
+  e: string;
+  m?: number;
+  u?: string;
+  /** A direct message; a lead's thread. */
+  d?: true;
+  l?: true;
+  /** Many are listening: reads this far apart at least (ms), each tab at a moment of its own. */
+  w?: number;
+};
+const chatListeners = new Set<(e: ChatEvent) => void>();
+export type PresenceEvent = { u: string; on: boolean };
+const presenceListeners = new Set<(e: PresenceEvent) => void>();
 const anyone = () =>
   listeners.size +
     leadListeners.size +
     autopilotListeners.size +
     whatsappListeners.size +
     liveSheetListeners.size +
+    chatListeners.size +
+    presenceListeners.size +
     unreadListeners.size >
   0;
 let source: EventSource | null = null;
@@ -55,6 +75,7 @@ function catchUpSoon() {
       for (const l of autopilotListeners) l({ run: "*", lead: null, kind: "reconnected" });
       for (const l of whatsappListeners) l({ lead: "*", kind: "reconnected" });
       for (const l of liveSheetListeners) l({ sheet: "*", kind: "reconnected" });
+      for (const l of chatListeners) l({ c: "*", e: "reconnected" });
     },
     Math.floor(Math.random() * CATCH_UP_SPREAD_MS),
   );
@@ -133,6 +154,36 @@ function open() {
     failures = 0;
     const said: LiveSheetEvent = { sheet: ev.sheet, kind: ev.kind };
     for (const l of liveSheetListeners) l(said);
+  });
+  s.addEventListener("chat", (e) => {
+    let ev: Partial<ChatEvent>;
+    try {
+      ev = JSON.parse((e as MessageEvent<string>).data) as Partial<ChatEvent>;
+    } catch {
+      return;
+    }
+    if (typeof ev.e !== "string" || (ev.c !== undefined && typeof ev.c !== "string")) return;
+    failures = 0;
+    const said: ChatEvent = {
+      e: ev.e,
+      ...(typeof ev.c === "string" ? { c: ev.c } : {}),
+      ...(typeof ev.m === "number" ? { m: ev.m } : {}),
+      ...(typeof ev.u === "string" ? { u: ev.u } : {}),
+      ...(ev.d === true ? { d: true } : {}),
+      ...(ev.l === true ? { l: true } : {}),
+      ...(typeof ev.w === "number" && ev.w > 0 ? { w: ev.w } : {}),
+    };
+    for (const l of chatListeners) l(said);
+  });
+  s.addEventListener("presence", (e) => {
+    let ev: Partial<PresenceEvent>;
+    try {
+      ev = JSON.parse((e as MessageEvent<string>).data) as Partial<PresenceEvent>;
+    } catch {
+      return;
+    }
+    if (typeof ev.u !== "string" || typeof ev.on !== "boolean") return;
+    for (const l of presenceListeners) l({ u: ev.u, on: ev.on });
   });
   s.addEventListener("notification", (e) => {
     let n: NotificationView;
@@ -293,4 +344,23 @@ export function useUnread(on: (unread: number) => void): void {
   const latest = useRef(on);
   latest.current = on;
   useEffect(() => subscribeUnread((n) => latest.current(n)), []);
+}
+
+/** Team Chat's changes, on the tab's one stream. */
+export function subscribeChat(listener: (e: ChatEvent) => void): () => void {
+  chatListeners.add(listener);
+  if (!source) open();
+  return () => {
+    chatListeners.delete(listener);
+    closeIfUnused();
+  };
+}
+/** Someone coming online or going, on the tab's one stream. */
+export function subscribePresence(listener: (e: PresenceEvent) => void): () => void {
+  presenceListeners.add(listener);
+  if (!source) open();
+  return () => {
+    presenceListeners.delete(listener);
+    closeIfUnused();
+  };
 }

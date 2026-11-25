@@ -100,7 +100,7 @@ export async function measureParts(
   return { files: Number(r.rows[0]!.files), bytes: Number(r.rows[0]!.bytes) };
 }
 
-export type KindKey = "whatsapp" | "instagram" | "previews" | "library" | "database";
+export type KindKey = "whatsapp" | "instagram" | "previews" | "library" | "chat" | "database";
 export type Survey = {
   disk: { total: number; free: number } | null;
   kinds: { key: KindKey; bytes: number; files: number }[];
@@ -110,7 +110,7 @@ export type Survey = {
   measuredAt: string;
 };
 
-/** Each file once, in the first kind that points at it: chats, then Instagram, previews, the library. */
+/** Each file once, in the first kind that points at it: chats, then Instagram, previews, the library, Team Chat. */
 const KINDS_SQL = `
   WITH k AS (
     SELECT sha256, 1 AS o FROM whatsapp_media WHERE sha256 IS NOT NULL
@@ -119,9 +119,10 @@ const KINDS_SQL = `
     UNION ALL SELECT thumb_sha256, 3 FROM file_previews WHERE thumb_sha256 IS NOT NULL
     UNION ALL SELECT pdf_sha256, 3 FROM file_previews WHERE pdf_sha256 IS NOT NULL
     UNION ALL SELECT sha256, 4 FROM message_files
+    UNION ALL SELECT h, 5 FROM lume_chat_file_hashes() AS h
   ), first AS (SELECT sha256, min(o) AS o FROM k GROUP BY sha256)
   SELECT first.o, count(*) AS files, sum(f.size) AS bytes FROM first JOIN whatsapp_files f USING (sha256) GROUP BY first.o`;
-const ORDER: KindKey[] = ["whatsapp", "instagram", "previews", "library"];
+const ORDER: KindKey[] = ["whatsapp", "instagram", "previews", "library", "chat"];
 
 /** Reads with every lead in view (chat files sit under the leads' row-level security), in one transaction. */
 async function allLeads<T>(pool: pg.Pool, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {

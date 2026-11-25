@@ -907,6 +907,10 @@ describe("LUME AI builds the flow (plan 2026-11-23-flow-builder, Task C2)", () =
     const cur = () => document.querySelector<HTMLElement>("[data-ai-cursor]");
     expect(cur()).toHaveTextContent("Writing a message");
     expect(cur()!.style.transform).toBe("translate(658px, 22px)");
+    // Its move takes exactly the beat, and Fit meanwhile keeps clear of the plan card too.
+    expect(cur()!.style.transitionDuration).toBe(`${BEAT_MS}ms`);
+    fireEvent.click(screen.getByRole("button", { name: "Fit" }));
+    expect(fits.at(-1)!.room!.left).toBeGreaterThanOrEqual(68 + 300);
     // A beat is the cursor's move, at least 900 ms: the steps land one a beat, never at once.
     expect(BEAT_MS).toBeGreaterThanOrEqual(900);
     const delays = timers.mock.calls.map((c) => c[1]);
@@ -937,6 +941,8 @@ describe("LUME AI builds the flow (plan 2026-11-23-flow-builder, Task C2)", () =
     // Keep: the tint goes, and Undo takes the whole build back in one step.
     await userEvent.click(screen.getByRole("button", { name: "Keep" }));
     expect(thanks()).not.toHaveAttribute("data-fresh");
+    fireEvent.click(screen.getByRole("button", { name: "Fit" }));
+    expect(fits.at(-1)!.room).toBeUndefined();
     expect(screen.getByText("Kept. Undo takes the whole build back in one step.")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "What LUME AI is building" })).toBeNull();
     fireEvent.keyDown(screen.getByLabelText("The flow's canvas"), { key: "z", ctrlKey: true });

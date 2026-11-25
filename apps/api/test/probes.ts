@@ -1158,4 +1158,63 @@ export const PROBES: Record<string, Probe> = {
     path: (f) => `/api/v1/stages/${f.stageToArchive}/archive`,
     body: () => ({}),
   },
+  // Team Chat 2A (plan 2026-11-24-team-chat-2a): everyone who chats; channels for whoever manages them.
+  "GET /api/v1/chat": { access: "chat.use" },
+  "PUT /api/v1/chat/folds": { access: "chat.use", body: () => ({ list: "leads", folded: true }) },
+  "POST /api/v1/chat/channels": { access: "chat.channels.manage", body: () => ({ name: "probe-channel" }) },
+  "PATCH /api/v1/chat/channels/:id": {
+    access: "chat.channels.manage",
+    path: () => `/api/v1/chat/channels/${uuid}`,
+    body: () => ({ topic: "Probe" }),
+  },
+  "PUT /api/v1/chat/channels/:id/members": {
+    access: "chat.channels.manage",
+    path: () => `/api/v1/chat/channels/${uuid}/members`,
+    body: () => ({ people: [], groups: [] }),
+  },
+  "POST /api/v1/chat/direct": { access: "chat.use", body: () => ({ people: [uuid] }) },
+  "POST /api/v1/chat/leads/:leadId": { access: "chat.use", path: () => `/api/v1/chat/leads/${uuid}` },
+  "PUT /api/v1/chat/:id/mute": {
+    access: "chat.use",
+    path: () => `/api/v1/chat/${uuid}/mute`,
+    body: () => ({ muted: true }),
+  },
+  "GET /api/v1/chat/:id/messages": { access: "chat.use", path: () => `/api/v1/chat/${uuid}/messages` },
+  "POST /api/v1/chat/:id/messages": {
+    access: "chat.use",
+    path: () => `/api/v1/chat/${uuid}/messages`,
+    body: () => ({ clientId: uuid, body: "Probe" }),
+  },
+  "PATCH /api/v1/chat/messages/:mid": {
+    access: "chat.use",
+    path: () => "/api/v1/chat/messages/1",
+    body: () => ({ body: "Probe" }),
+  },
+  "DELETE /api/v1/chat/messages/:mid": { access: "chat.use", path: () => "/api/v1/chat/messages/1" },
+  "PUT /api/v1/chat/messages/:mid/reactions/:emoji": {
+    access: "chat.use",
+    path: () => `/api/v1/chat/messages/1/reactions/${encodeURIComponent("👍")}`,
+  },
+  "DELETE /api/v1/chat/messages/:mid/reactions/:emoji": {
+    access: "chat.use",
+    path: () => `/api/v1/chat/messages/1/reactions/${encodeURIComponent("👍")}`,
+  },
+  "PUT /api/v1/chat/:id/read": {
+    access: "chat.use",
+    path: () => `/api/v1/chat/${uuid}/read`,
+    body: () => ({ upTo: 1 }),
+  },
+  "POST /api/v1/chat/files": { access: "chat.use" },
+  "GET /api/v1/chat/online": { access: "chat.use" },
+  "GET /api/v1/chat/unread": { access: "chat.use" },
+  "GET /api/v1/chat/people": { access: "chat.use" },
+  "GET /api/v1/chat/channels": { access: "chat.channels.manage" },
+  "GET /api/v1/chat/:id": { access: "chat.use", path: () => `/api/v1/chat/${uuid}` },
+  "POST /api/v1/chat/:id/typing": { access: "chat.use", path: () => `/api/v1/chat/${uuid}/typing` },
+  "GET /api/v1/chat/files/:id": { access: "chat.use" },
+  "PUT /api/v1/chat/:id/delivered": {
+    access: "chat.use",
+    path: () => `/api/v1/chat/${uuid}/delivered`,
+    body: () => ({ upTo: 1 }),
+  },
 };

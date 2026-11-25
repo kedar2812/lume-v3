@@ -60,6 +60,7 @@ import { NoteComposer, Timeline } from "./Timeline";
 import { WonPopover, type WonChange } from "./WonPopover";
 import s from "./drawer.module.css";
 import { zoneOf } from "@/lib/zone";
+import { LeadTeam } from "@/components/chat/LeadTeam";
 
 export type GoneReason = "handed" | "deleted";
 type Props = {
@@ -72,7 +73,7 @@ type Props = {
   onChanged: (lead: Lead) => void;
   onGone: (id: string, why: GoneReason) => void;
 };
-type Tab = "details" | "notes" | "history" | "meetings" | "whatsapp";
+type Tab = "details" | "notes" | "history" | "meetings" | "whatsapp" | "team";
 const BASE_TABS: { id: Tab; label: string }[] = [
   { id: "details", label: "Details" },
   { id: "notes", label: "Notes" },
@@ -216,6 +217,8 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
     ...BASE_TABS,
     ...(seesWa ? [{ id: "whatsapp" as const, label: "WhatsApp" }] : []),
     ...(seesMeetings ? [{ id: "meetings" as const, label: "Meetings" }] : []),
+    // The team's talk about this lead (Team Chat 2A, Task 8), for whoever chats.
+    ...(can(session.actor, "chat.use") ? [{ id: "team" as const, label: "Team" }] : []),
   ];
   // After J/K to a lead without the tab that was open (no WhatsApp), Details shows until it has one.
   const shownTab: Tab = TABS.some((t) => t.id === tab) ? tab : "details";
@@ -963,6 +966,14 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                         empty={activities.loaded ? "No notes yet" : "Loading…"}
                       />
                     </>
+                  )}
+                  {shownTab === "team" && (
+                    <LeadTeam
+                      lead={{ id: lead.id, name: lead.name ?? "", stage: null }}
+                      me={session.user.id}
+                      zone={tz}
+                      people={catalog.people}
+                    />
                   )}
                   {shownTab === "whatsapp" && wa && (
                     <ChatCard

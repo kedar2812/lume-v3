@@ -20,6 +20,7 @@ export const DEFAULT_ROLES: RoleSeed[] = [
       { key: "calendar.view", scope: "own" },
       { key: "calendar.connect", scope: null },
       { key: "analytics.view", scope: "own" },
+      { key: "chat.use", scope: null },
     ],
   },
 ];

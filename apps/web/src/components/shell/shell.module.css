@@ -327,6 +327,10 @@
 .scroll:has([data-full-canvas]) {
   overflow: hidden;
 }
+/* The page's own box too: what's in it (Chat) scrolls inside it and never makes the page taller. */
+.page:has([data-full-canvas]) > * {
+  height: 100%;
+}
 @media (max-width: 860px) {
   .app {
     grid-template-columns: 1fr;
@@ -516,6 +520,24 @@
 }
 
 /* Autopilot's Live pill (spec 2026-10-19 §2): a run is going. */
+/* Team Chat's unread on its item (plan 2026-11-24-team-chat-2a): 99+ past 99, never wider than the row. */
+.count {
+  position: relative;
+  z-index: 1;
+  margin-left: auto;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
 .live {
   position: relative;
   z-index: 1;

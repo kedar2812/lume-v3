@@ -56,6 +56,8 @@ import { fileLinkRoutes } from "./modules/whatsapp/link";
 import { whatsappRoutes } from "./modules/whatsapp/routes";
 import { whatsappReceiveRoutes } from "./modules/whatsapp/receive";
 import { instagramFlowRoutes } from "./modules/instagram/flow-routes";
+import { chatRoutes } from "./modules/chat/routes";
+import { chatFileRoutes } from "./modules/chat/files";
 import { instagramRoutes } from "./modules/instagram/routes";
 import { instagramRelayRoutes } from "./modules/instagram/relay-routes";
 import { instagramReceiveRoutes } from "./modules/instagram/receive";
@@ -319,6 +321,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         await scope.register(whatsappRoutes, deps);
         await scope.register(instagramRoutes, deps);
         await scope.register(instagramFlowRoutes, deps);
+        await scope.register(chatRoutes);
+        await scope.register(chatFileRoutes, deps);
         await scope.register(fileLinkRoutes, deps);
         await scope.register(mediaRoutes, deps);
         await scope.register(storageRoutes, deps);

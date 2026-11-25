@@ -245,6 +245,21 @@ export const PERMISSIONS = [
     label: "Manage security",
     description: "Sessions, 2FA policy, alerts",
   },
+  // Team Chat (plan 2026-11-24-team-chat-2a): everyone chats; admins make channels and choose who is in them.
+  {
+    key: "chat.use",
+    group: "Chat",
+    scoped: false,
+    label: "Use Team Chat",
+    description: "Channels they're in, direct messages, and lead threads",
+  },
+  {
+    key: "chat.channels.manage",
+    group: "Chat",
+    scoped: false,
+    label: "Manage channels",
+    description: "Make, rename and archive channels, and choose who's in them",
+  },
 ] as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[number]["key"];

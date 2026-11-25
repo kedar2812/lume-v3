@@ -2,6 +2,7 @@ export type IconName =
   | "today"
   | "leads"
   | "replies"
+  | "chat"
   | "autopilot"
   | "pipeline"
   | "livesheets"
@@ -34,6 +35,8 @@ export const NAV_ITEMS: NavItem[] = [
     permission: "leads.view",
     phase: 12,
   },
+  // Team Chat (plan 2026-11-24-team-chat-2a): the team's talk next to the leads' talk, for whoever chats.
+  { id: "chat", label: "Chat", href: "/chat", icon: "chat", permission: "chat.use", phase: 14 },
   {
     // LUME AI working leads live (Autopilot spec 2026-10-19 §2), named LUME AI everywhere (owner, 2026-10-27): whoever
     // may view leads, on or off; off, its page says how to switch it on.

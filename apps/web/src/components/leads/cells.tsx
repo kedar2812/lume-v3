@@ -80,6 +80,9 @@ export function WhenCell({ iso }: { iso: string | null | undefined }) {
       dateTime={iso}
       title={`${shortDate(at, true, tz)}, ${timeOf(at, tz)}`}
       data-volatile
+      // The clock moves between the server's drawing and the browser's: a minute that ticks over in between (leads that
+      // came in together all do at once) isn't a mistake to draw the page again for.
+      suppressHydrationWarning
       className={s.when}
     >
       {relativeTime(iso, undefined, tz)}

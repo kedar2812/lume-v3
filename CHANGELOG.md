@@ -6,6 +6,18 @@ column in the release that stops using it.
 
 ## Unreleased
 
+- **Team Chat, part 1** (`docs/superpowers/specs/2026-11-24-team-chat-design.md`): a **Chat** page for the team, beside
+  Leads. **Channels** (everyone in one, or chosen by person, team or role, and kept right as those change), **direct
+  messages** for two to eight people, and a **Team** tab on every lead whose talk only people who may see that lead can
+  read. People see only the channels they're in; whoever manages channels chooses who is in them and never reads what is
+  said there. Messages in bubbles on the sender's photo, replies, reactions, edit, delete, photos and files, typing,
+  who's online, and Sent, Delivered and Seen in direct messages. The three lists fold, a folded one showing its unread;
+  Chat's own unread is in the sidebar and, on a phone, on More. A half-written message waits while another conversation
+  is open, and a send that couldn't go waits with a way to try again. New permissions **Use Team Chat** (everyone) and
+  **Manage channels** (whoever manages roles). Migration 0130. Settings › Storage counts chat's files.
+- **Flow builder:** Stop stays ready as LUME AI's answer arrives; Fit keeps clear of the plan while it's on screen.
+- A list drawn just as a minute ticks over is no longer drawn twice (Leads, Who replied, Calendar).
+
 ## 1.4.0 — 2026-11-25
 
 - **Live sheets** (owner 2026-11-14, `docs/superpowers/specs/2026-11-14-live-sheets-design.md`): Google Sheets LUME

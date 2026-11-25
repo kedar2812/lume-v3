@@ -19,9 +19,12 @@ const PRIMARY = ["today", "leads", "calendar", "settings"] as const;
  */
 export function MobileTabs({
   can,
+  chatUnread = 0,
   onFeedback,
 }: {
   can: (p: string) => boolean;
+  /** Team Chat's unread: on its item in More, and a dot on More while it's shut. */
+  chatUnread?: number;
   /** Send feedback, last in More (spec 2026-10-16 §1.1). */
   onFeedback?: () => void;
 }) {
@@ -76,7 +79,10 @@ export function MobileTabs({
               <circle cx="19" cy="12" r="1.6" />
             </svg>
             <span>More</span>
-            {moreNew && <NewDot />}
+            {more.some((i) => i.id === "chat") && chatUnread > 0 && (
+              <span className={s.srOnly}>, {chatUnread > 99 ? "99+" : chatUnread} unread in Chat</span>
+            )}
+            {moreNew ? <NewDot /> : more.some((i) => i.id === "chat") && chatUnread > 0 && <NewDot />}
           </button>
           {open && (
             <div className={s.moreMenu} role="menu" aria-label="More">

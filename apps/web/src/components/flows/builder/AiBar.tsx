@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { AiGlyph } from "@/components/ai/AiGlyph";
 import s from "./builder.module.css";
 
@@ -38,13 +38,14 @@ export function AiBar(p: Props) {
     ? "Tell LUME AI what to change in the selected steps"
     : "Tell LUME AI what this flow should do";
   const busy = p.phase === "asking" || p.phase === "playing";
-  // Ready for a press only once this phase has been on screen a moment.
-  const [armedFor, setArmedFor] = useState<AiPhase | null>(null);
-  useEffect(() => {
-    const t = setTimeout(() => setArmedFor(p.phase), ARM_MS);
+  // Ready for a press only once these buttons have been on screen a moment: Stop stays ready from asking to playing.
+  const buttons = busy ? "stop" : p.phase;
+  const [armed, setArmed] = useState(false);
+  useLayoutEffect(() => {
+    setArmed(false);
+    const t = setTimeout(() => setArmed(true), ARM_MS);
     return () => clearTimeout(t);
-  }, [p.phase]);
-  const armed = armedFor === p.phase;
+  }, [buttons]);
   return (
     <div className={s.aibar} data-beside={p.beside || undefined} data-tool>
       <AiGlyph size={22} className={s.aiLoop} {...(busy ? { draw: "pen" as const } : {})} />

@@ -61,6 +61,8 @@ const newId = () => Math.random().toString(36).slice(2, 10);
 const ZERO = { entered: 0, people: 0, sent: 0 };
 /** LUME AI's beat (C2): the cursor's move to the next step, which lands as it arrives (at least 900 ms apart). */
 export const BEAT_MS = 950;
+/** LUME AI's plan card: 68 px in, 300 wide, and a gap. Whatever is brought into view keeps clear of it. */
+const PLAN_ROOM = { left: 384 };
 /** What LUME AI's cursor says it's doing, by the step it's adding. */
 const DOING: Record<GNode["type"], string> = {
   message: "Writing a message",
@@ -133,6 +135,9 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
   const [aiPhase, setAiPhase] = useState<AiPhase>("idle");
   const [prompt, setPrompt] = useState("");
   const [aiPlan, setAiPlan] = useState<{ rows: string[]; said: string } | null>(null);
+  /** The plan card is on the canvas. */
+  const planShown = useRef(false);
+  planShown.current = aiPlan !== null && (aiPhase === "playing" || aiPhase === "done");
   const [beat, setBeat] = useState({ at: 0, of: 0 });
   const [fresh, setFresh] = useState<ReadonlySet<string>>(() => new Set());
   const [cursor, setCursor] = useState<{ x: number; y: number; label: string } | null>(null);
@@ -474,14 +479,9 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
     [camera],
   );
   const fitAll = useCallback(() => {
-    const xs = Object.entries(graphRef.current.pos);
-    if (!xs.length) return;
-    const minX = Math.min(...xs.map(([, p]) => p.x));
-    const minY = Math.min(...xs.map(([, p]) => p.y));
-    const maxX = Math.max(...xs.map(([, p]) => p.x)) + NODE_W;
-    const maxY = Math.max(...xs.map(([, p]) => p.y)) + 220;
-    camera.fit({ x: minX, y: minY, w: maxX - minX, h: maxY - minY }, false);
-  }, [camera]);
+    // Clear of LUME AI's plan while it's on screen.
+    fitGraph(graphRef.current, planShown.current ? PLAN_ROOM : undefined);
+  }, [fitGraph]);
 
   // The whole flow in view when it opens.
   useEffect(() => {
@@ -752,8 +752,7 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
     setAiPhase("playing");
     const before = graphRef.current;
     const after = applyOps(before, a.ops);
-    // The whole next flow in view, clear of the plan card (68 px in, 300 wide, and a gap).
-    fitGraph(after, { left: 384 });
+    fitGraph(after, PLAN_ROOM);
     if (reduce) {
       land(a.ops, true);
       setBeat({ at: beats.length, of: beats.length });
@@ -1083,7 +1082,9 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
             onClick={(_, p) => camera.centerOn(p.x, p.y)}
             ariaLabel="Map of the flow"
           />
-          {cursor && <AiCursor x={cursor.x} y={cursor.y} label={cursor.label} zoom={camera.zoom} />}
+          {cursor && (
+            <AiCursor x={cursor.x} y={cursor.y} label={cursor.label} zoom={camera.zoom} moveMs={BEAT_MS} />
+          )}
         </ReactFlow>
 
         <nav className={s.rail} aria-label="Add a step" data-tool>

@@ -23,6 +23,7 @@ const KIND_WORDS: Record<StorageKind, { name: string; what: string; cls: string 
   },
   previews: { name: "Previews", what: "Thumbnails and page pictures, so files open fast", cls: s.k3! },
   library: { name: "File library", what: "Files your team sends again and again", cls: s.k3! },
+  chat: { name: "Team Chat files", what: "Photos and files your team sends each other", cls: s.k3! },
   database: {
     name: "Leads and messages",
     what: "Every lead, note and task, and the words of every message",
@@ -57,7 +58,7 @@ export function StoragePage({ initial }: { initial: Storage }) {
   const segments = [
     { cls: s.k1, w: kind("whatsapp") },
     { cls: s.k2, w: kind("instagram") },
-    { cls: s.k3, w: kind("previews") + kind("library") },
+    { cls: s.k3, w: kind("previews") + kind("library") + kind("chat") },
     { cls: s.k4, w: kind("database") },
     { cls: s.k5, w: data.other ?? 0 },
   ];
@@ -167,19 +168,22 @@ export function StoragePage({ initial }: { initial: Storage }) {
           <div className={s.head}>
             <h2 id="st-here">What&apos;s here</h2>
           </div>
-          {data.kinds.map((k) => (
-            <div key={k.key} className={s.row}>
-              <i className={`${s.dot} ${KIND_WORDS[k.key].cls}`} aria-hidden />
-              <div className={s.words}>
-                <b>{KIND_WORDS[k.key].name}</b>
-                <span>
-                  {KIND_WORDS[k.key].what}
-                  {k.files > 0 && ` · ${storageCount(k.files)} ${k.files === 1 ? "file" : "files"}`}
-                </span>
+          {data.kinds
+            // Team Chat's own line once it keeps a file.
+            .filter((k) => k.key !== "chat" || k.files > 0)
+            .map((k) => (
+              <div key={k.key} className={s.row}>
+                <i className={`${s.dot} ${KIND_WORDS[k.key].cls}`} aria-hidden />
+                <div className={s.words}>
+                  <b>{KIND_WORDS[k.key].name}</b>
+                  <span>
+                    {KIND_WORDS[k.key].what}
+                    {k.files > 0 && ` · ${storageCount(k.files)} ${k.files === 1 ? "file" : "files"}`}
+                  </span>
+                </div>
+                <b className={s.size}>{storageSize(k.bytes)}</b>
               </div>
-              <b className={s.size}>{storageSize(k.bytes)}</b>
-            </div>
-          ))}
+            ))}
           {data.other !== null && (
             <div className={s.row}>
               <i className={`${s.dot} ${s.k5}`} aria-hidden />

@@ -25,7 +25,16 @@ describe("the phone's tab bar (canvas Phone)", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((l) => l.textContent),
-    ).toEqual(["Who replied", "LUME AI", "Pipeline", "Live sheets", "Templates", "Media", "Analytics"]);
+    ).toEqual([
+      "Who replied",
+      "Chat",
+      "LUME AI",
+      "Pipeline",
+      "Live sheets",
+      "Templates",
+      "Media",
+      "Analytics",
+    ]);
     expect(within(menu).getByRole("menuitem", { name: "Templates" })).toHaveAttribute("aria-current", "page");
   });
 
@@ -84,5 +93,14 @@ describe("Send feedback on a phone (spec 2026-10-16 §1.1)", () => {
     expect(within(menu).getByRole("menuitem", { name: /Who replied/ })).toHaveTextContent("New");
     expect(within(menu).getByRole("menuitem", { name: /Pipeline/ })).not.toHaveTextContent("New");
     vi.useRealTimers();
+  });
+
+  it("Chat's unread shows on More while it's shut, for whoever chats", () => {
+    const { rerender } = render(<MobileTabs can={() => true} chatUnread={120} />);
+    expect(screen.getByRole("button", { name: /^More, 99\+ unread in Chat$/ })).toBeInTheDocument();
+    rerender(<MobileTabs can={() => true} chatUnread={0} />);
+    expect(screen.getByRole("button", { name: "More" })).toBeInTheDocument();
+    rerender(<MobileTabs can={(p) => p !== "chat.use"} chatUnread={3} />);
+    expect(screen.getByRole("button", { name: "More" })).toBeInTheDocument();
   });
 });

@@ -3,7 +3,7 @@ import type { CleanKind } from "@lume/core/shared";
 import { api } from "@/lib/api";
 
 /** Settings › Storage (plan 2026-11-23-storage-clean-up): what the API measures; sizes in bytes. */
-export type StorageKind = "whatsapp" | "instagram" | "previews" | "library" | "database";
+export type StorageKind = "whatsapp" | "instagram" | "previews" | "library" | "chat" | "database";
 export type Cleanup = {
   id: string;
   kinds: CleanKind[];

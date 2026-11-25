@@ -20,13 +20,15 @@ import s from "./shell.module.css";
 
 type Props = {
   businessName: string;
-  user: { name: string; role: string; color?: string; photo?: string };
+  user: { id?: string; name: string; role: string; color?: string; photo?: string };
   can: (p: string) => boolean;
+  /** Team Chat's unread, on its item (plan 2026-11-24-team-chat-2a). */
+  chatUnread?: number;
   /** Send feedback, in the profile menu (spec 2026-10-16 §1.1). */
   onFeedback?: () => void;
 };
 
-export function Sidebar({ businessName, user, can, onFeedback }: Props) {
+export function Sidebar({ businessName, user, can, chatUnread = 0, onFeedback }: Props) {
   const pathname = usePathname();
   const ai = useAiOn();
   const items = visibleNav(NAV_ITEMS, can, { ai });
@@ -56,13 +58,17 @@ export function Sidebar({ businessName, user, can, onFeedback }: Props) {
             const on = i.id === current?.id;
             const isLive = i.id === "autopilot" && live;
             const up = i.id === "media" ? batch : null;
-            const named = isLive
-              ? `${i.label}, live`
-              : up
-                ? up.done
-                  ? `${i.label}, ${up.total} ${up.total === 1 ? "file" : "files"} added`
-                  : `${i.label}, uploading ${Math.round(up.share * 100)}%`
-                : undefined;
+            const chatN =
+              i.id === "chat" && chatUnread > 0 ? (chatUnread > 99 ? "99+" : String(chatUnread)) : null;
+            const named = chatN
+              ? `${i.label}, ${chatN} unread`
+              : isLive
+                ? `${i.label}, live`
+                : up
+                  ? up.done
+                    ? `${i.label}, ${up.total} ${up.total === 1 ? "file" : "files"} added`
+                    : `${i.label}, uploading ${Math.round(up.share * 100)}%`
+                  : undefined;
             return (
               <Link
                 key={i.id}
@@ -96,6 +102,11 @@ export function Sidebar({ businessName, user, can, onFeedback }: Props) {
                 <span className={s.label}>{i.label}</span>
                 {storyAt(i.href) && <NewPill story={storyAt(i.href)!} end />}
                 {up && <MediaRing batch={up} />}
+                {chatN && (
+                  <span className={s.count} aria-hidden>
+                    {chatN}
+                  </span>
+                )}
                 {isLive && (
                   <span className={s.live} aria-hidden>
                     <i />

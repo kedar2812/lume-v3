@@ -185,6 +185,79 @@ function liveSheetEventOf(payload: string): LiveSheetEvent | null {
   }
 }
 
+/**
+ * A change in Team Chat (plan 2026-11-24-team-chat-2a, Task 6): a conversation and what happened, by ids only; each
+ * stream reads the rest as its person. `lead`: a lead's thread, `o` its owner then, so only people who may see the
+ * lead hear it. A `members` with no conversation: who is in which channel changed (a team or role); `presence`:
+ * someone came online (`on`) or went.
+ */
+export type ChatEvent = {
+  c?: string;
+  e:
+    | "message"
+    | "edited"
+    | "deleted"
+    | "reaction"
+    | "read"
+    | "delivered"
+    | "members"
+    | "changed"
+    | "typing"
+    | "presence";
+  m?: number;
+  u?: string;
+  lead?: true;
+  /** A direct message: its read marks are the other person's business too. */
+  d?: true;
+  o?: string | null;
+  on?: boolean;
+};
+const CHAT_KINDS = new Set([
+  "message",
+  "edited",
+  "deleted",
+  "reaction",
+  "read",
+  "delivered",
+  "members",
+  "changed",
+  "typing",
+  "presence",
+]);
+/** Only what a chat event may carry, each the right shape: anything else is dropped. */
+export function chatEventOf(payload: string): ChatEvent | null {
+  try {
+    const x = JSON.parse(payload) as Record<string, unknown>;
+    if (typeof x.e !== "string" || !CHAT_KINDS.has(x.e)) return null;
+    const out: ChatEvent = { e: x.e as ChatEvent["e"] };
+    if (x.c !== undefined) {
+      if (typeof x.c !== "string" || !ID.test(x.c)) return null;
+      out.c = x.c;
+    } else if (x.e !== "members" && x.e !== "presence") return null;
+    if (x.m !== undefined) {
+      if (typeof x.m !== "number" || !Number.isSafeInteger(x.m) || x.m < 0) return null;
+      out.m = x.m;
+    }
+    if (x.u !== undefined) {
+      if (typeof x.u !== "string" || !ID.test(x.u)) return null;
+      out.u = x.u;
+    }
+    if (x.d === true) out.d = true;
+    if (x.lead === true) {
+      out.lead = true;
+      if (x.o !== null && (typeof x.o !== "string" || !ID.test(x.o))) return null;
+      out.o = x.o as string | null;
+    }
+    if (x.e === "presence") {
+      if (typeof x.on !== "boolean" || !out.u) return null;
+      out.on = x.on;
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 /** How many of a person's notifications are unread, as they'd count them (their own rows). */
 export const countUnread = (pool: pg.Pool, userId: string) =>
   readAs(pool, userId, async (c) =>
@@ -211,6 +284,7 @@ export async function startHub(pool: pg.Pool) {
   /** Told of each change in a LUME AI run (Autopilot A2): its run, lead and kind, never words. */
   const autopilotListeners = new Set<(e: AutopilotEvent) => void>();
   const liveSheetListeners = new Set<(e: LiveSheetEvent) => void>();
+  const chatListeners = new Set<(e: ChatEvent) => void>();
   /** Told when the listener comes back after losing its connection: whatever arrived meanwhile wasn't heard. */
   const resyncs = new Set<() => void>();
   let failures = 0;
@@ -274,6 +348,9 @@ export async function startHub(pool: pg.Pool) {
       else if (m.channel === "lume_autopilot") {
         const e = autopilotEventOf(m.payload ?? "");
         if (e) for (const l of autopilotListeners) l(e);
+      } else if (m.channel === "lume_chat") {
+        const e = chatEventOf(m.payload ?? "");
+        if (e) for (const l of chatListeners) l(e);
       } else if (m.channel === "lume_live_sheets") {
         const e = liveSheetEventOf(m.payload ?? "");
         if (e) for (const l of liveSheetListeners) l(e);
@@ -297,6 +374,7 @@ export async function startHub(pool: pg.Pool) {
     await c.query("LISTEN lume_whatsapp");
     await c.query("LISTEN lume_instagram");
     await c.query("LISTEN lume_live_sheets");
+    await c.query("LISTEN lume_chat");
     client = c;
   };
   await connect();
@@ -322,6 +400,16 @@ export async function startHub(pool: pg.Pool) {
         set.delete(say);
         if (!set.size) unreadSubs.delete(userId);
       };
+    },
+    /** Told when the listener comes back after losing its connection: whatever arrived meanwhile wasn't heard. */
+    onResync(listener: () => void): () => void {
+      resyncs.add(listener);
+      return () => void resyncs.delete(listener);
+    },
+    /** A change in Team Chat: ids and kind only. */
+    onChat(listener: (e: ChatEvent) => void): () => void {
+      chatListeners.add(listener);
+      return () => void chatListeners.delete(listener);
     },
     /** How many streams are open on this API (the refresh budget's size: budget.ts). */
     streams(): number {
@@ -364,6 +452,7 @@ export async function startHub(pool: pg.Pool) {
         await c.query("UNLISTEN lume_autopilot").catch(() => undefined);
         await c.query("UNLISTEN lume_whatsapp").catch(() => undefined);
         await c.query("UNLISTEN lume_instagram").catch(() => undefined);
+        await c.query("UNLISTEN lume_chat").catch(() => undefined);
         c.release();
       }
     },

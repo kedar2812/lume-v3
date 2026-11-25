@@ -11,6 +11,7 @@ export const SCREENS = [
   "/templates",
   "/media",
   "/replies",
+  "/chat",
   "/autopilot",
   ...["overview", "funnel", "team", "revenue", "lost", "timing", "quality"].map((m) => `/analytics?m=${m}`),
   "/settings",

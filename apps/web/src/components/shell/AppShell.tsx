@@ -21,6 +21,7 @@ import { AlertHud } from "@/components/security/AlertHud";
 import { LeadWatermark } from "@/components/security/LeadWatermark";
 import { PageContent, PageTransitionProvider } from "./PageTransition";
 import { MobileTabs } from "./MobileTabs";
+import { useChatUnread } from "@/lib/chat/useChatUnread";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import s from "./shell.module.css";
@@ -54,6 +55,7 @@ export function shellIdentity(session: Session) {
   return {
     can: (p: string) => isPermissionKey(p) && canCore(session.actor, p),
     user: {
+      id: session.user.id,
       name: session.user.name,
       role: roleLabel(session),
       ...lookOf(session.user.id, session.user.avatar),
@@ -65,6 +67,7 @@ export function AppShell({ session, businessName, theme, mac = false, children }
   const [palette, setPalette] = useState(false);
   const [feedback, setFeedback] = useState(false);
   const { can, user } = shellIdentity(session);
+  const chatUnread = useChatUnread(can("chat.use"), user.id);
   const router = useRouter();
   // Send feedback (spec 2026-10-16 §1.1): wherever there is a product key to send it under.
   const openFeedback = session.licence.feedback ? () => setFeedback(true) : undefined;
@@ -120,8 +123,14 @@ export function AppShell({ session, businessName, theme, mac = false, children }
           <LicenceProvider session={session}>
             <LoadingProvider>
               <div className={s.app}>
-                <Sidebar businessName={businessName} user={user} can={can} onFeedback={openFeedback} />
-                <MobileTabs can={can} onFeedback={openFeedback} />
+                <Sidebar
+                  businessName={businessName}
+                  user={user}
+                  can={can}
+                  chatUnread={chatUnread}
+                  onFeedback={openFeedback}
+                />
+                <MobileTabs can={can} chatUnread={chatUnread} onFeedback={openFeedback} />
                 <main className={s.main}>
                   {/* The licence (L-A): grace or read-only across the top; paused covers the whole page. */}
                   <LicenceBanner />

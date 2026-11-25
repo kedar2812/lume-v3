@@ -65,6 +65,8 @@
   --sheet: #ffffff;
   --raised: #ffffff;
   --sunk: #f6f7f9;
+  /* Team Chat (owner, 2026-11-24): a message received sits in grey; yours in the accent blue */
+  --bub-in: #eceef2;
   /* Today's tiles (the control centre): one step off the sheet, so a grid of them reads without borders */
   --tile: #f5f6f8;
   --tile-line: rgba(12, 18, 32, 0.06);
@@ -130,6 +132,7 @@
   --sheet: #212328;
   --raised: #2b2e34;
   --sunk: #18191c;
+  --bub-in: #2a2c31;
   --tile: #2a2c32;
   --tile-line: rgba(255, 255, 255, 0.06);
   --tile-hover: #2f3238;
@@ -195,6 +198,7 @@
     --sheet: #212328;
     --raised: #2b2e34;
     --sunk: #18191c;
+    --bub-in: #2a2c31;
     --tile: #2a2c32;
     --tile-line: rgba(255, 255, 255, 0.06);
     --tile-hover: #2f3238;
