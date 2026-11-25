@@ -18,6 +18,8 @@ export type Notices = {
   soon(k: NoticeKey, again?: boolean): void;
   /** Everything waiting has been written (each at its own time): what a test waits on, never a guess at how long. */
   settled(): Promise<void>;
+  /** For tests that wipe the tables: what is still waiting is dropped, and what is being written finishes first. */
+  forget(): Promise<void>;
   stop(): Promise<void>;
 };
 /** Every queue this process runs (one per app). */
@@ -31,6 +33,10 @@ export const noticesSettled = async (): Promise<void> => {
  * a busy channel is caught up with in a few seconds, and then said at once); and how many are written at a time, so
  * naming a thousand people never takes the connections everyone else is waiting for. Tests shorten the first two.
  */
+/** Every queue lets go of what it was waiting to write (see Notices.forget). */
+export const noticesForgotten = async (): Promise<void> => {
+  await Promise.all([...queues].map((q) => q.forget()));
+};
 export const noticeTuning = { direct: 3500, mention: 7000, atOnce: 2 };
 
 /** Tells them once this request has committed; `again`: only puts right what the bell already says. */
@@ -91,6 +97,12 @@ export function createNotices(pool: pg.Pool, onError: (err: unknown) => void): N
         }
         await new Promise<void>((r) => idle.push(r));
       }
+    },
+    async forget() {
+      for (const one of waiting.values()) clearTimeout(one.t);
+      waiting.clear();
+      queue.length = 0;
+      if (going) await new Promise<void>((r) => idle.push(r));
     },
     /** LUME is closing (an update): whatever was waiting is told now. */
     async stop() {

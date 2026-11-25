@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createHarness, type Harness, type SeededUser } from "../../../test/harness";
+import { noticesForgotten } from "./notices";
 
 /** Photos and files in Team Chat (plan 2026-11-24-team-chat-2a, Task 5). */
 let h: Harness;
@@ -55,6 +56,7 @@ beforeAll(async () => {
 });
 afterAll(async () => h.close());
 beforeEach(async () => {
+  await noticesForgotten();
   await h.ownerPool.query("TRUNCATE chat_conversations CASCADE");
   ch = (
     await (

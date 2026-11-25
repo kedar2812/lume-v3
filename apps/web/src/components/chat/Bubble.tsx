@@ -270,7 +270,7 @@ export const Bubble = memo(function Bubble({
               <button
                 type="button"
                 tabIndex={stop}
-                className={s.tbtn}
+                className={`${s.tbtn} ${s.keep}`}
                 data-sure={sure || undefined}
                 onClick={() => {
                   if (!sure) return setSure(true);
@@ -278,7 +278,11 @@ export const Bubble = memo(function Bubble({
                   onDelete(m);
                 }}
               >
-                {sure ? "Delete for everyone?" : "Delete"}
+                <span>{sure ? "Delete for everyone?" : "Delete"}</span>
+                {/* Room for the longer ask from the start: asking again never moves the button from under the pointer. */}
+                <span className={s.room} aria-hidden>
+                  Delete for everyone?
+                </span>
               </button>
             </>
           )}

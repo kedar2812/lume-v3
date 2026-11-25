@@ -131,9 +131,14 @@ test("the team talks about a lead on the lead itself, and a message is deleted o
     // Kept by the server under its own id, not the one being sent.
     await expect(mine).not.toHaveAttribute("data-pending", /.*/);
     await mine.hover();
-    await mine.getByRole("button", { name: "Delete", exact: true }).click();
+    const del = mine.getByRole("button", { name: "Delete", exact: true });
+    const at = await del.boundingBox();
+    await del.click();
     await expect(page.getByText(words)).toBeVisible();
-    await mine.getByRole("button", { name: "Delete for everyone?" }).click();
+    const sure = mine.getByRole("button", { name: "Delete for everyone?" });
+    // Asked again on the same button, in the same place: the second tap lands where the first one did.
+    expect(await sure.boundingBox()).toEqual(at);
+    await sure.click();
     await expect(page.getByText(words)).toHaveCount(0);
   }
 });

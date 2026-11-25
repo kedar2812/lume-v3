@@ -831,6 +831,18 @@
   color: var(--danger-ink);
   font-weight: 600;
 }
+/* A button whose words change in place keeps the room of its longest words, so nothing around it moves. */
+.keep {
+  display: inline-grid;
+  align-items: center;
+}
+.keep > span {
+  grid-area: 1 / 1;
+}
+.keep > .room {
+  visibility: hidden;
+  font-weight: 600;
+}
 .failed {
   display: inline-flex;
   flex-wrap: wrap;

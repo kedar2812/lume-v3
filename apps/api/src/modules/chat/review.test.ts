@@ -4,6 +4,7 @@ import { createHarness, type AuthedClient, type Harness, type SeededUser } from 
 import { ALL_GRANTS } from "@lume/core";
 import { heldOpen } from "../../../test/held";
 import { tuning } from "./conversations";
+import { noticesForgotten } from "./notices";
 
 /** Team Chat's first review (2026-11-24): each finding on the server, held by a test. */
 let h: Harness;
@@ -43,6 +44,7 @@ beforeAll(async () => {
 });
 afterAll(async () => h.close());
 beforeEach(async () => {
+  await noticesForgotten();
   await h.ownerPool.query("TRUNCATE chat_conversations, chat_files CASCADE");
 });
 

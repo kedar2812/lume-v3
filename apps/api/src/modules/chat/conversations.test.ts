@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createHarness, type Harness, type SeededUser } from "../../../test/harness";
+import { noticesForgotten } from "./notices";
 
 /** Team Chat's conversations (plan 2026-11-24-team-chat-2a, Task 3): lists, channels, direct messages, lead threads. */
 let h: Harness;
@@ -45,6 +46,7 @@ beforeAll(async () => {
 afterAll(async () => h.close());
 /** Every test from #general and #wins alone (row security is forced even for the owner: TRUNCATE, then as a person). */
 beforeEach(async () => {
+  await noticesForgotten();
   await h.ownerPool.query("TRUNCATE chat_conversations, chat_list_folds CASCADE");
   const c = await h.ownerPool.connect();
   try {

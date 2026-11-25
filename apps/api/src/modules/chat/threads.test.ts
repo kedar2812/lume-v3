@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createHarness, type Harness, type SeededUser } from "../../../test/harness";
 import { chatEventOf } from "../notifications/hub";
 import { threadTuning } from "./threads";
+import { noticesForgotten } from "./notices";
 
 /** Team Chat's threads (plan 2026-11-25-team-chat-2b, Task 1): replies on a message, read apart from its conversation. */
 let h: Harness;
@@ -70,6 +71,7 @@ beforeAll(async () => {
 });
 afterAll(async () => h.close());
 beforeEach(async () => {
+  await noticesForgotten();
   await h.ownerPool.query("TRUNCATE chat_conversations CASCADE");
   ch = (await as(admin, "POST", "/api/v1/chat/channels", { name: "sales", people: [rep.id, mate.id] })).json()
     .id;

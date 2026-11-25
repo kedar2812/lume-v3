@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createHarness, type Harness, type SeededUser } from "../../../test/harness";
 import { heldOpen } from "../../../test/held";
+import { noticesForgotten } from "./notices";
 
 /** Team Chat's messages (plan 2026-11-24-team-chat-2a, Task 4): send once, reply, react, edit, delete, read marks. */
 let h: Harness;
@@ -47,6 +48,7 @@ beforeAll(async () => {
 });
 afterAll(async () => h.close());
 beforeEach(async () => {
+  await noticesForgotten();
   await h.ownerPool.query("TRUNCATE chat_conversations CASCADE");
   ch = (await as(admin, "POST", "/api/v1/chat/channels", { name: "sales", people: [rep.id, mate.id] })).json()
     .id;

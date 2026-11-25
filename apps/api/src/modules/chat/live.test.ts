@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../../../test/harness";
 import { chatEventOf } from "../notifications/hub";
 import { spacingMs } from "./live";
-import { noticeTuning } from "./notices";
+import { noticeTuning, noticesForgotten } from "./notices";
 
 /** Team Chat, live (plan 2026-11-24-team-chat-2a, Task 6): who hears what on the stream, typing, online. */
 let h: Harness;
@@ -82,6 +82,7 @@ beforeAll(async () => {
 });
 afterAll(async () => h.close());
 beforeEach(async () => {
+  await noticesForgotten();
   await h.ownerPool.query("TRUNCATE chat_conversations CASCADE");
   ch = (await as(admin, "POST", "/api/v1/chat/channels", { name: "sales", people: [rep.id, mate.id] })).json()
     .id;
