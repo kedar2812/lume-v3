@@ -56,42 +56,50 @@ function leadCond(q: AnalyticsQuery): SQL {
   return parts.length ? sql`l.id IS NOT NULL AND ${sql.join(parts, sql` AND `)}` : sql`true`;
 }
 
-/** Each conversation in a span, with its timings: the rows every part of the board is counted from. */
+/**
+ * Each conversation in a span, with its timings: the rows every part of the board is counted from. Read once per span
+ * (scale 2026-11-26: at a million leads each statement that joined leads on its own cost a second): its lead by key,
+ * then that lead's Instagram messages on this conversation in one read, their first message and the first answers
+ * after it worked out from those.
+ */
 function conversations(q: AnalyticsQuery, span: { from: Date; to: Date }, now: Date): SQL {
   return sql`
-    conv AS (
+    conv AS MATERIALIZED (
       SELECT t.id, t.account_id, t.created_at AS at, l.id AS lead_id, l.won_at, l.value,
              l.id IS NOT NULL AND l.created_at >= t.created_at AS new_lead,
              t.source ->> 'adId' AS ad_id,
              CASE coalesce(t.source ->> 'start', t.source ->> 'trigger')
                   WHEN 'comment' THEN 'comment' WHEN 'ad' THEN 'ad' WHEN 'story' THEN 'story' ELSE 'dm' END AS start
         FROM instagram_threads t
-        LEFT JOIN leads l ON l.id = t.lead_id AND l.deleted_at IS NULL
+        LEFT JOIN LATERAL (
+          SELECT * FROM leads l WHERE l.id = t.lead_id AND l.deleted_at IS NULL) l ON true
        WHERE t.created_at >= ${span.from} AND t.created_at < ${span.to} AND ${leadCond(q)}),
-    wrote AS (
-      SELECT c.*, i.at AS in_at,
+    acts AS MATERIALIZED (
+      SELECT c.id AS tid, a.type, a.via, a.at
+        FROM conv c
+        CROSS JOIN LATERAL (
+          SELECT a.type, a.payload ->> 'via' AS via, a.occurred_at AS at FROM activities a
+           WHERE a.lead_id = c.lead_id
+             AND a.type IN ('instagram_received', 'instagram_confirmed_sent', 'instagram_sent')
+             AND a.payload ->> 'threadId' = c.id::text) a
+       WHERE c.lead_id IS NOT NULL),
+    firsts AS (
+      SELECT tid, min(at) AS in_at FROM acts WHERE type = 'instagram_received' GROUP BY tid),
+    answers AS (
+      SELECT a.tid,
+             min(a.at) FILTER (WHERE a.type = 'instagram_confirmed_sent' AND a.via = 'flow') AS flow_at,
+             min(a.at) FILTER (WHERE a.type = 'instagram_sent'
+                                  OR (a.type = 'instagram_confirmed_sent' AND a.via IS DISTINCT FROM 'flow')) AS team_at
+        FROM acts a JOIN firsts fi ON fi.tid = a.tid AND a.at >= fi.in_at
+       WHERE a.type <> 'instagram_received'
+       GROUP BY a.tid),
+    f AS (
+      SELECT c.*, fi.in_at, an.flow_at, an.team_at, least(an.flow_at, an.team_at) AS answer_at,
              CASE WHEN c.start = 'ad' THEN ${AD_WINDOW_S}::int ELSE ${WINDOW_S}::int END AS window_s
         FROM conv c
-        LEFT JOIN LATERAL (
-          SELECT a.occurred_at AS at FROM activities a
-           WHERE a.lead_id = c.lead_id AND a.type = 'instagram_received' AND a.payload ->> 'threadId' = c.id::text
-           ORDER BY a.occurred_at LIMIT 1) i ON c.lead_id IS NOT NULL),
-    f AS (
-      SELECT w.*, fl.at AS flow_at, tm.at AS team_at, least(fl.at, tm.at) AS answer_at
-        FROM wrote w
-        LEFT JOIN LATERAL (
-          SELECT a.occurred_at AS at FROM activities a
-           WHERE a.lead_id = w.lead_id AND a.occurred_at >= w.in_at AND a.type = 'instagram_confirmed_sent'
-             AND a.payload ->> 'via' = 'flow' AND a.payload ->> 'threadId' = w.id::text
-           ORDER BY a.occurred_at LIMIT 1) fl ON w.in_at IS NOT NULL
-        LEFT JOIN LATERAL (
-          SELECT a.occurred_at AS at FROM activities a
-           WHERE a.lead_id = w.lead_id AND a.occurred_at >= w.in_at
-             AND (a.type = 'instagram_sent'
-                  OR (a.type = 'instagram_confirmed_sent' AND a.payload ->> 'via' IS DISTINCT FROM 'flow'))
-             AND a.payload ->> 'threadId' = w.id::text
-           ORDER BY a.occurred_at LIMIT 1) tm ON w.in_at IS NOT NULL),
-    x AS (
+        LEFT JOIN firsts fi ON fi.tid = c.id
+        LEFT JOIN answers an ON an.tid = c.id),
+    x AS MATERIALIZED (
       SELECT f.*,
              f.answer_at IS NOT NULL AND f.answer_at <= f.in_at + make_interval(secs => f.window_s) AS in_time,
              f.in_at IS NOT NULL AND f.in_at + make_interval(secs => f.window_s) <= ${now}::timestamptz
@@ -105,13 +113,24 @@ function conversations(q: AnalyticsQuery, span: { from: Date; to: Date }, now: D
 
 const median = (col: SQL) => sql`percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM ${col}))`;
 
+type WhoRow = {
+  who: "flows" | "team";
+  conversations: number;
+  booked: number;
+  won: number;
+  revenue: string;
+  first_s: number | null;
+};
+
+/** A span's numbers in one statement; with who answered when asked (the range itself, not the one compared). */
 async function totals(
   req: FastifyRequest,
   q: AnalyticsQuery,
   span: { from: Date; to: Date },
   now: Date,
   money: boolean,
-): Promise<Totals> {
+  withWho = false,
+): Promise<Totals & { who: WhoRow[] }> {
   const r = await req.db.execute<{
     conversations: number;
     leads: number;
@@ -129,8 +148,14 @@ async function totals(
     dm: number;
     ad: number;
     story: number;
+    who: WhoRow[] | null;
   }>(sql`
-    WITH ${conversations(q, span, now)}
+    WITH ${conversations(q, span, now)},
+    -- Who answered: a conversation counts for each that answered it. LUME AI's row waits for LUME AI on Instagram.
+    ans AS (
+      SELECT w.who, w.at AS who_at, x.* FROM x
+       CROSS JOIN LATERAL (VALUES ('flows', x.flow_at), ('team', x.team_at)) AS w(who, at)
+       WHERE w.at IS NOT NULL)
     SELECT count(*)::int AS conversations, count(DISTINCT lead_id) FILTER (WHERE new_lead)::int AS leads,
            count(*) FILTER (WHERE in_time OR ran_out)::int AS measured,
            count(*) FILTER (WHERE in_time)::int AS in_time, count(*) FILTER (WHERE ran_out)::int AS ran_out,
@@ -144,7 +169,20 @@ async function totals(
              AS revenue,
            count(*) FILTER (WHERE start = 'ad' AND in_at IS NOT NULL)::int AS ad_clicks,
            count(*) FILTER (WHERE start = 'comment')::int AS comment, count(*) FILTER (WHERE start = 'dm')::int AS dm,
-           count(*) FILTER (WHERE start = 'ad')::int AS ad, count(*) FILTER (WHERE start = 'story')::int AS story
+           count(*) FILTER (WHERE start = 'ad')::int AS ad, count(*) FILTER (WHERE start = 'story')::int AS story,
+           ${
+             withWho
+               ? sql`(SELECT coalesce(json_agg(g), '[]'::json) FROM (
+                   SELECT a.who, count(*)::int AS conversations,
+                          count(DISTINCT a.lead_id) FILTER (WHERE a.booked)::int AS booked,
+                          count(DISTINCT a.lead_id) FILTER (WHERE a.won)::int AS won,
+                          (SELECT coalesce(sum(v.value), 0)
+                             FROM (SELECT DISTINCT ON (b.lead_id) b.value FROM ans b WHERE b.who = a.who AND b.won) v
+                          )::text AS revenue,
+                          (${median(sql`a.who_at - a.in_at`)})::float8 AS first_s
+                     FROM ans a GROUP BY a.who) g)`
+               : sql`NULL::json`
+           } AS who
       FROM x`);
   const t = r.rows[0]!;
   // Private replies that went, and those who asked on Instagram to stop: each read by when it happened.
@@ -174,6 +212,7 @@ async function totals(
     privateReplies: s.private_replies,
     stopped: s.stopped,
     byStart: { comment: t.comment, dm: t.dm, ad: t.ad, story: t.story },
+    who: t.who ?? [],
   };
 }
 
@@ -182,6 +221,13 @@ async function totals(
  * on each of the business's days, where people stop, who answered, each account, and the posts and ads that started
  * the most. Counts and timings only: no names or words.
  */
+/** The compared span's numbers, without who answered (read for the range alone). */
+function omitWho(t: Totals & { who: WhoRow[] }): Totals {
+  const { who, ...rest } = t;
+  void who;
+  return rest;
+}
+
 export async function instagramBoard(req: FastifyRequest, raw: AnalyticsQuery, now: Date) {
   const q = narrow(req, raw);
   assertLeadAccess(
@@ -193,8 +239,8 @@ export async function instagramBoard(req: FastifyRequest, raw: AnalyticsQuery, n
   const range = rangeOf(q, tz, now);
   guardLive(q, range);
   const money = seesRevenue(req);
-  const cur = await totals(req, q, range, now, money);
-  const prev = q.compare ? await totals(req, q, range.previous, now, money) : null;
+  const { who, ...cur } = await totals(req, q, range, now, money, true);
+  const prev = q.compare ? omitWho(await totals(req, q, range.previous, now, money)) : null;
 
   const daily = await req.db.execute<{ day: string; start: IgStart; n: number }>(sql`
     WITH ${conversations(q, range, now)}
@@ -206,30 +252,8 @@ export async function instagramBoard(req: FastifyRequest, raw: AnalyticsQuery, n
     ...Object.fromEntries(IG_STARTS.map((k) => [k, per.get(`${day}|${k}`) ?? 0])),
   })) as ({ day: string } & Record<IgStart, number>)[];
 
-  // Who answered: a conversation counts for each that answered it. LUME AI's row waits for LUME AI on Instagram.
-  const who = await req.db.execute<{
-    who: "flows" | "team";
-    conversations: number;
-    booked: number;
-    won: number;
-    revenue: string;
-    first_s: number | null;
-  }>(sql`
-    WITH ${conversations(q, range, now)},
-    ans AS (
-      SELECT w.who, w.at AS who_at, x.* FROM x
-       CROSS JOIN LATERAL (VALUES ('flows', x.flow_at), ('team', x.team_at)) AS w(who, at)
-       WHERE w.at IS NOT NULL)
-    SELECT a.who, count(*)::int AS conversations,
-           count(DISTINCT a.lead_id) FILTER (WHERE a.booked)::int AS booked,
-           count(DISTINCT a.lead_id) FILTER (WHERE a.won)::int AS won,
-           (SELECT coalesce(sum(v.value), 0)
-              FROM (SELECT DISTINCT ON (b.lead_id) b.value FROM ans b WHERE b.who = a.who AND b.won) v)::text AS revenue,
-           (${median(sql`a.who_at - a.in_at`)})::float8 AS first_s
-      FROM ans a
-     GROUP BY a.who`);
   const answered = (k: "flows" | "team") => {
-    const r = who.rows.find((x) => x.who === k);
+    const r = who.find((x) => x.who === k);
     return {
       id: k,
       conversations: r?.conversations ?? 0,
