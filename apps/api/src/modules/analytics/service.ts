@@ -90,13 +90,13 @@ const WIDTH = { own: 1, team: 2, all: 3 } as const;
  * (their leads.view, by row-level security). Someone whose analytics reach is wider would get numbers that quietly
  * fall short of every other number they see: refused in words instead.
  */
-export function assertLeadAccess(req: FastifyRequest, reach: "own" | "team" | "all"): void {
+export function assertLeadAccess(
+  req: FastifyRequest,
+  reach: "own" | "team" | "all",
+  words = "Tags and fields are counted from the leads you can open, and you can open fewer than these numbers cover.",
+): void {
   const leads = scopeOf(req.actor!, "leads.view");
-  if (!leads || WIDTH[leads] < WIDTH[reach])
-    throw badRequest(
-      "FILTER_NEEDS_LEAD_ACCESS",
-      "Tags and fields are counted from the leads you can open, and you can open fewer than these numbers cover.",
-    );
+  if (!leads || WIDTH[leads] < WIDTH[reach]) throw badRequest("FILTER_NEEDS_LEAD_ACCESS", words);
 }
 
 /**

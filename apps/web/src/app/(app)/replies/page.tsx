@@ -10,8 +10,8 @@ export const metadata = { title: "Who replied · LUME" };
 const WEEK = 7 * 86_400_000;
 
 /**
- * Who replied (W2, spec 2026-10-18 §4.2): WhatsApp replies since a moment (`?since=`, from Today or a send; else the
- * last 7 days), grouped by what they mean, for whoever may view leads (each sees their own).
+ * Who replied (W2, spec 2026-10-18 §4.2; Instagram D6a): WhatsApp and Instagram replies since a moment (`?since=`, from
+ * Today or a send; else the last 7 days), grouped by what they mean, for whoever may view leads (each sees their own).
  */
 export default async function Page({ searchParams }: { searchParams: Promise<{ since?: string }> }) {
   const session = await requirePermission("leads.view");
@@ -29,7 +29,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
   const pipeline = pipelines.data?.pipelines.find((p) => p.isDefault) ?? pipelines.data?.pipelines[0];
   return (
     <RepliesBoard
-      initial={board.data ?? { since: from, groups: [] }}
+      initial={board.data ?? { since: from, channel: "all", groups: [] }}
       stages={(pipeline?.stages ?? []).map((x) => ({ id: x.id, name: x.name, kind: x.kind }))}
       lostReasons={(reasons.data?.lostReasons ?? []).map((r) => ({ id: r.id, label: r.label }))}
       canBulk={can(session.actor, "leads.bulk_edit")}

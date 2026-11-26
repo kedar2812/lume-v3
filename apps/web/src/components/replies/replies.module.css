@@ -117,6 +117,50 @@
   text-align: center;
   color: var(--text-2);
 }
+/* Instagram (D6a): the channel filter, each row's channel mark, and how long a reply still reaches them. */
+.filter {
+  display: flex;
+  margin-bottom: 14px;
+}
+.who {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.who b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mark {
+  flex: none;
+  border-radius: 4px;
+}
+.about {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin: 2px 0 0;
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+}
+.left {
+  font-weight: var(--fw-medium);
+}
+.left[data-tone="ok"] {
+  color: var(--ok-ink);
+}
+.left[data-tone="warn"] {
+  color: var(--warn-ink);
+}
+.whose {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.group[data-group="flow_passed"] .head h2 {
+  color: var(--accent-ink);
+}
 @media (max-width: 699px) {
   .board {
     grid-template-columns: 1fr;

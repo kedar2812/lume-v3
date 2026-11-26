@@ -1,6 +1,7 @@
 import { ALL_GRANTS, STARTER_VIEWS, type Grant } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../harness";
+import { seedIgAccount } from "../instagram";
 
 /**
  * Phase 7: LUME at the owner's "Large" scale — a year of made-up leads (generic, fictional), timed through the
@@ -266,6 +267,20 @@ describe.skipIf(!N)(`LUME at scale: ${N.toLocaleString("en-US")} leads`, () => {
     });
     timings.push({ path: `export (owner filter) → ${ex.statusCode}`, ms: Math.round(performance.now() - t) });
 
+    // Who replied (D6a): one lead in twenty wrote in the last 30 days, half on WhatsApp, half on Instagram, a few times
+    // each; the board reads each lead's newest reply of the week, on both channels.
+    await h.queryAll(
+      `INSERT INTO activities (id, lead_id, type, occurred_at, payload)
+       SELECT gen_random_uuid(), l.id, CASE WHEN n % 2 = 0 THEN 'whatsapp_received' ELSE 'instagram_received' END,
+              now() - make_interval(secs => (abs(hashtext(l.id::text || n::text)) % (30 * 86400))),
+              jsonb_build_object('text', 'Is the batch still open?')
+         FROM (SELECT id FROM leads WHERE abs(hashtext(id::text)) % 20 = 0) l, generate_series(1, 3) n`,
+    );
+    await h.ownerPool.query("ANALYZE activities");
+    await time("admin who replied (week, both channels)", get(admin, "/api/v1/whatsapp/replies"));
+    await time("admin who replied (Instagram)", get(admin, "/api/v1/whatsapp/replies?channel=instagram"));
+    await time("rep who replied (own)", get(rep, "/api/v1/whatsapp/replies"));
+
     // The gate (spec "The gate"): every list, filter, search and count path within the budget at this scale.
     const budget = Number(process.env.LUME_SCALE_BUDGET ?? 150);
     const over = timings.filter((x) => /^(admin|rep|team lead) /.test(x.path) && x.ms > budget);
@@ -428,6 +443,36 @@ burst of 300 at ${N.toLocaleString("en-US")} leads: wall ${Math.round(wall)} ms,
     await time("analytics overview + tag 30d (live)", () =>
       admin.inject({ method: "GET", url: `/api/v1/analytics/overview?range=30d&tag=${tagId}` }),
     );
+    // Instagram's board (D6b) reads the conversations and their messages themselves: one lead in ten of the last 100
+    // days came on Instagram (a comment, a DM, an ad click or a story), wrote once and was answered (a flow or a person).
+    const runAs = (await h.queryAll<{ id: string }>("SELECT id FROM users WHERE name = 'Hana Ito'"))[0]!.id;
+    const igAccount = await seedIgAccount(h, { runAs });
+    await h.queryAll(
+      `INSERT INTO instagram_threads (id, account_id, igsid, lead_id, source, created_at)
+       SELECT gen_random_uuid(), $1, 'ig' || l.id, l.id,
+              (ARRAY['{"trigger": "comment"}', '{}', '{"trigger": "ad", "adId": "120200000000001"}',
+                     '{"trigger": "story"}'])[1 + abs(hashtext(l.id::text)) % 4]::jsonb,
+              l.created_at
+         FROM leads l
+        WHERE l.created_at > now() - interval '100 days' AND abs(hashtext(l.id::text || 'ig')) % 10 = 0`,
+      [igAccount.id],
+    );
+    await h.queryAll(
+      `INSERT INTO activities (id, lead_id, type, occurred_at, payload)
+       SELECT gen_random_uuid(), t.lead_id, x.type, t.created_at + x.after,
+              jsonb_strip_nulls(jsonb_build_object('threadId', t.id::text, 'via', x.via))
+         FROM instagram_threads t
+        CROSS JOIN LATERAL (VALUES
+          ('instagram_received', interval '1 minute', NULL),
+          ('instagram_confirmed_sent', interval '4 minutes',
+           CASE WHEN abs(hashtext(t.id::text)) % 2 = 0 THEN 'flow' ELSE 'lume' END)) AS x(type, after, via)`,
+    );
+    await h.ownerPool.query("ANALYZE instagram_threads");
+    await h.ownerPool.query("ANALYZE activities");
+    for (const range of ["30d", "90d"])
+      await time(`analytics instagram ${range} (live)`, () =>
+        admin.inject({ method: "GET", url: `/api/v1/analytics/instagram?range=${range}` }),
+      );
     const liveBudget = Number(process.env.LUME_SCALE_LIVE_BUDGET ?? 2500);
     const slow = timings.slice(live).filter((x) => x.ms > liveBudget);
     expect(slow, `live analytics over ${liveBudget} ms at ${N.toLocaleString("en-US")} leads`).toEqual([]);

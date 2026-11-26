@@ -628,6 +628,16 @@ describe("the conversation", () => {
     expect(p[2]).toMatchObject({ attachments: ["image"] });
     expect(JSON.stringify(p)).not.toContain("lookaside");
     expect(h.instagramMediaQueued).toHaveLength(1);
+    // A story started this conversation, and it says so (Analytics counts conversations by what started them).
+    const [t] = await h.queryAll<{ source: object }>("SELECT source FROM instagram_threads");
+    expect(t!.source).toEqual({ trigger: "story" });
+  });
+
+  it("a conversation a DM started stays a DM's when a story reply comes later", async () => {
+    await take(igDm({ mid: "aWdfFIRST" }));
+    await take(igStoryReply());
+    const [t] = await h.queryAll<{ source: object }>("SELECT source FROM instagram_threads");
+    expect(t!.source).toEqual({});
   });
 
   it("an ad click that arrives alone (no message yet): the lead their first message makes still has the ad", async () => {
@@ -652,11 +662,29 @@ describe("the conversation", () => {
     expect((await leads())[0]!.ad_id).toBe("120200000000000009");
   });
 
+  it("an ad click on a conversation a DM started: what started it is kept (Analytics counts it a DM's)", async () => {
+    await take(igDm({ mid: "aWdfFIRST" }));
+    const click = (mid: string, adId: string) =>
+      igDm({
+        mid,
+        text: "Saw your ad",
+        at: "2026-11-22T07:00:00Z",
+        referral: { ad_id: adId, source: "ADS", type: "OPEN_THREAD" },
+      });
+    await take(click("aWdfADLATER", "120200000000000007"));
+    // A second ad click later: still the DM that started it.
+    await take(click("aWdfADLATER2", "120200000000000008"));
+    const [t] = await h.queryAll<{ source: Record<string, string> }>("SELECT source FROM instagram_threads");
+    expect(t!.source).toMatchObject({ start: "dm", trigger: "ad", adId: "120200000000000008" });
+  });
+
   it("an ad click: the lead and the conversation remember the ad, and the window lasts 7 days", async () => {
     await take(igAdDm());
     expect((await leads())[0]!.ad_id).toBe("120200000000000001");
     const t = (await thread())!;
     expect(t.source).toMatchObject({ trigger: "ad", adId: "120200000000000001", ref: "spring" });
+    // The ad started this conversation: nothing kept from before it.
+    expect(t.source).not.toHaveProperty("start");
     expect(t.ad_window_until!.toISOString()).toBe("2026-11-29T06:00:00.000Z");
   });
 

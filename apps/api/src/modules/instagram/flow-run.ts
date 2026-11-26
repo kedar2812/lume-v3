@@ -610,7 +610,9 @@ async function startRun(
 
 /**
  * A person's message (or tap) on a conversation with a lead: it advances the run they're in, or starts the flow it
- * triggers. Called after the message is on the lead. `first`: the first thing they ever sent this account.
+ * triggers. Called before the message is written to the lead, which is marked with the answer. `first`: the first
+ * thing they ever sent this account. Answers the run that took the message (it was said to that flow: Who replied
+ * leaves it to the flow), or null.
  */
 export async function flowOnMessage(
   req: FastifyRequest,
@@ -626,21 +628,21 @@ export async function flowOnMessage(
   },
   now: Date,
   out: FlowOut,
-) {
+): Promise<string | null> {
   const run = await activeRun(req, m.threadId);
   const held = await heldElsewhere(req, m.threadId, m.leadId);
   if (held) {
     if (run) await stopFlowRuns(req, { threadId: m.threadId }, held);
-    return;
+    return null;
   }
   if (run) {
     if (run.flow_status === "archived") {
       await stopFlowRuns(req, { threadId: m.threadId }, FLOW_WORDS.archived);
-      return;
+      return null;
     }
     // Answered: once per run (the event's own key), whatever the run was waiting on (review 2026-11-23).
     await event(req, run, "replied", "replied", now);
-    return advance(
+    await advance(
       req,
       account,
       run,
@@ -653,6 +655,7 @@ export async function flowOnMessage(
       },
       out,
     );
+    return run.id;
   }
   const kinds =
     m.via === "ad" ? ["ad", "dm", "welcome"] : m.via === "dm" ? ["dm", "welcome"] : [m.via, "dm", "welcome"];
@@ -660,15 +663,15 @@ export async function flowOnMessage(
   // A story reply or an ad click starts its own flow first; then a DM keyword; then the first-message flow.
   const order = (k: string) => (k === m.via && k !== "dm" ? 0 : k === "dm" ? 1 : 2);
   const hit = pick(cands, m.text, { adId: m.adId, kindOrder: order });
-  if (!hit || (await cooling(req, m.threadId, hit.c, now))) return;
+  if (!hit || (await cooling(req, m.threadId, hit.c, now))) return null;
   const started = await startRun(req, account, hit.c, hit.keyword, {
     threadId: m.threadId,
     leadId: m.leadId,
     via: hit.c.kind,
     now,
   });
-  if (!started) return;
-  return advance(
+  if (!started) return null;
+  await advance(
     req,
     account,
     started,
@@ -691,6 +694,7 @@ export async function flowOnMessage(
     },
     out,
   );
+  return started.id;
 }
 
 /**

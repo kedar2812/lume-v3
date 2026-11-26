@@ -1,0 +1,51 @@
+/* Instagram's board (D6b): the rows of Who answered, Each account, and the posts and ads. */
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.rows li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 14px;
+  padding: 10px 0;
+  border-bottom: 0.5px solid var(--line);
+  min-width: 0;
+}
+.rows li:last-child {
+  border-bottom: 0;
+}
+.name {
+  display: grid;
+  gap: 2px;
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.name small {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rows li[data-warn] .name small {
+  color: var(--warn);
+}
+.nums {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.nums b {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}

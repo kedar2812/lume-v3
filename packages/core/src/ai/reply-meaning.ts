@@ -3,7 +3,7 @@ import { softText } from "./fit";
 import { cleanNextStep, trimHistory, type LeadFacts } from "./tasks";
 
 /**
- * What a WhatsApp reply means (W2, spec 2026-10-18 §4.2, §5.1, §5.4): its group on the Who replied board, one line,
+ * What a WhatsApp or Instagram reply means (W2, D6a; spec 2026-10-18 §4.2, §5.1, §5.4): its group on the Who replied board, one line,
  * whether it asks LUME to stop, and a next step drawn only from what the business has. Pure: no provider, no database.
  */
 export const REPLY_MEANINGS = [
@@ -46,8 +46,8 @@ export const replyMeaningOutput = z
   .strict();
 export type ReplyMeaning = z.infer<typeof replyMeaningOutput>;
 
-export const replyMeaningInstructions = `You read a WhatsApp reply a lead sent to a business, and say what it means for \
-the sale. Use only the facts given below about this lead and this business; never invent prices, dates, offers, names, \
+export const replyMeaningInstructions = `You read a reply a lead sent to a business on WhatsApp or Instagram, and say \
+what it means for the sale. Use only the facts given below about this lead and this business; never invent prices, dates, offers, names, \
 numbers or urgency. The reply may be in any language or a mix (Hinglish, Arabic and others); write the summary in plain \
 short English.
 Answer with:
@@ -63,16 +63,17 @@ short title: the time the lead named ("Saturday 11", "after Diwali" resolved to 
 clearly needed.
 - lostReasonId: only when the stage you chose is a lost one; an id from lostReasons, or null.`;
 
-/** The lead's facts, the newest WhatsApp messages around the reply, and the reply itself. */
+/** The lead's facts, the newest messages around the reply on its own channel, and the reply itself. */
 export function replyMeaningInput(
   facts: LeadFacts,
   thread: { from: "lead" | "business"; at: string; text: string }[],
   reply: string,
+  channel: "whatsapp" | "instagram" = "whatsapp",
 ): string {
   const body = JSON.stringify({
     task: "reply_meaning",
     lead: { ...facts, history: trimHistory(facts.history) },
-    whatsapp: thread.slice(-12),
+    [channel]: thread.slice(-12),
   });
   return `${body}\n\nThe reply:\n${reply}`;
 }

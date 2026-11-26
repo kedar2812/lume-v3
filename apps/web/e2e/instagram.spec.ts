@@ -288,6 +288,27 @@ test.describe("Instagram in Settings → Integrations (D1)", () => {
     await ctx.close();
   });
 
+  test("D6a: Who replied shows the Instagram reply: its mark, the time left to answer, whose lead", async ({
+    browser,
+  }) => {
+    for (const [theme, width] of [
+      ["light", 1440],
+      ["dark", 375],
+    ] as const) {
+      const { ctx, page } = await themed(browser, theme, width);
+      await openApp(page, "/replies");
+      const row = page.getByRole("listitem").filter({ hasText: "Priya Shah" });
+      await expect(row).toContainText("Hi, is the course still open?");
+      await expect(row.getByRole("img", { name: "Instagram" })).toBeVisible();
+      await expect(row).toContainText(/2[234] hours left to answer/);
+      await expect(row).toContainText(/’s lead/);
+      await fits(page);
+      expect(await axe(page)).toEqual([]);
+      await reviewCopy(page, `instagram-who-replied-${theme}.png`);
+      await ctx.close();
+    }
+  });
+
   test("D5: with new people waiting, a DM waits in Not a lead yet, then becomes an enquiry", async ({
     browser,
   }) => {

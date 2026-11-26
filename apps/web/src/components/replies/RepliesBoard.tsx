@@ -1,29 +1,51 @@
 "use client";
-import { REPLY_MEANING_WORDS, wallTime, type ReplyMeaningGroup } from "@lume/core/shared";
+import { REPLY_MEANING_WORDS, wallTime } from "@lume/core/shared";
 import { AnimatePresence } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AiGlyph } from "@/components/ai/AiGlyph";
 import { StartSheet } from "@/components/autopilot/StartSheet";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useZone } from "@/components/ZoneProvider";
 import { Button } from "@/components/ui/Button";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { bulkRunsClient, runLine, type RunView } from "@/lib/leads/bulk-runs";
 import { relativeTime } from "@/lib/leads/format";
 import type { BulkAction } from "@/lib/leads/types";
-import { repliesClient, type ReplyBoard, type ReplyBoardLead } from "@/lib/replies/client";
+import {
+  repliesClient,
+  type ReplyBoard,
+  type ReplyBoardGroup,
+  type ReplyBoardLead,
+  type ReplyChannel,
+} from "@/lib/replies/client";
+import { aboutLine, windowWords } from "@/lib/replies/words";
 import s from "./replies.module.css";
 
 type Stage = { id: string; name: string; kind: "open" | "won" | "lost" };
 /** What a follow-up from each group is called (the person can't type one here; it's on each lead after). */
-const FOLLOW_UP_TITLE: Partial<Record<ReplyMeaningGroup, string>> = {
+const FOLLOW_UP_TITLE: Partial<Record<ReplyBoardGroup, string>> = {
   price: "Reply about the price",
   visit_or_call: "Arrange the visit or call",
   later: "Check back with them",
 };
 /** The groups LUME AI may follow up for you (owner, 2026-11-01): never those who said no, stop or wrong number. */
-const AI_GROUPS: readonly ReplyMeaningGroup[] = ["interested", "price", "visit_or_call", "later", "not_sure"];
+const AI_GROUPS: readonly ReplyBoardGroup[] = ["interested", "price", "visit_or_call", "later", "not_sure"];
+/** Each group's title: a flow's hand-offs (Instagram, D6a), then what the replies mean. */
+const GROUP_WORDS: Record<ReplyBoardGroup, string> = {
+  flow_passed: "A flow passed these to you",
+  ...REPLY_MEANING_WORDS,
+};
+const MARK: Record<ReplyChannel, { src: string; alt: string }> = {
+  whatsapp: { src: "/brand/whatsapp-app.png", alt: "WhatsApp" },
+  instagram: { src: "/brand/instagram.png", alt: "Instagram" },
+};
+type Filter = ReplyChannel | "all";
+const hasBoth = (b: ReplyBoard) => {
+  const chs = new Set(b.groups.flatMap((g) => g.leads.map((l) => l.channel)));
+  return chs.has("whatsapp") && chs.has("instagram");
+};
 /** "2026-11-10T11:00" on the business's clock, as a moment; null when it isn't one. */
 function moment(local: string, tz: string): string | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(local);
@@ -43,9 +65,11 @@ function tomorrowAt11(tz: string): string {
 }
 
 /**
- * Who replied (W2, spec 2026-10-18 §4.2): each lead's latest WhatsApp reply since a moment, grouped by what LUME AI read
- * it to mean; each group's own bulk action (move along, follow up, mark lost, do not contact), done as one bulk run with
- * Undo. Stop messaging is done already: LUME marked them do not contact when they said it.
+ * Who replied (W2, spec 2026-10-18 §4.2; Instagram D6a): each lead's latest reply since a moment, on WhatsApp or
+ * Instagram, grouped by what LUME AI read it to mean; each group's own bulk action (move along, follow up, mark lost, do
+ * not contact), done as one bulk run with Undo. Stop messaging is done already: LUME marked them do not contact when
+ * they said it. A flow's hand-offs come first; each row says whose lead it is and how long a reply still reaches them.
+ * The channel filter shows once both channels are on the board.
  */
 export function RepliesBoard({
   initial,
@@ -66,17 +90,35 @@ export function RepliesBoard({
   const tz = useZone();
   const { toast } = useToast();
   const [board, setBoard] = useState(initial);
-  const [busy, setBusy] = useState<ReplyMeaningGroup | null>(null);
+  const [channel, setChannel] = useState<Filter>(initial.channel ?? "all");
+  // Once both channels were on the board, the filter stays (so the way back is always there).
+  const [mixed, setMixed] = useState(() => hasBoth(initial));
+  // Each read is numbered: an answer for a channel left behind never replaces a newer one.
+  const asked = useRef(0);
+  const [busy, setBusy] = useState<ReplyBoardGroup | null>(null);
   const [handing, setHanding] = useState<string[] | null>(null);
   const router = useRouter();
-  const shown = board.groups.filter((g) => g.count > 0);
+  const filled = board.groups.filter((g) => g.count > 0);
   const lost = stages.find((x) => x.kind === "lost") ?? null;
 
-  const reload = async () => {
-    const r = await repliesClient.board(board.since);
-    if (r.ok) setBoard(r.data);
+  const read = async (ch: Filter) => {
+    const mine = ++asked.current;
+    const r = await repliesClient.board(board.since, ch);
+    if (mine !== asked.current) return;
+    if (!r.ok) {
+      // The filter says what the board shows: a channel that couldn't be read isn't picked.
+      setChannel(board.channel ?? "all");
+      return toast({ tone: "warn", title: "LUME couldn't read the replies", detail: r.message });
+    }
+    setBoard(r.data);
+    if (ch === "all" && hasBoth(r.data)) setMixed(true);
   };
-  const runFor = async (group: ReplyMeaningGroup, leads: ReplyBoardLead[], action: BulkAction) => {
+  const reload = () => read(channel);
+  const pick = (ch: Filter) => {
+    setChannel(ch);
+    void read(ch);
+  };
+  const runFor = async (group: ReplyBoardGroup, leads: ReplyBoardLead[], action: BulkAction) => {
     setBusy(group);
     const r = await bulkRunsClient.create({ ids: leads.map((l) => l.leadId) }, action);
     setBusy(null);
@@ -102,85 +144,138 @@ export function RepliesBoard({
     void reload();
   };
 
-  if (!shown.length)
+  const filter = mixed && (
+    <div className={s.filter}>
+      <SegmentedControl
+        label="Channel"
+        size="sm"
+        value={channel}
+        onChange={(v) => pick(v)}
+        options={[
+          { value: "all", label: "All" },
+          { value: "whatsapp", label: "WhatsApp" },
+          { value: "instagram", label: "Instagram" },
+        ]}
+      />
+    </div>
+  );
+  const since = relativeTime(board.since, new Date(), tz);
+  if (!filled.length)
     return (
-      <div className={s.empty}>
-        <p suppressHydrationWarning>
-          No WhatsApp replies since {relativeTime(board.since, new Date(), tz)}. When leads write back, they
-          show up here, grouped by what they mean.
-        </p>
-      </div>
+      <>
+        {filter}
+        <div className={s.empty}>
+          <p suppressHydrationWarning>
+            {channel === "instagram"
+              ? `No Instagram replies since ${since}. When people write back on Instagram, or a flow passes someone to your team, they show up here, grouped by what they mean.`
+              : channel === "whatsapp"
+                ? `No WhatsApp replies since ${since}. When leads write back, they show up here, grouped by what they mean.`
+                : `No replies since ${since}. When leads write back, they show up here, grouped by what they mean.`}
+          </p>
+        </div>
+      </>
     );
 
   return (
-    <div className={s.board}>
-      {shown.map((g) => (
-        <section
-          key={g.group}
-          className={s.group}
-          data-group={g.group}
-          aria-label={`${REPLY_MEANING_WORDS[g.group]}, ${g.count}`}
-        >
-          <header className={s.head}>
-            <h2>{REPLY_MEANING_WORDS[g.group]}</h2>
-            <span className={s.count}>{g.count.toLocaleString("en-US")}</span>
-          </header>
-          <ul className={s.leads}>
-            {g.leads.map((l) => (
-              <li key={l.leadId}>
-                <Link href={`/leads?lead=${l.leadId}`} className={s.lead}>
-                  <b>{l.name}</b>
-                  <span className={s.when} suppressHydrationWarning>
-                    {relativeTime(l.at, new Date(), tz)}
-                  </span>
-                </Link>
-                {(l.summary ?? l.text) && <p className={s.said}>{l.summary ?? l.text}</p>}
-              </li>
-            ))}
-          </ul>
-          {canAi && AI_GROUPS.includes(g.group) && (
-            <Button
-              size="sm"
-              className={s.ai}
-              onClick={() => setHanding(g.leads.map((l) => l.leadId))}
-              aria-label={`Let LUME AI handle ${g.leads.length === 1 ? "this 1" : `these ${g.leads.length}`}: ${REPLY_MEANING_WORDS[g.group]}`}
-            >
-              <AiGlyph size={14} />
-              Let LUME AI handle {g.leads.length === 1 ? "this" : "these"}
-            </Button>
+    <>
+      {filter}
+      <div className={s.board}>
+        {filled.map((g) => (
+          <section
+            key={g.group}
+            className={s.group}
+            data-group={g.group}
+            aria-label={`${GROUP_WORDS[g.group]}, ${g.count}`}
+          >
+            <header className={s.head}>
+              <h2>{GROUP_WORDS[g.group]}</h2>
+              <span className={s.count}>{g.count.toLocaleString("en-US")}</span>
+            </header>
+            {g.group === "flow_passed" && (
+              <p className={s.note}>
+                Each flow passed these to your team, and says why. A reply from you still reaches them.
+              </p>
+            )}
+            <ul className={s.leads}>
+              {g.leads.map((l) => {
+                const w = windowWords(l, new Date(), tz);
+                return (
+                  <li key={l.leadId}>
+                    <Link href={`/leads?lead=${l.leadId}`} className={s.lead}>
+                      <span className={s.who}>
+                        <img
+                          src={MARK[l.channel].src}
+                          alt={MARK[l.channel].alt}
+                          width={14}
+                          height={14}
+                          className={s.mark}
+                        />
+                        <b>{l.name}</b>
+                      </span>
+                      <span className={s.when} suppressHydrationWarning>
+                        {relativeTime(l.at, new Date(), tz)}
+                      </span>
+                    </Link>
+                    {(l.summary ?? l.text) && <p className={s.said}>{l.summary ?? l.text}</p>}
+                    <p className={s.about}>
+                      <span className={s.left} data-tone={w.tone} suppressHydrationWarning>
+                        {w.text}
+                      </span>
+                      <span className={s.whose}>{aboutLine(l)}</span>
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+            {(() => {
+              // LUME AI answers WhatsApp only until Part E: a group's Instagram leads aren't handed to it.
+              const wa = g.leads.filter((l) => l.channel === "whatsapp");
+              if (!canAi || !AI_GROUPS.includes(g.group) || !wa.length) return null;
+              return (
+                <Button
+                  size="sm"
+                  className={s.ai}
+                  onClick={() => setHanding(wa.map((l) => l.leadId))}
+                  aria-label={`Let LUME AI handle ${wa.length === 1 ? "this 1" : `these ${wa.length}`}: ${GROUP_WORDS[g.group]}`}
+                >
+                  <AiGlyph size={14} />
+                  Let LUME AI handle {wa.length === 1 ? "this" : "these"}
+                </Button>
+              );
+            })()}
+            {g.group === "stop" ? (
+              <p className={s.note}>LUME marked these do not contact.</p>
+            ) : (
+              canBulk && (
+                <GroupAction
+                  group={g.group}
+                  count={g.leads.length}
+                  busy={busy === g.group}
+                  stages={stages.filter((x) => x.kind === "open")}
+                  lostStage={lost}
+                  lostReasons={lostReasons}
+                  tz={tz}
+                  onRun={(action) => void runFor(g.group, g.leads, action)}
+                />
+              )
+            )}
+          </section>
+        ))}
+        <AnimatePresence>
+          {handing && (
+            <StartSheet
+              target={{ leadIds: handing }}
+              count={handing.length}
+              onClose={() => setHanding(null)}
+              onStarted={(r) => {
+                setHanding(null);
+                router.push(`/autopilot?run=${encodeURIComponent(r.run.id)}`);
+              }}
+            />
           )}
-          {g.group === "stop" ? (
-            <p className={s.note}>LUME marked these do not contact.</p>
-          ) : (
-            canBulk && (
-              <GroupAction
-                group={g.group}
-                count={g.leads.length}
-                busy={busy === g.group}
-                stages={stages.filter((x) => x.kind === "open")}
-                lostStage={lost}
-                lostReasons={lostReasons}
-                tz={tz}
-                onRun={(action) => void runFor(g.group, g.leads, action)}
-              />
-            )
-          )}
-        </section>
-      ))}
-      <AnimatePresence>
-        {handing && (
-          <StartSheet
-            target={{ leadIds: handing }}
-            count={handing.length}
-            onClose={() => setHanding(null)}
-            onStarted={(r) => {
-              setHanding(null);
-              router.push(`/autopilot?run=${encodeURIComponent(r.run.id)}`);
-            }}
-          />
-        )}
-      </AnimatePresence>
-    </div>
+        </AnimatePresence>
+      </div>
+    </>
   );
 }
 
@@ -195,7 +290,7 @@ function GroupAction({
   tz,
   onRun,
 }: {
-  group: ReplyMeaningGroup;
+  group: ReplyBoardGroup;
   count: number;
   busy: boolean;
   stages: Stage[];

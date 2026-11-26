@@ -32,6 +32,7 @@ vi.mock("@/lib/analytics/client", async (orig) => {
       drill: fn(),
       teams: fn(),
       me: fn(),
+      instagram: fn(),
     },
   };
 });
@@ -185,6 +186,53 @@ describe("Analytics (8C)", () => {
     ]);
     expect(await screen.findByText("Every follow-up is on time.")).toBeInTheDocument();
     expect(analyticsClient.overview).not.toHaveBeenCalled();
+  });
+
+  it("Instagram is a tab while the business has an Instagram account, reading its own board (D6b)", async () => {
+    const { unmount } = render(<Analytics catalog={testCatalog()} showTeam timezone="Asia/Kolkata" />);
+    expect(screen.queryByRole("tab", { name: "Instagram" })).not.toBeInTheDocument();
+    unmount();
+    vi.mocked(analyticsClient.instagram).mockResolvedValue(
+      ok({
+        range: { from: "2026-09-04", to: "2026-09-06", label: "September 4 – 6" },
+        totals: {
+          conversations: 12,
+          leads: 5,
+          measured: 10,
+          inTime: 9,
+          ranOut: 1,
+          firstAnswerSec: 40,
+          booked: 2,
+          won: 1,
+          bookedNew: 2,
+          wonNew: 1,
+          revenue: null,
+          adClicks: 0,
+          privateReplies: 6,
+          stopped: 0,
+          byStart: { comment: 6, dm: 6, ad: 0, story: 0 },
+        },
+        previous: null,
+        rates: { inTime: 0.9, leadRate: 5 / 12 },
+        series: days.map((day) => ({ day, comment: 2, dm: 2, ad: 0, story: 0 })),
+        funnel: [
+          { id: "wrote", n: 12 },
+          { id: "lead", n: 5 },
+          { id: "booked", n: 2 },
+          { id: "won", n: 1 },
+        ],
+        whoAnswered: [],
+        accounts: [],
+        sources: [],
+      }),
+    );
+    params = new URLSearchParams("m=instagram");
+    render(<Analytics catalog={testCatalog()} showTeam timezone="Asia/Kolkata" instagram />);
+    expect(screen.getByRole("tab", { name: "Instagram" })).toHaveAttribute("aria-selected", "true");
+    expect(
+      await screen.findByRole("heading", { name: "Instagram started 12 conversations in the last 30 days." }),
+    ).toBeVisible();
+    expect(analyticsClient.instagram).toHaveBeenCalledTimes(1);
   });
 });
 

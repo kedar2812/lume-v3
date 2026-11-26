@@ -85,6 +85,18 @@ describe("what LUME AI is asked", () => {
     for (const words of ["Interested", "Stop messaging", "never invent", "stop: true"])
       expect(say).toContain(words);
   });
+
+  it("an Instagram reply is read with Instagram's messages, named as Instagram's (D6a)", () => {
+    const thread = [
+      { from: "lead" as const, at: "2026-11-25T05:00:00.000Z", text: "Is the plan still open?" },
+    ];
+    const wa = JSON.parse(replyMeaningInput(facts, thread, "x").split("\n\nThe reply:\n")[0]!);
+    expect(Object.keys(wa)).toContain("whatsapp");
+    const ig = JSON.parse(replyMeaningInput(facts, thread, "x", "instagram").split("\n\nThe reply:\n")[0]!);
+    expect(ig.instagram).toEqual(thread);
+    expect(ig.whatsapp).toBeUndefined();
+    expect(replyMeaningInstructions).toMatch(/on WhatsApp or Instagram/);
+  });
 });
 
 describe("what the business can use of the answer", () => {

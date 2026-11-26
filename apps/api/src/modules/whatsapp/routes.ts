@@ -86,18 +86,28 @@ export async function whatsappRoutes(app: FastifyInstance, d: AppDeps): Promise<
     { config: { permission: "leads.view" }, schema: { params: id } },
     (req) => leadLatest(req, req.params.id),
   );
-  // Who replied (W2, §4.2): each lead's latest reply since a moment, grouped by what it means (a week by default).
+  // Who replied (W2, §4.2; Instagram D6a): each lead's latest reply since a moment, on WhatsApp, Instagram or either,
+  // grouped by what it means (a week by default).
   r.get(
     "/api/v1/whatsapp/replies",
     {
       config: { permission: "leads.view" },
-      schema: { querystring: z.object({ since: z.iso.datetime({ offset: true }).optional() }) },
+      schema: {
+        querystring: z.object({
+          since: z.iso.datetime({ offset: true }).optional(),
+          channel: z.enum(["all", "whatsapp", "instagram"]).default("all"),
+        }),
+      },
     },
-    (req) =>
-      replyBoard(
+    (req) => {
+      const now = d.clock();
+      return replyBoard(
         req,
-        req.query.since ? new Date(req.query.since) : new Date(d.clock().getTime() - 7 * 86_400_000),
-      ),
+        req.query.since ? new Date(req.query.since) : new Date(now.getTime() - 7 * 86_400_000),
+        now,
+        req.query.channel,
+      );
+    },
   );
   // Replying from LUME (plan W3a; spec §3.4): a message, and a file attached for one.
   const limiter = sendLimiter({ now: d.clock });

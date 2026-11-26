@@ -183,6 +183,49 @@ export type Revenue = {
   drill?: string;
 };
 export type Sources = { range: RangeView; sources: SourceRow[]; revenueByDay?: number[] };
+/** Instagram's board (D6b): what started conversations, how fast they were answered, and what they led to. */
+export type IgStart = "comment" | "dm" | "ad" | "story";
+export type IgTotals = {
+  conversations: number;
+  /** New leads: made from the conversations, each once. */
+  leads: number;
+  /** Conversations where they wrote whose window for an answer is over or that were answered: "in time" is of these. */
+  measured: number;
+  inTime: number;
+  ranOut: number;
+  firstAnswerSec: number | null;
+  /** Each lead once. */
+  booked: number;
+  won: number;
+  /** Of the new leads. */
+  bookedNew: number;
+  wonNew: number;
+  /** Only with analytics.revenue. */
+  revenue: number | null;
+  adClicks: number;
+  privateReplies: number;
+  stopped: number;
+  byStart: Record<IgStart, number>;
+};
+export type InstagramBoard = {
+  range: { from: string; to: string; label: string };
+  totals: IgTotals;
+  previous: IgTotals | null;
+  rates: { inTime: number | null; leadRate: number | null };
+  series: ({ day: string } & Record<IgStart, number>)[];
+  funnel: { id: "wrote" | "lead" | "booked" | "won"; n: number }[];
+  whoAnswered: {
+    id: "flows" | "team";
+    conversations: number;
+    booked: number;
+    won: number;
+    revenue: number | null;
+    firstAnswerSec: number | null;
+  }[];
+  accounts: { id: string; username: string | null; status: string; conversations: number; leads: number }[];
+  sources: { kind: string; id: string; conversations: number; leads: number }[];
+};
+
 export type Lost = {
   range: RangeView;
   total: number;
@@ -408,6 +451,7 @@ export const analyticsClient = {
   quality: (p: AnalyticsParams) => api.get<Quality>(`/api/v1/analytics/quality?${query(p)}`),
   revenue: (p: AnalyticsParams) => api.get<Revenue>(`/api/v1/analytics/revenue?${query(p)}`),
   me: (p: AnalyticsParams) => api.get<Me>(`/api/v1/analytics/me?${query(p)}`),
+  instagram: (p: AnalyticsParams) => api.get<InstagramBoard>(`/api/v1/analytics/instagram?${query(p)}`),
   segments: (p: AnalyticsParams, field?: string) =>
     api.get<Segments>(
       `/api/v1/analytics/segments?${query(p)}${field ? `&field=${encodeURIComponent(field)}` : ""}`,

@@ -11,6 +11,7 @@ import { sql } from "drizzle-orm";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { AppDeps } from "../../app";
 import { loadActor } from "../../rbac/actor";
+import { available } from "../ai/service";
 import { jobServer, withJobRequest } from "../imports/job-request";
 import { setDoNotContact } from "../leads/dnc";
 import { replyArrived } from "../leads/sending";
@@ -100,6 +101,14 @@ type Thread = {
  * lock comes first, in its own statement, so the conversation is read afresh once it's ours: a lead the other delivery
  * just made is seen (and row-level security's check on it passes), never made twice.
  */
+/**
+ * What started a conversation, kept as it was when an ad click later changes its trigger (the ad's window applies from
+ * then on): Analytics counts each conversation under what started it, and an old range's numbers never move.
+ */
+const startKept = (created: boolean) =>
+  sql`(CASE WHEN ${!created} AND source ->> 'start' IS NULL
+            THEN jsonb_build_object('start', coalesce(source ->> 'trigger', 'dm')) ELSE '{}'::jsonb END)`;
+
 async function threadFor(req: FastifyRequest, accountId: string, igsid: string): Promise<Thread> {
   await req.db.execute(
     sql`SELECT pg_advisory_xact_lock(hashtextextended(${`instagram:${accountId}:${igsid}`}, 0))`,
@@ -141,7 +150,22 @@ type Out = {
   photo: string | null;
   later: boolean;
   flow: FlowOut;
+  /** A lead's reply, with words, for LUME AI to read the meaning of once this commits (D6a). */
+  meaning: string | null;
 };
+/**
+ * The person's message on their lead, written once the flow has had it: a reply said to a flow (the flow answers it)
+ * is marked so from the start, as a lead's history is never changed afterwards, and LUME AI doesn't read it and Who
+ * replied leaves it be (D6a).
+ */
+const received = (
+  req: FastifyRequest,
+  a: { id: string; leadId: string; userId: string | null; at: Date; payload: object; inFlow: string | null },
+) =>
+  req.db.execute(sql`
+    INSERT INTO activities (id, lead_id, user_id, type, occurred_at, payload)
+    VALUES (${a.id}, ${a.leadId}, ${a.userId}, 'instagram_received', ${a.at},
+            ${JSON.stringify({ ...a.payload, ...(a.inFlow ? { inFlow: a.inFlow } : {}) })}::jsonb)`);
 
 /**
  * The person's name and username, read once they've messaged (Meta allows it then). Answers whether it was read; a
@@ -212,11 +236,15 @@ async function messageIn(
   if (photoDue(t.photo_checked_at, d.clock())) out.photo = t.id;
   if (e.referral && (t.created || ad))
     await req.db.execute(sql`
-      UPDATE instagram_threads SET source = source || ${JSON.stringify({
+      UPDATE instagram_threads SET source = ${startKept(t.created)} || source || ${JSON.stringify({
         trigger: ad ? "ad" : "referral",
         ...(e.referral.adId ? { adId: e.referral.adId } : {}),
         ...(e.referral.ref ? { ref: e.referral.ref } : {}),
       })}::jsonb WHERE id = ${t.id} AND (source = '{}'::jsonb OR ${ad})`);
+  // A conversation a story started says so as it starts (Analytics counts conversations by what started them).
+  else if (t.created && (e.replyToStory || e.storyMention))
+    await req.db.execute(sql`
+      UPDATE instagram_threads SET source = '{"trigger": "story"}'::jsonb WHERE id = ${t.id} AND source = '{}'::jsonb`);
 
   let leadId = await liveLead(req, t.lead_id);
   if (!leadId) {
@@ -269,10 +297,8 @@ async function messageIn(
     }
   }
   if (await onLeadAlready(req, leadId, e.mid)) return;
-  await req.db.execute(sql`
-    INSERT INTO activities (id, lead_id, user_id, type, occurred_at, payload)
-    VALUES (${newId()}, ${leadId}, ${account.ownerUserId}, 'instagram_received', ${at},
-            ${JSON.stringify({ mid: e.mid, accountId: account.id, threadId: t.id, text: e.text, ...detailOf(e) })}::jsonb)`);
+  // Its id now, so it sorts where it arrived among what the stop or the flow below writes.
+  const activityId = newId();
   out.media.push(...(await addMedia(req, account.id, { id: t.id, leadId }, e.mid, e.attachments)));
   await req.db.execute(sql`
     UPDATE leads SET last_reply_at = GREATEST(coalesce(last_reply_at, ${at}), ${at}),
@@ -300,7 +326,7 @@ async function messageIn(
     };
   // Then the flow it's in, or the one it starts (spec 2026-11-22 §2); a stop above has already made the lead
   // do-not-contact, which stops any run.
-  await flowOnMessage(
+  const took = await flowOnMessage(
     req,
     account,
     {
@@ -317,6 +343,18 @@ async function messageIn(
     at,
     out.flow,
   );
+  await received(req, {
+    id: activityId,
+    leadId,
+    userId: account.ownerUserId,
+    at,
+    payload: { mid: e.mid, accountId: account.id, threadId: t.id, text: e.text, ...detailOf(e) },
+    inFlow: took,
+  });
+  // What it means, when there are words and LUME AI is on (a stop is settled already; a flow answers its own).
+  // A tap on a quick reply is a button's words, never theirs: not read.
+  if (!took && !stopped && !e.quickReply && e.text?.trim() && (await available(req, d)).ok)
+    out.meaning = activityId;
 }
 
 /** A message the business sent from Instagram itself: on the lead, and a person has taken the conversation over. */
@@ -506,6 +544,7 @@ export async function processInstagramEvent(
         photo: null,
         later: false,
         flow: newFlowOut(),
+        meaning: null,
       };
       const at = new Date(ev.at);
       switch (ev.kind) {
@@ -519,12 +558,9 @@ export async function processInstagramEvent(
           const leadId = await liveLead(req, t.lead_id);
           const payload = { tap: { title: ev.title, payload: ev.payload } };
           if (leadId && !(await onLeadAlready(req, leadId, ev.mid))) {
-            await req.db.execute(sql`
-              INSERT INTO activities (id, lead_id, user_id, type, occurred_at, payload)
-              VALUES (${newId()}, ${leadId}, ${account.ownerUserId}, 'instagram_received', ${at},
-                      ${JSON.stringify({ mid: ev.mid, accountId: account.id, threadId: t.id, text: ev.title, ...payload })}::jsonb)`);
-            // A tap on a flow's button is the person answering it.
-            await flowOnMessage(
+            const activityId = newId();
+            // A tap on a flow's button is the person answering it. A tap is a button's words, never read for meaning.
+            const took = await flowOnMessage(
               req,
               account,
               {
@@ -539,6 +575,14 @@ export async function processInstagramEvent(
               at,
               out.flow,
             );
+            await received(req, {
+              id: activityId,
+              leadId,
+              userId: account.ownerUserId,
+              at,
+              payload: { mid: ev.mid, accountId: account.id, threadId: t.id, text: ev.title, ...payload },
+              inFlow: took,
+            });
           } else if (!leadId)
             await req.db.execute(sql`
               INSERT INTO instagram_inbox (id, thread_id, mid, at, text, detail)
@@ -553,7 +597,7 @@ export async function processInstagramEvent(
           // The ad (or link) they came from, kept for the lead their first message makes.
           if (ad || ev.referral.ref)
             await req.db.execute(sql`
-              UPDATE instagram_threads SET source = source || ${JSON.stringify({
+              UPDATE instagram_threads SET source = ${startKept(t.created)} || source || ${JSON.stringify({
                 trigger: ad ? "ad" : "referral",
                 ...(ev.referral.adId ? { adId: ev.referral.adId } : {}),
                 ...(ev.referral.ref ? { ref: ev.referral.ref } : {}),
@@ -641,6 +685,11 @@ export async function processInstagramEvent(
     await d.instagram
       ?.enqueuePhoto(out.photo)
       .catch((err: unknown) => o.app.log.error({ err }, "couldn't queue an Instagram profile photo"));
+  // The same queue reads WhatsApp's replies: one read per reply, whichever channel it came on.
+  if (out.meaning)
+    await d.whatsapp
+      ?.enqueueMeaning?.(out.meaning)
+      .catch((err: unknown) => o.app.log.error({ err }, "couldn't queue a reply for LUME AI to read"));
   if (out.notice) {
     const n = out.notice;
     // One notice for a burst: several messages in a row from one lead ring once. A stop is always said.

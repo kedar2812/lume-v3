@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { bulkRunsClient } from "@/lib/leads/bulk-runs";
 import { repliesClient, type ReplyBoard } from "@/lib/replies/client";
 import { RepliesBoard } from "./RepliesBoard";
@@ -28,18 +28,29 @@ const toast = vi.fn();
 vi.mock("@/components/feedback/ToastProvider", () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
 
-const lead = (id: string, name: string, summary: string | null) => ({
+type Row = ReplyBoard["groups"][number]["leads"][number];
+const lead = (id: string, name: string, summary: string | null, more: Partial<Row> = {}): Row => ({
   leadId: id,
   name,
   at: "2026-10-21T06:00:00.000Z",
   text: summary ?? "ok",
   summary,
   doNotContact: false,
+  channel: "whatsapp",
+  window: { state: "closed", until: null },
+  ownerName: "Maya Kapoor",
+  source: null,
+  ...more,
 });
-const board = (o: Partial<Record<string, ReturnType<typeof lead>[]>> = {}): ReplyBoard => ({
+const board = (
+  o: Partial<Record<string, Row[]>> = {},
+  channel: ReplyBoard["channel"] = "all",
+): ReplyBoard => ({
   since: "2026-10-14T06:00:00.000Z",
+  channel,
   groups: (
     [
+      "flow_passed",
       "interested",
       "price",
       "visit_or_call",
@@ -84,7 +95,7 @@ describe("RepliesBoard", () => {
     expect(screen.queryByRole("region", { name: /^Interested/ })).toBeNull();
     unmount();
     show(board());
-    expect(screen.getByText(/No WhatsApp replies since/)).toBeInTheDocument();
+    expect(screen.getByText(/No replies since/)).toBeInTheDocument();
   });
 
   it("Interested: move them all to a stage, as one bulk run, with Undo", async () => {
@@ -177,5 +188,214 @@ describe("RepliesBoard", () => {
   it("LUME AI off, or someone who can't start a run: no Let LUME AI handle", () => {
     show(board({ interested: [lead("l1", "Meera Iyer", null)] }));
     expect(screen.queryByRole("button", { name: /^Let LUME AI handle/ })).toBeNull();
+  });
+
+  describe("with Instagram (D6a)", () => {
+    const NOW = new Date("2026-11-25T06:00:00Z");
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(NOW);
+    });
+    afterEach(() => vi.useRealTimers());
+    const inH = (h: number) => new Date(NOW.getTime() + h * 3_600_000).toISOString();
+
+    it("each row: its channel, whose lead and where from, and how long a reply still reaches them", () => {
+      show(
+        board({
+          interested: [
+            lead("a", "Rohan Kapoor", "Loved the reel", {
+              channel: "instagram",
+              window: { state: "open", until: inH(21.5) },
+              source: "Instagram",
+            }),
+            lead("b", "Ishaan Gupta", "Ready in December", {
+              channel: "whatsapp",
+              window: { state: "open", until: inH(19.2) },
+              ownerName: null,
+            }),
+          ],
+          price: [
+            lead("c", "Kavya Rao", "How much?", {
+              channel: "instagram",
+              window: { state: "human", until: inH(30) },
+              ownerName: "Sana Iqbal",
+              source: "Website form",
+            }),
+            lead("d", "Dev Nair", "Any discount?", {
+              channel: "whatsapp",
+              window: { state: "closed", until: null },
+            }),
+          ],
+        }),
+      );
+      const yes = screen.getByRole("region", { name: "Interested, 2" });
+      const [ig, wa] = within(yes).getAllByRole("listitem");
+      expect(within(ig!).getByRole("img", { name: "Instagram" })).toHaveAttribute(
+        "src",
+        "/brand/instagram.png",
+      );
+      expect(ig).toHaveTextContent("21 hours left to answer");
+      expect(ig).toHaveTextContent("Maya Kapoor’s lead · Instagram");
+      expect(within(wa!).getByRole("img", { name: "WhatsApp" })).toHaveAttribute(
+        "src",
+        "/brand/whatsapp-app.png",
+      );
+      expect(wa).toHaveTextContent("19 hours left on WhatsApp");
+      expect(wa).toHaveTextContent("Nobody’s lead yet");
+      const price = screen.getByRole("region", { name: "Asked the price, 2" });
+      expect(price).toHaveTextContent(
+        "Instagram’s 24 hours ended · a person can answer until tomorrow at 5:30 pm",
+      );
+      expect(price).toHaveTextContent("Sana Iqbal’s lead · Website form");
+      expect(price).toHaveTextContent(
+        "WhatsApp’s 24 hours ended · an approved template can still reach them",
+      );
+    });
+
+    it("A flow passed these to you: first, the flow and why, no bulk action and no LUME AI", () => {
+      render(
+        <RepliesBoard
+          initial={board({
+            flow_passed: [
+              lead("f1", "Ananya Iyer", null, {
+                text: "Can you make a plan around my knee?",
+                channel: "instagram",
+                window: { state: "open", until: inH(21) },
+                ownerName: "Sana Iqbal",
+                flow: { name: "Qualify and book", note: "wants a custom plan" },
+              }),
+            ],
+            interested: [lead("a", "Meera Iyer", "Yes")],
+          })}
+          stages={stages}
+          lostReasons={lostReasons}
+          canBulk
+          canAi
+        />,
+      );
+      const regions = screen.getAllByRole("region");
+      expect(regions[0]).toHaveAccessibleName("A flow passed these to you, 1");
+      const g = regions[0]!;
+      expect(g).toHaveTextContent("Can you make a plan around my knee?");
+      expect(g).toHaveTextContent(
+        "Qualify and book asked for a person: wants a custom plan · Sana Iqbal’s lead",
+      );
+      expect(g).toHaveTextContent(/Each flow passed these to your team, and says why/);
+      expect(within(g).queryByRole("button")).toBeNull();
+      expect(within(g).queryByRole("combobox")).toBeNull();
+    });
+
+    it("Let LUME AI handle these: only a group's WhatsApp leads (Instagram waits for Part E)", async () => {
+      render(
+        <RepliesBoard
+          initial={board({
+            interested: [
+              lead("w1", "Meera Iyer", "Yes"),
+              lead("i1", "Rohan Kapoor", "Yes!", {
+                channel: "instagram",
+                window: { state: "open", until: inH(5) },
+              }),
+            ],
+            price: [
+              lead("i2", "Kavya Rao", "How much?", {
+                channel: "instagram",
+                window: { state: "open", until: inH(5) },
+              }),
+            ],
+          })}
+          stages={stages}
+          lostReasons={lostReasons}
+          canBulk
+          canAi
+        />,
+      );
+      // Asked the price holds only Instagram's: nothing LUME AI can do there yet.
+      expect(screen.getAllByRole("button", { name: /^Let LUME AI handle/ })).toHaveLength(1);
+      await userEvent.click(screen.getByRole("button", { name: /^Let LUME AI handle this 1: Interested/ }));
+      expect(screen.getByRole("dialog", { name: "Start sheet" })).toHaveTextContent(/^w1Start$/);
+    });
+
+    it("the channel filter: shown when both are on the board; each reads its own; empty says which", async () => {
+      const both = board({
+        interested: [
+          lead("w1", "Meera Iyer", "Yes"),
+          lead("i1", "Rohan Kapoor", "Yes!", {
+            channel: "instagram",
+            window: { state: "open", until: inH(5) },
+          }),
+        ],
+      });
+      vi.mocked(repliesClient.board).mockResolvedValue(ok(board({}, "instagram")));
+      show(both);
+      const filter = screen.getByRole("radiogroup", { name: "Channel" });
+      await act(async () => {
+        fireEvent.click(within(filter).getByRole("radio", { name: "Instagram" }));
+      });
+      expect(repliesClient.board).toHaveBeenLastCalledWith(both.since, "instagram");
+      await waitFor(() => expect(screen.getByText(/No Instagram replies since/)).toBeInTheDocument());
+      expect(screen.getByText(/or a flow passes someone to your team/)).toBeInTheDocument();
+      // The filter stays, so the way back is there.
+      expect(screen.getByRole("radiogroup", { name: "Channel" })).toBeInTheDocument();
+    });
+
+    it("a channel that couldn't be read isn't left picked: the filter says what the board shows", async () => {
+      const both = board({
+        interested: [
+          lead("w1", "Meera Iyer", "Yes"),
+          lead("i1", "Rohan Kapoor", "Yes!", {
+            channel: "instagram",
+            window: { state: "open", until: inH(5) },
+          }),
+        ],
+      });
+      vi.mocked(repliesClient.board).mockResolvedValue({
+        ok: false,
+        status: 503,
+        code: "X",
+        message: "Offline",
+      } as never);
+      show(both);
+      const filter = screen.getByRole("radiogroup", { name: "Channel" });
+      await act(async () => {
+        fireEvent.click(within(filter).getByRole("radio", { name: "Instagram" }));
+      });
+      await waitFor(() => expect(within(filter).getByRole("radio", { name: "All" })).toBeChecked());
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "LUME couldn't read the replies" }),
+      );
+      expect(screen.getByText("Rohan Kapoor")).toBeInTheDocument();
+    });
+
+    it("only WhatsApp on the board: no filter", () => {
+      show(board({ interested: [lead("w1", "Meera Iyer", "Yes")] }));
+      expect(screen.queryByRole("radiogroup", { name: "Channel" })).toBeNull();
+    });
+
+    it("a slow answer for a channel left behind never replaces the one asked for after it", async () => {
+      const both = board({
+        interested: [
+          lead("w1", "Meera Iyer", "Yes"),
+          lead("i1", "Rohan Kapoor", "Yes!", {
+            channel: "instagram",
+            window: { state: "open", until: inH(5) },
+          }),
+        ],
+      });
+      let slow: (v: unknown) => void = () => {};
+      vi.mocked(repliesClient.board)
+        .mockImplementationOnce(() => new Promise((r) => (slow = r)) as never)
+        .mockResolvedValueOnce(ok(board({ interested: [lead("w1", "Meera Iyer", "Yes")] }, "whatsapp")));
+      show(both);
+      const filter = screen.getByRole("radiogroup", { name: "Channel" });
+      await act(async () => {
+        fireEvent.click(within(filter).getByRole("radio", { name: "Instagram" }));
+      });
+      await act(async () => {
+        fireEvent.click(within(filter).getByRole("radio", { name: "WhatsApp" }));
+      });
+      await act(async () => slow(ok(board({}, "instagram"))));
+      expect(screen.getByRole("region", { name: "Interested, 1" })).toHaveTextContent("Meera Iyer");
+      expect(screen.queryByText(/No Instagram replies/)).toBeNull();
+    });
   });
 });

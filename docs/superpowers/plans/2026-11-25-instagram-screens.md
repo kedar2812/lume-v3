@@ -82,6 +82,23 @@ Files: `components/leads/not-yet/*` (Instagram rows beside WhatsApp's from `/ins
 
 ### Task D6: Who replied and Analytics with Instagram (boards Replies, Analytics, and the Flows board's charts)
 
+**Split (2026-11-25, my call):** D6a Who replied (meaning reads, `replyBoard` channel + `flow_passed`, the screen;
+migration 0133) and D6b Analytics (the endpoint, the Instagram tab, the Flows page's charts), each gated and pushed on
+its own. Calls made in D6a: a reply said to a flow still running or waiting on that conversation (or the keyword that
+started it) is the flow's: marked `inFlow` on the activity at receive, never read by LUME AI and not listed (a lead
+whose newest reply was the flow's is the flow's); a tap on a button is never read; the meaning queue keeps its name
+(`whatsapp.meaning`, in-flight jobs survive an update) and reads either channel; the board's empty copy says "No replies
+since" for All. After the fresh review: a quick-reply tap is never read either (a button's words); Instagram's history
+for a read includes what LUME sent (the outbox's words, through `instagram_confirmed_sent`); a lead who asks to stop
+after a hand-off is under Stop messaging, not passed; "until" in a row says the time ("until today at 3:30 pm"). The box's first run: the
+`inFlow` mark is written with the activity, after the flow has had the message (activities are append-only; an
+UPDATE failed and held every message a flow took). D6a and D6b went out as one commit (one gate). Calls made in D6b: a
+conversation is a thread started in the range; what started it is kept when an ad click comes later
+(`source.start`); "new leads" are leads made from the conversation; leads, calls, wins and money count each lead once;
+the funnel follows the new leads (no "answered in time" step: only conversations on a lead can be timed); a viewer
+whose leads.view is narrower than their analytics reach is refused in words; Who answered has no "became leads"
+column (an answer needs a lead); no drill-downs, notes or Flows page charts yet (D6b-2).
+
 **API first.**
 
 - `apps/api/src/modules/whatsapp/meaning.ts` → a channel-neutral `readMeaning(activityId)`: the reply and the last 12

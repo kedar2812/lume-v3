@@ -42,6 +42,20 @@ column in the release that stops using it.
   by what they're for, each with its steps in words before it's made. What only the business knows is left for it:
   links, and words marked [[…]], which a flow can't go live without.
 - **Not a lead yet** (D5) holds Instagram's people beside WhatsApp's, with a filter by channel.
+- **Who replied with Instagram** (D6a): Instagram's replies beside WhatsApp's, each lead once under its newest, with a
+  filter by channel once both are there. Each row says where they wrote, whose lead it is and where it came from, and
+  how long a reply still reaches them ("21 hours left to answer", "a person can answer until Thursday at 5:30 pm"). A
+  new group first, **A flow passed these to you**, holds the people a flow asked a person for, with the flow and why,
+  until someone answers or takes the conversation over, and never once a person can't answer any more. LUME AI reads
+  what Instagram replies mean, as it does WhatsApp's; what someone says to a flow still talking to them is that flow's,
+  and isn't read or listed. Let LUME AI handle these stays with WhatsApp's leads until LUME AI answers on Instagram.
+  Migration 0133.
+- **Instagram in Analytics** (D6b): an Instagram tab, while the business has an Instagram account. How many
+  conversations started and what started them (a comment, a first DM, an ad click, a story), day by day; the new leads
+  made from them; how many were answered inside Instagram's window (24 hours, 7 days after an ad click), how fast the
+  first answer came, and how many ran out of time or asked to stop; calls booked, won and the money they brought (each
+  lead once; money for those who see it); who answered (flows and your team); each account; and the posts and ads that
+  brought the most leads. Someone who sees only their own leads sees their own conversations. Migration 0134.
 - **LUME's icons**: one set of line icons, each saying what the thing does, the same everywhere (`docs/design/icons.md`),
   starting with the flow builder and the Instagram screens.
 - **Flow builder:** Stop stays ready as LUME AI's answer arrives; Fit keeps clear of the plan while it's on screen.

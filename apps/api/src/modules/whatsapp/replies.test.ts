@@ -95,6 +95,7 @@ describe("Who replied", () => {
 
     const b = await board(admin, sent);
     expect(b.groups.map((g) => g.group)).toEqual([
+      "flow_passed",
       "interested",
       "price",
       "visit_or_call",

@@ -10,6 +10,7 @@ import { drillFor, drillIds, readDrill } from "./drill";
 import { listGoals, listSpend, removeGoal, setGoal, setSpend } from "./goals";
 import { CSV_MODULES, boardCsv } from "./csv";
 import { insights } from "./insights";
+import { instagramBoard, instagramThere } from "./instagram";
 import { me } from "./me";
 import { revenue } from "./revenue";
 import { segments } from "./segments";
@@ -175,6 +176,13 @@ export async function analyticsRoutes(app: FastifyInstance, d: AppDeps): Promise
   r.get("/api/v1/analytics/segments", { config: view, schema: { querystring: query } }, async (req) =>
     segments(req, await toQuery(req, req.query), req.query.field, d.clock(), d),
   );
+  // Instagram's board (D6b): conversations, answers and what they led to, at the viewer's reach.
+  r.get("/api/v1/analytics/instagram", { config: view, schema: { querystring: query } }, async (req) =>
+    instagramBoard(req, await toQuery(req, req.query), d.clock()),
+  );
+  r.get("/api/v1/analytics/instagram/there", { config: view }, async (req) => ({
+    there: await instagramThere(req),
+  }));
   r.get("/api/v1/analytics/insights", { config: view, schema: { querystring: query } }, async (req) =>
     insights(req, await toQuery(req, req.query), d.clock()),
   );

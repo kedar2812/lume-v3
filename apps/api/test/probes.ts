@@ -821,6 +821,9 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/analytics/revenue": { access: "analytics.view" },
   "GET /api/v1/analytics/me": { access: "analytics.view" },
   "GET /api/v1/analytics/segments": { access: "analytics.view" },
+  // Instagram's board (D6b), and whether the business has an Instagram account (the tab).
+  "GET /api/v1/analytics/instagram": { access: "analytics.view" },
+  "GET /api/v1/analytics/instagram/there": { access: "analytics.view" },
   // Recount now (Analytics' Refresh).
   "POST /api/v1/analytics/refresh": { access: "analytics.view" },
   "GET /api/v1/analytics/glance": { access: "analytics.view" },

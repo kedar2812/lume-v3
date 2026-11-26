@@ -9,6 +9,7 @@ import {
   type Funnel,
   type Goals,
   type Insights,
+  type InstagramBoard as InstagramData,
   type Lost,
   type Overview as OverviewData,
   type Me,
@@ -22,6 +23,7 @@ import {
 import type { Catalog } from "@/lib/leads/types";
 import { useLoadingSignal } from "@/lib/loading";
 import { QualityBoard } from "./QualityBoard";
+import { InstagramBoard } from "./InstagramBoard";
 import { TimingBoard } from "./TimingBoard";
 import { LostBoard } from "./LostBoard";
 import { RevenueBoard } from "./RevenueBoard";
@@ -45,7 +47,7 @@ import {
 import s from "./analytics.module.css";
 import { roving } from "@/lib/roving";
 
-export type Tab = "overview" | "funnel" | "team" | "revenue" | "lost" | "timing" | "quality";
+export type Tab = "overview" | "funnel" | "team" | "revenue" | "lost" | "timing" | "quality" | "instagram";
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "funnel", label: "Funnel" },
@@ -55,6 +57,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "timing", label: "Timing" },
   { id: "quality", label: "Templates & data" },
 ];
+/** Instagram's own board (D6b), while the business has an Instagram account. */
+const INSTAGRAM_TAB: { id: Tab; label: string } = { id: "instagram", label: "Instagram" };
 /** Someone who sees only their own leads gets their own three (canvas Rep). */
 const REP_TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "My numbers" },
@@ -130,6 +134,7 @@ type Data = {
   insights: Insights | null;
   goals: Goals | null;
   me: Me | null;
+  instagram: InstagramData | null;
 };
 const EMPTY: Data = {
   overview: null,
@@ -144,6 +149,7 @@ const EMPTY: Data = {
   insights: null,
   goals: null,
   me: null,
+  instagram: null,
 };
 /** What each module reads. */
 const NEEDS: Record<Tab, (keyof Data)[]> = {
@@ -154,6 +160,7 @@ const NEEDS: Record<Tab, (keyof Data)[]> = {
   lost: ["lost", "insights"],
   timing: ["timing", "insights"],
   quality: ["quality", "templates"],
+  instagram: ["instagram"],
 };
 
 /**
@@ -169,6 +176,7 @@ export function Analytics({
   seesMoney = false,
   canEditSpend = false,
   canManageSources = false,
+  instagram = false,
   meId,
 }: {
   catalog: Catalog;
@@ -185,6 +193,8 @@ export function Analytics({
   canEditSpend?: boolean;
   /** integrations.manage: Templates & data links to the sources that need a look. */
   canManageSources?: boolean;
+  /** The business has an Instagram account: its board is a tab. */
+  instagram?: boolean;
   /** The viewer, so the Filters panel can offer them among their team. */
   meId?: string;
 }) {
@@ -192,7 +202,7 @@ export function Analytics({
   const pathname = usePathname();
   const search = useSearchParams();
   const own = !showTeam;
-  const tabs = own ? REP_TABS : TABS;
+  const tabs = own ? REP_TABS : instagram ? [...TABS, INSTAGRAM_TAB] : TABS;
   const tab = (tabs.some((t) => t.id === search.get("m")) ? search.get("m") : "overview") as Tab;
   // What this tab reads: a rep's numbers come from their own endpoint; revenue only with the money permission.
   const needs = (t: Tab): (keyof Data)[] =>
@@ -316,6 +326,7 @@ export function Analytics({
       templates: () => analyticsClient.templates(params),
       insights: () => analyticsClient.insights(params),
       goals: () => analyticsClient.goals(start),
+      instagram: () => analyticsClient.instagram(params),
     };
     // Revenue is money only: someone without analytics.revenue never asks for it.
     for (const k of needs(tab).filter((x) => data[x] === null && !failed[x]))
@@ -531,6 +542,14 @@ export function Analytics({
             rangeWords={r.words}
             canManageSources={canManageSources}
             onDrill={(token, title) => setDrill({ token, title })}
+          />
+        )}
+        {tab === "instagram" && (
+          <InstagramBoard
+            data={data.instagram}
+            currency={catalog.currency}
+            compare={compare}
+            rangeWords={r.words}
           />
         )}
       </div>

@@ -9,9 +9,10 @@ export const metadata = { title: "Analytics · LUME" };
 
 export default async function Page() {
   const session = await requirePermission("analytics.view");
-  const [catalog, settings] = await Promise.all([
+  const [catalog, settings, instagram] = await Promise.all([
     loadCatalog(),
     apiGet<{ timezone: string | null }>("/api/v1/settings"),
+    apiGet<{ there: boolean }>("/api/v1/analytics/instagram/there"),
   ]);
   return (
     <Suspense>
@@ -24,6 +25,7 @@ export default async function Page() {
         canManageSources={can(session.actor, "integrations.manage")}
         seesMoney={can(session.actor, "analytics.revenue")}
         canEditSpend={can(session.actor, "settings.manage")}
+        instagram={instagram.data?.there === true}
         timezone={settings.data?.timezone ?? session.user.timezone ?? "UTC"}
       />
     </Suspense>
