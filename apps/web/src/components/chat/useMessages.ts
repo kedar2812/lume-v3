@@ -65,11 +65,38 @@ export function useMessages(
   /** The truth between renders; null until the first page is here. */
   const list = useRef<MessageView[] | null>(null);
   const live = useRef(true);
-  const apply = useCallback((f: (ms: MessageView[]) => MessageView[]) => {
-    if (!live.current || list.current === null) return;
-    list.current = f(list.current);
-    show(list.current);
+  /** Pages asked for so far (each numbered as it's asked), and those asked for that haven't gone in or been dropped. */
+  const asked = useRef(0);
+  const open = useRef(new Set<number>());
+  /**
+   * One's own changes (a delete, a reaction, an edit): a page asked for before the server had one brings the message as
+   * it was, so each is made again over every page asked for until the server answered (`upTo`: the pages asked for by
+   * then; null until it has), and never over one asked for after. Let go once none of those is left to go in. Each
+   * change gives the same message however often it's made.
+   */
+  const ours = useRef<{ mid: number; f: (m: MessageView) => MessageView; upTo: number | null }[]>([]);
+  /** Page `n` as it goes in (or is dropped): one's own changes made again over it where it may be from before them. */
+  const keepOurs = useCallback((ms: MessageView[], n: number) => {
+    open.current.delete(n);
+    const kept = ours.current;
+    if (!kept.length) return ms;
+    const out = ms.map((m) =>
+      kept.reduce((x, k) => (k.mid === x.id && (k.upTo === null || n <= k.upTo) ? k.f(x) : x), m),
+    );
+    const oldest = Math.min(...open.current);
+    ours.current = kept.filter((k) => k.upTo === null || oldest <= k.upTo);
+    return out;
   }, []);
+  /** What's on screen changed: by page `n` (one's own changes kept over it), or by what's known here already. */
+  const apply = useCallback(
+    (f: (ms: MessageView[]) => MessageView[], n?: number) => {
+      if (n !== undefined && (!live.current || list.current === null)) open.current.delete(n);
+      if (!live.current || list.current === null) return;
+      list.current = n === undefined ? f(list.current) : keepOurs(f(list.current), n);
+      show(list.current);
+    },
+    [keepOurs],
+  );
 
   // ── What has been read ──────────────────────────────────────────────────────────────────────────────────────────
   const mark = useRef({ said: 0, seen: 0, at: 0, every: kind === "direct" ? READ_DIRECT_MS : READ_MS });
@@ -127,8 +154,14 @@ export function useMessages(
 
   /** A page as asked for: null when it couldn't be had (said in words when it's worth saying). */
   const ask = useCallback(
-    async (q?: { before?: number; after?: number }): Promise<{ page: MessagePage } | { why: string }> => {
+    async (q?: {
+      before?: number;
+      after?: number;
+    }): Promise<{ page: MessagePage; n: number } | { why: string }> => {
       coming.current++;
+      const n = ++asked.current;
+      open.current.add(n);
+      let got = false;
       try {
         const r =
           root !== null
@@ -140,11 +173,14 @@ export function useMessages(
         // An answer that isn't one (a proxy's page): the same as none.
         if (!Array.isArray(r.data?.messages))
           return { why: "LUME couldn't read this conversation just now." };
-        return { page: r.data };
+        got = true;
+        return { page: r.data, n };
       } catch {
         return { why: "LUME couldn't read this conversation just now." };
       } finally {
         coming.current--;
+        // A page that came stays open until it goes in (`keepOurs`) or is dropped.
+        if (!got) open.current.delete(n);
       }
     },
     [id, root],
@@ -206,7 +242,7 @@ export function useMessages(
         if ("why" in r) return false;
         const got = r.page.messages;
         // From one on screen up: never beside a gap.
-        apply((ms) => merge(ms, got));
+        apply((ms) => merge(ms, got), r.n);
         // One that names me now (an edit): seen, and said again.
         if (got.some((m) => ids.includes(m.id) && namesMe(m)))
           mark.current.said = Math.min(mark.current.said, joined.current - 1);
@@ -230,13 +266,14 @@ export function useMessages(
         if (!live.current) return true;
         if ("why" in r) return false;
         if (g !== gen.current) {
+          open.current.delete(r.n);
           want.current.behind = true;
           return true;
         }
         const got = r.page.messages;
         // It names me, and I'm looking: said at once, so the bell never tells me of it.
         if (got.some(namesMe)) mark.current.at = 0;
-        apply((ms) => merge(ms, got));
+        apply((ms) => merge(ms, got), r.n);
         settle();
         after = got.at(-1)?.id ?? after;
         joined.current = Math.max(joined.current, after);
@@ -284,6 +321,7 @@ export function useMessages(
       joined.current = 0;
       setOlder(r.page.more);
     }
+    list.current = keepOurs(list.current, r.n);
     joined.current = Math.max(joined.current, page.at(-1)?.id ?? 0);
     show(list.current);
     settle();
@@ -300,7 +338,7 @@ export function useMessages(
       want.current.behind = true;
     }
     pump();
-  }, [ask, settle, pump, root]);
+  }, [ask, settle, pump, root, keepOurs]);
   loadRef.current = load;
 
   useEffect(() => {
@@ -340,10 +378,18 @@ export function useMessages(
     [key, apply, catchUp, load],
   );
 
-  /** One of them as it will be, at once (one's own reaction, edit or delete). */
+  /**
+   * One of them as it will be, at once (one's own reaction, edit or delete), and kept so until `answered` and after. A
+   * refusal (or no answer) changed nothing on the server: let go at once, so what's read next says how it is.
+   */
   const change = useCallback(
-    (mid: number, f: (m: MessageView) => MessageView) =>
-      apply((ms) => ms.map((m) => (m.id === mid ? f(m) : m))),
+    (mid: number, f: (m: MessageView) => MessageView, answered: Promise<{ ok: boolean }>) => {
+      const k = { mid, f, upTo: null as number | null };
+      ours.current.push(k);
+      apply((ms) => ms.map((m) => (m.id === mid ? f(m) : m)));
+      const refused = () => void (ours.current = ours.current.filter((x) => x !== k));
+      void answered.then((r) => (r.ok ? void (k.upTo = asked.current) : refused()), refused);
+    },
     [apply],
   );
   /** One of them as the server has it, when its turn comes. */
@@ -375,13 +421,16 @@ export function useMessages(
       if (!live.current) return false;
       setLoadingOlder(false);
       // Shown afresh meanwhile: these no longer join up with what's on screen.
-      if (list.current?.[0]?.id !== first) return false;
+      if (list.current?.[0]?.id !== first) {
+        if ("n" in r) open.current.delete(r.n);
+        return false;
+      }
       if ("why" in r) {
         setSaid(r.why);
         return false;
       }
       about();
-      apply((ms) => merge(r.page.messages, ms));
+      apply((ms) => merge(r.page.messages, ms), r.n);
       settle();
       setOlder(r.page.more);
       pump();

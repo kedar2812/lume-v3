@@ -322,17 +322,25 @@ function Talk({
   const onReact = useCallback(
     (m: Shown, emoji: string, on: boolean) => {
       setSaid(null);
-      change(m.id, (x) => {
-        const had = x.reactions.find((r) => r.emoji === emoji);
-        const n = (had?.count ?? 0) + (on ? 1 : -1);
-        const rest = x.reactions.filter((r) => r.emoji !== emoji);
-        const at = had ? x.reactions.indexOf(had) : rest.length;
-        return {
-          ...x,
-          reactions: n > 0 ? [...rest.slice(0, at), { emoji, count: n, mine: on }, ...rest.slice(at)] : rest,
-        };
-      });
-      void chatClient.react(m.id, emoji, on).then((r) => tried(m.id, r));
+      const answered = chatClient.react(m.id, emoji, on);
+      change(
+        m.id,
+        (x) => {
+          const had = x.reactions.find((r) => r.emoji === emoji);
+          // Already so (kept over a page that has it): the same again, never counted twice.
+          if (!!had?.mine === on) return x;
+          const n = (had?.count ?? 0) + (on ? 1 : -1);
+          const rest = x.reactions.filter((r) => r.emoji !== emoji);
+          const at = had ? x.reactions.indexOf(had) : rest.length;
+          return {
+            ...x,
+            reactions:
+              n > 0 ? [...rest.slice(0, at), { emoji, count: n, mine: on }, ...rest.slice(at)] : rest,
+          };
+        },
+        answered,
+      );
+      void answered.then((r) => tried(m.id, r));
     },
     [change, tried, setSaid],
   );
@@ -347,17 +355,16 @@ function Talk({
   const onDelete = useCallback(
     (m: Shown) => {
       setSaid(null);
-      change(m.id, (x) => ({
-        ...x,
-        body: null,
-        files: [],
-        reactions: [],
-        replyTo: null,
-        deletedAt: new Date().toISOString(),
-      }));
+      const answered = chatClient.remove(m.id);
+      const at = new Date().toISOString();
+      change(
+        m.id,
+        (x) => ({ ...x, body: null, files: [], reactions: [], replyTo: null, deletedAt: at }),
+        answered,
+      );
       setReplying((r) => (r?.id === m.id ? null : r));
       setEditing((r) => (r?.id === m.id ? null : r));
-      void chatClient.remove(m.id).then((r) => tried(m.id, r));
+      void answered.then((r) => tried(m.id, r));
     },
     [change, tried, setSaid],
   );
@@ -372,7 +379,18 @@ function Talk({
       return false;
     }
     setEditing(null);
-    change(mid, () => r.data);
+    // Its words alone: whatever else a page says of it since (deleted elsewhere, a reaction) stands.
+    const saved = r.data;
+    change(
+      mid,
+      (x) => ({
+        ...x,
+        body: saved.body,
+        editedAt: saved.editedAt,
+        ...(saved.notTold ? { notTold: saved.notTold } : {}),
+      }),
+      Promise.resolve({ ok: true }),
+    );
     return true;
   };
 

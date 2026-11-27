@@ -15,6 +15,9 @@ column in the release that stops using it.
   from Instagram with the same words within a day, is marked sent and never taken for a person's reply. A person's
   message is never held behind one of LUME AI's that the run's pause or a takeover stopped at the last moment.
 - **Fixed:** Leads → More filters ran past its right edge when a WhatsApp number's label was long.
+- **Fixed:** in Team Chat, a message one deleted (or a reaction or edit one made) could come back as it was when a
+  page of the conversation asked for just before was answered just after; one's own change now stays until the server
+  has answered and every page asked for before then is in.
 - **One icon set across LUME** (`docs/design/icons.md`): the leads, settings, analytics, calendar, media, Today and the
   other screens take their icons from LUME's registry (Lucide's line icons, one meaning one icon), not their own
   drawings; a call outcome, a contact's channel and every close, search and remove look the same everywhere.

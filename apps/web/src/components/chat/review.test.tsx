@@ -821,6 +821,102 @@ describe("no hole, and nothing left as it was (review 3)", () => {
     expect(screen.queryByText("That message isn't there.")).toBeNull();
   });
 
+  it("one's own reaction, kept while the server answers, is counted once on a page that already has it", async () => {
+    show();
+    const bubble = (t: string) => screen.getByText(t).closest("[role=group]") as HTMLElement;
+    await screen.findByText("Hello");
+    let answer!: (r: unknown) => void;
+    vi.mocked(chatClient.react).mockImplementationOnce(
+      () => new Promise((r) => (answer = r as never)) as never,
+    );
+    await userEvent.click(within(bubble("Morning")).getByRole("button", { name: "React 🎉" }));
+    // First a page from before the server had it, then one that has it.
+    vi.mocked(chatClient.page).mockClear();
+    say({ c: CH, e: "reaction", m: 1 });
+    await waitFor(() => expect(chatClient.page).toHaveBeenLastCalledWith(CH, { after: 0 }));
+    await act(async () => undefined);
+    expect(within(bubble("Morning")).getByRole("button", { name: "🎉 1, yours" })).toBeInTheDocument();
+    vi.mocked(chatClient.page).mockClear();
+    vi.mocked(chatClient.page).mockResolvedValue(
+      ok(page([msg(1, SANA, "Morning", { reactions: [{ emoji: "🎉", count: 1, mine: true }] })])),
+    );
+    say({ c: CH, e: "reaction", m: 1 });
+    await waitFor(() => expect(chatClient.page).toHaveBeenLastCalledWith(CH, { after: 0 }));
+    await act(async () => undefined);
+    expect(within(bubble("Morning")).getByRole("button", { name: "🎉 1, yours" })).toBeInTheDocument();
+    await act(async () => answer(ok(undefined)));
+    expect(within(bubble("Morning")).getByRole("button", { name: "🎉 1, yours" })).toBeInTheDocument();
+  });
+
+  it("one's own delete, not answered yet, stays deleted when a page brings the message as it was", async () => {
+    show();
+    const bubble = (t: string) => screen.getByText(t).closest("[role=group]") as HTMLElement;
+    await screen.findByText("Hello");
+    vi.mocked(chatClient.remove).mockImplementationOnce(() => new Promise(() => undefined) as never);
+    await userEvent.click(within(bubble("Hello")).getByRole("button", { name: "Delete" }));
+    await userEvent.click(within(bubble("Hello")).getByRole("button", { name: "Delete for everyone?" }));
+    expect(screen.queryByText("Hello")).toBeNull();
+    vi.mocked(chatClient.page).mockClear();
+    say({ c: CH, e: "reaction", m: 2 });
+    await waitFor(() => expect(chatClient.page).toHaveBeenCalled());
+    await act(async () => undefined);
+    expect(screen.queryByText("Hello")).toBeNull();
+    expect(screen.getByText("This message was deleted")).toBeInTheDocument();
+  });
+
+  it("a kept reaction never shows on a message a page says was deleted", async () => {
+    show();
+    const bubble = (t: string) => screen.getByText(t).closest("[role=group]") as HTMLElement;
+    await screen.findByText("Hello");
+    vi.mocked(chatClient.react).mockImplementationOnce(() => new Promise(() => undefined) as never);
+    await userEvent.click(within(bubble("Morning")).getByRole("button", { name: "React 🎉" }));
+    vi.mocked(chatClient.page).mockClear();
+    vi.mocked(chatClient.page).mockResolvedValue(
+      ok(page([msg(1, SANA, "", { body: null, deletedAt: new Date().toISOString() })])),
+    );
+    say({ c: CH, e: "deleted", m: 1 });
+    await waitFor(() => expect(chatClient.page).toHaveBeenCalled());
+    await act(async () => undefined);
+    expect(screen.getByText("This message was deleted")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^🎉/ })).toBeNull();
+  });
+
+  it("an edit just saved never brings back a message a page then says was deleted", async () => {
+    show();
+    const b = await box();
+    await screen.findByText("Hello");
+    // A read that went out before the save is answered after it, with the message deleted (in another tab).
+    let answer!: (r: unknown) => void;
+    vi.mocked(chatClient.page).mockImplementationOnce(
+      () => new Promise((r) => (answer = r as never)) as never,
+    );
+    say({ c: CH, e: "reaction", m: 2 });
+    await waitFor(() => expect(chatClient.page).toHaveBeenLastCalledWith(CH, { after: 1 }));
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await userEvent.type(b, " there");
+    vi.mocked(chatClient.edit).mockResolvedValueOnce(
+      ok(msg(2, ME, "Hello there", { editedAt: new Date().toISOString() })),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("Hello there")).toBeInTheDocument();
+    await act(async () =>
+      answer(ok(page([msg(2, ME, "", { body: null, deletedAt: new Date().toISOString() })]))),
+    );
+    expect(screen.queryByText("Hello there")).toBeNull();
+    expect(screen.getByText("This message was deleted")).toBeInTheDocument();
+  });
+
+  it("an edit that names someone who can't read it says so to its sender", async () => {
+    show();
+    const b = await box();
+    await screen.findByText("Hello");
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await userEvent.type(b, " Rahul");
+    vi.mocked(chatClient.edit).mockResolvedValueOnce(ok(msg(2, ME, "Hello Rahul", { notTold: [RAHUL] })));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("Not told, as they can't read this: Rahul Mehta")).toBeInTheDocument();
+  });
+
   it("a send that lands after leaving and coming back is there at once", async () => {
     let answer!: (r: unknown) => void;
     vi.mocked(chatClient.send).mockImplementationOnce(
