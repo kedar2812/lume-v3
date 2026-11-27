@@ -3,6 +3,8 @@ import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { AppDeps } from "../../app";
 import * as svc from "./service";
+import { itemChannel, lumePlan, markHanded, runNumber, sendItem } from "./in-lume";
+import { sendLimiter } from "../whatsapp/send";
 
 const run = { permission: "messages.send_queue" as const };
 const params = z.object({ id: z.uuid() });
@@ -29,12 +31,26 @@ export async function queueRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
       config: run,
       schema: {
         body: z.union([
-          z.object({ viewId: z.uuid(), filters: shownFilters, templateId: z.uuid().optional() }).strict(),
-          z.object({ leadIds: z.array(z.uuid()).min(1).max(500), templateId: z.uuid().optional() }).strict(),
+          z
+            .object({
+              viewId: z.uuid(),
+              filters: shownFilters,
+              templateId: z.uuid().optional(),
+              numberId: z.uuid().optional(),
+            })
+            .strict(),
+          z
+            .object({
+              leadIds: z.array(z.uuid()).min(1).max(500),
+              templateId: z.uuid().optional(),
+              numberId: z.uuid().optional(),
+            })
+            .strict(),
         ]),
       },
     },
-    async (req, reply) => reply.code(201).send(await svc.startQueue(req, req.body)),
+    async (req, reply) =>
+      reply.code(201).send(await svc.startQueue(req, req.body, (chosen) => runNumber(req, d, chosen))),
   );
   r.post(
     "/api/v1/queues/plan",
@@ -42,12 +58,12 @@ export async function queueRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
       config: run,
       schema: {
         body: z.union([
-          z.object({ viewId: z.uuid(), filters: shownFilters }).strict(),
-          z.object({ leadIds: z.array(z.uuid()).min(1).max(500) }).strict(),
+          z.object({ viewId: z.uuid(), filters: shownFilters, numberId: z.uuid().optional() }).strict(),
+          z.object({ leadIds: z.array(z.uuid()).min(1).max(500), numberId: z.uuid().optional() }).strict(),
         ]),
       },
     },
-    (req) => svc.planQueue(req, req.body),
+    (req) => svc.planQueue(req, req.body, (leads) => lumePlan(req, d, leads, req.body.numberId)),
   );
   r.get("/api/v1/queues/current", { config: run }, (req) => svc.currentQueue(req));
   r.get("/api/v1/queues/:id", { config: run, schema: { params } }, (req) =>
@@ -67,6 +83,34 @@ export async function queueRoutes(app: FastifyInstance, d: AppDeps): Promise<voi
       void reply.header("cache-control", "no-store");
       return answer(reply, await svc.prepareItem(req, req.params.id, req.params.pos, req.body));
     },
+  );
+  // The focus run inside LUME (spec 2026-11-26): how this lead goes, and sending it from the run.
+  const limiter = sendLimiter({ now: d.clock });
+  r.get("/api/v1/queues/:id/items/:pos/channel", { config: run, schema: { params: itemParams } }, (req) =>
+    itemChannel(req, d, req.params.id, req.params.pos),
+  );
+  r.post(
+    "/api/v1/queues/:id/items/:pos/send",
+    {
+      config: run,
+      schema: {
+        params: itemParams,
+        body: z
+          .object({
+            mode: z.enum(["template", "message"]),
+            text: z.string().max(4096).optional(),
+            clientKey: z.uuid(),
+          })
+          .strict(),
+      },
+    },
+    async (req, reply) =>
+      answer(reply, await sendItem(req, d, limiter, req.params.id, req.params.pos, req.body)),
+  );
+  r.post(
+    "/api/v1/queues/:id/handed",
+    { config: run, schema: { params, body: z.object({ runId: z.uuid() }).strict() } },
+    (req) => markHanded(req, req.params.id, req.body.runId),
   );
   r.post("/api/v1/queues/:id/items/:pos/sent", { config: run, schema: { params: itemParams } }, (req) =>
     svc.answerItem(req, d, req.params.id, req.params.pos, true),

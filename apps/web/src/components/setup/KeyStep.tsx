@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { useState, type FormEvent } from "react";
 import { displayKey, keyChars, KEY_CHARS } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
@@ -86,10 +87,7 @@ export function KeyStep({
       </div>
       {refused && (
         <p role="alert" className={k.alert} data-tone={amber ? "warn" : "error"}>
-          <svg viewBox="0 0 16 16" aria-hidden>
-            <circle cx="8" cy="8" r="6.5" />
-            <path d="M8 4.8v3.6M8 11.2v.01" />
-          </svg>
+          <UI_ICONS.failed size={ICON_SIZE.md} aria-hidden />
           <span>{REFUSAL_WORDS[refused]}</span>
         </p>
       )}

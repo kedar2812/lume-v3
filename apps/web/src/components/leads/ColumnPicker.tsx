@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { Popover } from "@/components/ui/Popover";
 import { DEFAULT_COLUMNS, type ColumnDef } from "@/lib/leads/columns";
 import s from "./leads.module.css";
@@ -40,14 +41,7 @@ export function ColumnPicker({
       triggerClassName={s.tool}
       trigger={
         <>
-          <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden>
-            <path
-              d="M2.5 3.5h11M2.5 8h11M2.5 12.5h11"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
+          <UI_ICONS.columns size={ICON_SIZE.md} aria-hidden />
           Columns
         </>
       }
@@ -76,15 +70,7 @@ export function ColumnPicker({
                     disabled={i === 0}
                     onClick={() => move(c.id, -1)}
                   >
-                    <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden>
-                      <path
-                        d="M3 7.5 6 4.5l3 3"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.6"
-                        strokeLinecap="round"
-                      />
-                    </svg>
+                    <UI_ICONS.moveUp size={ICON_SIZE.sm} aria-hidden />
                   </button>
                   <button
                     type="button"
@@ -92,15 +78,7 @@ export function ColumnPicker({
                     disabled={i === on.length - 1}
                     onClick={() => move(c.id, 1)}
                   >
-                    <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden>
-                      <path
-                        d="M3 4.5 6 7.5l3-3"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.6"
-                        strokeLinecap="round"
-                      />
-                    </svg>
+                    <UI_ICONS.moveDown size={ICON_SIZE.sm} aria-hidden />
                   </button>
                 </span>
               )}

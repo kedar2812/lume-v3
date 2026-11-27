@@ -53,7 +53,7 @@ const conflict = (code: string, message: string) => new HttpError(409, code, mes
  * The number a template goes from (W3b-2): the lead's owner's own number, else the business's first, else the first
  * connected at all. A template reaches a lead who never wrote, so no conversation picks it.
  */
-async function numberFor(req: FastifyRequest, lead: LeadRow, runNumber?: string) {
+export async function numberFor(req: FastifyRequest, lead: LeadRow, runNumber?: string) {
   const active = await req.db
     .select({ id: N.id, display: N.displayPhone, waba: N.wabaId, owner: N.ownerUserId })
     .from(N)
@@ -144,7 +144,8 @@ export async function sendTemplate(
   d: AppDeps,
   limiter: SendLimiter,
   leadId: string,
-  body: { submissionId: string; clientKey: string },
+  /** `fromNumber`: a focus run's own number (2026-11-26), as a LUME AI run's is its `numberId`. */
+  body: { submissionId: string; clientKey: string; fromNumber?: string | undefined },
   /** LUME AI's, in a run (Autopilot A2): the same checks, marked as LUME AI's, paced by the run, not this limiter. */
   auto?: { runId: string; numberId?: string },
 ): Promise<{ message: ThreadMessage }> {
@@ -171,7 +172,7 @@ export async function sendTemplate(
   const lead = await sendable(req, leadId);
   if (!lead.phoneE164 || lead.phoneStatus !== "valid")
     throw conflict("NO_WHATSAPP", "This lead has no WhatsApp number.");
-  const number = await numberFor(req, lead, auto?.numberId);
+  const number = await numberFor(req, lead, auto?.numberId ?? body.fromNumber);
   if (!number) throw conflict("NO_NUMBER", "Connect a WhatsApp number first.");
 
   const [sub] = await req.db

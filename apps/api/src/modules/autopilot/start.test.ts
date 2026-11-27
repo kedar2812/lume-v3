@@ -234,3 +234,120 @@ describe("estimate and start", () => {
     ).toEqual([2, 5]);
   });
 });
+
+describe("which number LUME AI sends from (owner 2026-11-26)", () => {
+  const another = async (display: string, o: { owner?: string | null; quality?: string } = {}) => {
+    const id = await seedNumber(h, {
+      runAs: admin.id,
+      owner: o.owner ?? null,
+      phoneNumberId: `9${Date.now()}${Math.floor(Math.random() * 1e6)}`.slice(0, 15),
+    });
+    await h.ownerPool.query("UPDATE whatsapp_numbers SET display_phone = $2, quality = $3 WHERE id = $1", [
+      id,
+      display,
+      o.quality ?? null,
+    ]);
+    // seedNumber writes WhatsApp's settings afresh: Reply from LUME back on, as the tests set it.
+    await h.ownerPool.query(
+      "UPDATE settings SET integrations = jsonb_set(integrations, '{whatsapp,replyFromLume}', 'true'::jsonb) WHERE id = 1",
+    );
+    return id;
+  };
+  const setup = async (u: U) =>
+    (await (await as(u)).inject({ method: "GET", url: "/api/v1/autopilot/setup" })).json();
+
+  it("one number: the sheet names it and the run starts on it, with no choice to make", async () => {
+    const s = await setup(rep);
+    expect(s.numbers.map((n: { id: string }) => n.id)).toEqual([numberId]);
+    expect(s.ready).toEqual({ ok: true });
+    const r = await post(rep, "/api/v1/autopilot/runs", body([await lead("Meera Iyer")]));
+    expect(r.statusCode, r.body).toBe(201);
+    expect(r.json().run.numberId).toBe(numberId);
+  });
+
+  it("two or more: nothing is chosen for them; the estimate still shows, the start waits for a choice", async () => {
+    const mine = await another("+91 90000 00002", { owner: rep.id });
+    await another("+91 90000 00003", { owner: admin.id }); // a teammate's own: never offered
+    const s = await setup(rep);
+    expect(s.ready).toEqual({ ok: true });
+    expect(s.number).toBeNull();
+    expect(s.you).toBe(rep.id);
+    // Each speaker's own is listed for the sheet to offer while LUME AI speaks as them; the business's and the
+    // person's own are offered whoever it speaks as.
+    const offered = s.numbers.filter(
+      (n: { ownerId: string | null }) => n.ownerId === null || n.ownerId === rep.id,
+    );
+    expect(offered.map((n: { id: string; whose: string }) => [n.id, n.whose])).toEqual([
+      [numberId, "the business's"],
+      [mine, `${s.speakers.find((p: { id: string }) => p.id === rep.id)?.name ?? ""}'s`],
+    ]);
+    const a = await lead("Meera Iyer");
+    expect((await post(rep, "/api/v1/autopilot/estimate", body([a]))).statusCode).toBe(200);
+    const none = await post(rep, "/api/v1/autopilot/runs", body([a]));
+    expect(none.statusCode).toBe(400);
+    expect(none.json().error.code).toBe("NUMBER_REQUIRED");
+    const r = await post(rep, "/api/v1/autopilot/runs", body([a], { numberId: mine }));
+    expect(r.statusCode, r.body).toBe(201);
+    expect(r.json().run.numberId).toBe(mine);
+    const list = (await (await as(rep)).inject({ method: "GET", url: "/api/v1/autopilot/runs" })).json();
+    expect(list.runs[0].number).toBe("+91 90000 00002");
+  });
+
+  it("a teammate's own number can't be chosen, unless LUME AI speaks as them", async () => {
+    const theirs = await another("+91 90000 00003", { owner: admin.id });
+    const a = await lead("Meera Iyer");
+    const r = await post(rep, "/api/v1/autopilot/runs", body([a], { numberId: theirs }));
+    expect(r.statusCode).toBe(403);
+    expect(r.json().error.code).toBe("NUMBER_NOT_YOURS");
+    const asThem = await post(
+      rep,
+      "/api/v1/autopilot/runs",
+      body([a], { numberId: theirs, speakerId: admin.id }),
+    );
+    expect(asThem.statusCode, asThem.body).toBe(201);
+  });
+
+  it("speaking as someone whose own number is the only one: it's theirs to send from, with nothing to choose", async () => {
+    await h.ownerPool.query("UPDATE whatsapp_numbers SET owner_user_id = $1 WHERE id = $2", [
+      admin.id,
+      numberId,
+    ]);
+    const r = await post(
+      rep,
+      "/api/v1/autopilot/runs",
+      body([await lead("Meera Iyer")], { speakerId: admin.id }),
+    );
+    expect(r.statusCode, r.body).toBe(201);
+    expect(r.json().run.numberId).toBe(numberId);
+  });
+
+  it("every number with a problem: the sheet says why nothing can start, rather than asking for a choice", async () => {
+    await another("+91 90000 00004", { quality: "red" });
+    await h.ownerPool.query("UPDATE whatsapp_numbers SET quality = 'red'");
+    const s = await setup(rep);
+    expect(s.ready).toMatchObject({ ok: false, code: "NUMBER_QUALITY" });
+  });
+
+  it("a number WhatsApp rated red is listed with why, and can't be started on", async () => {
+    const red = await another("+91 90000 00004", { quality: "red" });
+    const s = await setup(rep);
+    expect(s.numbers.find((n: { id: string }) => n.id === red).problem).toBe(
+      "WhatsApp rated +91 90000 00004 red. LUME AI waits until it recovers, to protect the number.",
+    );
+    expect(s.numbers.find((n: { id: string }) => n.id === numberId).problem).toBeNull();
+    const r = await post(rep, "/api/v1/autopilot/runs", body([await lead("Meera Iyer")], { numberId: red }));
+    expect(r.statusCode).toBe(409);
+    expect(r.json().error.code).toBe("NUMBER_QUALITY");
+  });
+
+  it("a number gone since the sheet opened: said in words", async () => {
+    const gone = await another("+91 90000 00005");
+    await h.ownerPool.query(
+      "UPDATE whatsapp_numbers SET status = 'disconnected', token_enc = NULL WHERE id = $1",
+      [gone],
+    );
+    const r = await post(rep, "/api/v1/autopilot/runs", body([await lead("Meera Iyer")], { numberId: gone }));
+    expect(r.statusCode).toBe(409);
+    expect(r.json().error.message).toBe("+91 90000 00005 isn't connected any more. Choose another number.");
+  });
+});

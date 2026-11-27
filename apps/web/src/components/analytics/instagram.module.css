@@ -49,3 +49,40 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+.open {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.open:hover {
+  color: var(--accent);
+}
+.open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.notes li {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.notes span {
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.45;
+}

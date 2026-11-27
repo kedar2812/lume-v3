@@ -21,6 +21,12 @@ import {
   callTimeLabel,
   freeCallTimes,
   guardReply,
+  handoverWords,
+  IG_LIMITS,
+  instagramWindow,
+  moduleIncluded,
+  nextMoveInstagram,
+  textBytes,
   windowsWords,
   newId,
   mergeAiProfile,
@@ -39,6 +45,7 @@ import {
   type FillableType,
   type GuardCtx,
   type GuardedReply,
+  type IgWindow,
   type LeadState,
   type PauseReason,
 } from "@lume/core";
@@ -64,6 +71,8 @@ import { bookCall, busyFor, tellBooked, type Booked } from "../meetings/book";
 import { calendarOn } from "../calendar/service";
 import { workingHoursFrom } from "../settings/follow-ups";
 import { createTask } from "../tasks/service";
+import { sendInstagram } from "../instagram/send";
+import { instagramOn } from "../instagram/service";
 import { attachLibraryFile, sendReply } from "../whatsapp/send";
 import { allScope } from "../whatsapp/sender";
 import { approvedFor, labelsOf, sendTemplate } from "../whatsapp/template-send";
@@ -79,6 +88,10 @@ const UNLIMITED = { take: () => ({ ok: true as const }) };
 const MAX_FAILS = 3;
 
 const poolOf = (d: AppDeps) => d.jobPool ?? d.pool;
+/** The run as it works this lead: the lead's own goal (a flow's Hand to LUME AI step) over the run's. */
+const runFor = (run: Run, l: Lead): Run => (l.goal ? { ...run, goal: l.goal } : run);
+/** The app a run writes in, by name. */
+const appOf = (run: Pick<Run, "channel">) => (run.channel === "instagram" ? "Instagram" : "WhatsApp");
 /** A person pressed Let LUME AI carry on, and the lead hasn't written since: LUME AI answers, it doesn't hand back. */
 const carriedOn = (l: Lead) =>
   !!l.carriedOnAt && (!l.lastInboundAt || l.carriedOnAt.getTime() >= l.lastInboundAt.getTime());
@@ -161,7 +174,9 @@ export async function dueRuns(pool: pg.Pool, now: Date): Promise<string[]> {
     const { rows } = await c.query<{ id: string }>(
       `SELECT DISTINCT r.id FROM autopilot_runs r
          JOIN autopilot_leads l ON l.run_id = r.id AND l.active
-        WHERE (r.status = 'running' AND l.state = ANY($2) AND (l.next_at IS NULL OR l.next_at <= $1))
+        WHERE (r.status = 'running' AND l.state = ANY($2)
+               -- An Instagram lead is due only at its time: its person writing sets it (it never writes first).
+               AND (l.next_at <= $1 OR (l.next_at IS NULL AND r.channel = 'whatsapp')))
            OR (r.status = 'running' AND l.state = ANY($2) AND l.reason = $3 AND l.next_at > $1)
            OR (r.status = 'paused' AND r.pause_reason = 'month')`,
       // Only leads LUME AI is working on: one that's with a person, or ready for them, waits for that person.
@@ -222,6 +237,9 @@ async function step(o: EngineDeps, runId: string): Promise<number> {
   );
   if (!run || run.status === "ended") return 0;
   if (run.status === "paused" && run.pauseReason !== "month") return 0;
+  // A WhatsApp run works from its number; an Instagram run (plan 2026-11-27-instagram-lume-ai) from its account.
+  const numberId = run.numberId;
+  if (run.channel === "instagram" ? !run.instagramAccountId : !numberId) return 0;
 
   const actor = await loadActor(pool, run.speakerId);
   if (!actor || !can(actor, "messages.send")) {
@@ -255,6 +273,8 @@ async function step(o: EngineDeps, runId: string): Promise<number> {
         }
         return 0;
       }
+      if (run.channel === "instagram") return stepInstagram(o, req, run, now);
+      if (!numberId) return 0;
       const [number] = await req.db
         .select({
           status: schema.whatsappNumbers.status,
@@ -263,7 +283,7 @@ async function step(o: EngineDeps, runId: string): Promise<number> {
           waba: schema.whatsappNumbers.wabaId,
         })
         .from(schema.whatsappNumbers)
-        .where(eq(schema.whatsappNumbers.id, run.numberId));
+        .where(eq(schema.whatsappNumbers.id, numberId));
       if (!number || number.status !== "active") return (await pauseRun(pool, runId, "number")) ? 1 : 0;
       // LUME AI switched off (by an admin, or a plan without it): nothing goes, read or not. A run whose one fitting
       // template needs no read would otherwise keep sending with LUME AI off (bug hunt 2026-11-17).
@@ -283,26 +303,8 @@ async function step(o: EngineDeps, runId: string): Promise<number> {
         .from(L)
         .where(and(eq(L.runId, runId), eq(L.active, true)));
 
-      // Held for the month's AI leads: a top-up (or the 1st) lets them start now.
-      const held = leads.filter(
-        (l) =>
-          ACTIVE_STATES.includes(l.state) && l.reason === LEADS_HELD && l.nextAt !== null && l.nextAt > now,
-      );
-      if (held.length && (await aiLeadsRoom(req, o.d))) {
-        await req.db
-          .update(L)
-          .set({ nextAt: now, reason: null, updatedAt: now })
-          .where(
-            and(
-              eq(L.runId, runId),
-              inArray(
-                L.leadId,
-                held.map((l) => l.leadId),
-              ),
-            ),
-          );
-        return held.length;
-      }
+      const released = await releaseHeld(o, req, runId, leads, now);
+      if (released) return released;
 
       // One lead at a time: a message being written goes when the screen has revealed it.
       const writing = leads.find((l) => l.state === "writing");
@@ -319,7 +321,7 @@ async function step(o: EngineDeps, runId: string): Promise<number> {
               budgetLeft: dailyBudget({
                 tierLimit: tierLimitOf(number.tier),
                 cap: run.dailyCap,
-                sentToday: await templatesToday(pool, run.numberId, now, tz),
+                sentToday: await templatesToday(pool, numberId, now, tz),
               }),
               lastSentAt: leads.reduce<Date | null>(
                 (m, x) => (x.lastSentAt && (!m || x.lastSentAt > m) ? x.lastSentAt : m),
@@ -393,7 +395,7 @@ async function step(o: EngineDeps, runId: string): Promise<number> {
           continue;
         }
         // An approved template, paced under Meta's tier and the cap (§6).
-        const sentToday = await templatesToday(pool, run.numberId, now, tz);
+        const sentToday = await templatesToday(pool, numberId, now, tz);
         const lastSent = leads.reduce<Date | null>(
           (m, x) => (x.lastSentAt && (!m || x.lastSentAt > m) ? x.lastSentAt : m),
           null,
@@ -423,6 +425,188 @@ async function step(o: EngineDeps, runId: string): Promise<number> {
       return acted;
     },
   );
+}
+
+/** Held for the month's AI leads: a top-up (or the 1st) lets them start now. How many it let go. */
+async function releaseHeld(o: EngineDeps, req: FastifyRequest, runId: string, leads: Lead[], now: Date) {
+  const L = schema.autopilotLeads;
+  const held = leads.filter(
+    (l) => ACTIVE_STATES.includes(l.state) && l.reason === LEADS_HELD && l.nextAt !== null && l.nextAt > now,
+  );
+  if (!held.length || !(await aiLeadsRoom(req, o.d))) return 0;
+  await req.db
+    .update(L)
+    .set({ nextAt: now, reason: null, updatedAt: now })
+    .where(
+      and(
+        eq(L.runId, runId),
+        inArray(
+          L.leadId,
+          held.map((l) => l.leadId),
+        ),
+      ),
+    );
+  return held.length;
+}
+
+/**
+ * An Instagram run takes the conversation's lock before the lead's row, the order an inbound DM and a person's send
+ * take them in, so they queue instead of deadlocking (review 2026-11-27 I1).
+ */
+async function lockIgThread(
+  req: FastifyRequest,
+  run: Pick<Run, "channel" | "instagramAccountId">,
+  leadId: string,
+) {
+  if (run.channel !== "instagram" || !run.instagramAccountId) return;
+  await req.db.execute(sql`
+    SELECT id FROM instagram_threads WHERE account_id = ${run.instagramAccountId} AND lead_id = ${leadId}
+     ORDER BY id FOR UPDATE`);
+}
+
+/** This lead's conversation on the run's Instagram account. */
+async function igThreadOf(req: FastifyRequest, accountId: string | null, leadId: string) {
+  if (!accountId) return null;
+  const r = await req.db.execute<{
+    id: string;
+    lead_id: string;
+    last_in_at: Date | string | null;
+    ad_window_until: Date | string | null;
+    taken_over_by: string | null;
+  }>(sql`
+    SELECT id, lead_id, last_in_at, ad_window_until, taken_over_by FROM instagram_threads
+     WHERE account_id = ${accountId} AND lead_id = ${leadId}
+     ORDER BY last_message_at DESC NULLS LAST LIMIT 1`);
+  return r.rows[0] ?? null;
+}
+const igWindowOf = (t: NonNullable<Awaited<ReturnType<typeof igThreadOf>>>, now: Date) =>
+  instagramWindow(
+    {
+      lastInAt: t.last_in_at === null ? null : new Date(t.last_in_at),
+      adWindowUntil: t.ad_window_until === null ? null : new Date(t.ad_window_until),
+    },
+    now,
+  );
+
+/**
+ * An Instagram run's step (plan 2026-11-27-instagram-lume-ai, Task 2): it only ever answers, inside Instagram's 24 hours
+ * (7 days after an ad's first message). No templates, no first messages, no follow-ups, no pacing budget: Meta allows
+ * LUME AI none of them. Once the 24 hours end with the person unanswered, a person gets the lead with the day and time
+ * they can still answer until (the human agent days are a person's alone).
+ */
+async function stepInstagram(o: EngineDeps, req: FastifyRequest, run: Run, now: Date): Promise<number> {
+  const pool = poolOf(o.d);
+  const account = (
+    await req.db.execute<{ status: string }>(
+      sql`SELECT status FROM instagram_accounts WHERE id = ${run.instagramAccountId}`,
+    )
+  ).rows[0];
+  // The account disconnected, needing attention, Instagram switched off or out of the plan: the run waits for it.
+  if (
+    account?.status !== "active" ||
+    !(await instagramOn(req)) ||
+    !moduleIncluded(req.server.licence.view().plan, "instagram")
+  )
+    return (await pauseRun(pool, run.id, "number")) ? 1 : 0;
+  if (!(await available(req, o.d)).ok) return (await pauseRun(pool, run.id, "person")) ? 1 : 0;
+  const [s] = await req.db
+    .select({ tz: schema.settings.timezone, wh: schema.settings.workingHours })
+    .from(schema.settings)
+    .where(eq(schema.settings.id, 1));
+  const tz = s?.tz ?? "UTC";
+  const wh = workingHoursFrom(s?.wh);
+  const L = schema.autopilotLeads;
+  const leads = await req.db
+    .select()
+    .from(L)
+    .where(and(eq(L.runId, run.id), eq(L.active, true)));
+  const released = await releaseHeld(o, req, run.id, leads, now);
+  if (released) return released;
+
+  const writing = leads.find((l) => l.state === "writing");
+  if (writing) {
+    if (writing.nextAt && writing.nextAt > now) return 0;
+    const t = await igThreadOf(req, run.instagramAccountId, writing.leadId);
+    const w = t ? igWindowOf(t, now) : null;
+    // The 24 hours closed while it was written: the draft never goes, a person gets the lead.
+    if (!w || w.state !== "open") return igHandover(o, req, run, writing, w, tz);
+    const at = run.outsideHours === "wait" ? shiftToWorkingHours(now, wh, tz) : now;
+    if (at > now) {
+      if (writing.nextAt?.getTime() !== at.getTime())
+        await req.db.update(L).set({ nextAt: at, updatedAt: now }).where(keyOf(writing));
+      return 0;
+    }
+    return sendStep(o, req, run, writing);
+  }
+  const due = leads
+    .filter((l) => ACTIVE_STATES.includes(l.state) && l.nextAt !== null && l.nextAt <= now)
+    .sort((a, b) => a.nextAt!.getTime() - b.nextAt!.getTime());
+  let acted = 0;
+  for (const l of due) {
+    const t = await igThreadOf(req, run.instagramAccountId, l.leadId);
+    if (!t) {
+      acted += await leave(req, l, "skipped", "LUME AI can't reach this lead on Instagram any more.");
+      continue;
+    }
+    const w = igWindowOf(t, now);
+    const move = nextMoveInstagram(l, w);
+    if (move.kind === "wait") {
+      if (w.state === "open") {
+        // Answered: looked at again when Instagram's 24 hours end (their message wakes it sooner).
+        if (l.nextAt?.getTime() !== w.until.getTime())
+          await req.db.update(L).set({ nextAt: w.until, updatedAt: now }).where(keyOf(l));
+        else continue;
+      } else
+        // The 24 hours over with nothing unanswered: let go, so flows, other runs and a fresh start can have them
+        // (review 2026-11-27 C1: the standing run never ends, so it must never hold a lead for good).
+        await req.db
+          .update(L)
+          .set({ active: false, nextAt: null, reason: IG_LET_GO, updatedAt: now })
+          .where(keyOf(l));
+      acted++;
+      continue;
+    }
+    if (move.kind === "handover") {
+      acted += await igHandover(o, req, run, l, w, tz);
+      continue;
+    }
+    // A reply, within hours unless the business chose to reply any time; the 24 hours still decide when it's woken.
+    const at = shiftToWorkingHours(now, wh, tz);
+    if (run.outsideHours === "wait" && at > now) {
+      await req.db.update(L).set({ nextAt: at, updatedAt: now }).where(keyOf(l));
+      acted++;
+      continue;
+    }
+    return acted + (await writeReply(o, req, run, l));
+  }
+  return acted;
+}
+
+/** An Instagram conversation LUME AI can't take this month: a person answers it while Instagram allows. */
+export const IG_NO_AI_LEADS = "This month's AI leads are used up, so a person answers this one.";
+
+/** Why an Instagram lead left LUME AI's run once its conversation went quiet. */
+export const IG_LET_GO =
+  "Instagram's 24 hours ended with nothing unanswered. If they write again, it starts afresh.";
+
+/** Instagram's 24 hours ran out with the person unanswered: a person's lead, with until when they can still answer. */
+async function igHandover(
+  o: EngineDeps,
+  req: FastifyRequest,
+  run: Run,
+  l: Lead,
+  w: IgWindow | null,
+  tz: string,
+) {
+  const headline = handoverWords(w?.state === "human" ? w.until : null, tz);
+  const pool = poolOf(o.d);
+  req.afterCommit(
+    () => void tellPeople(pool, { runId: run.id, leadId: l.leadId, kind: "needs_you", headline }),
+  );
+  return leave(req, l, "needs_you", headline, {
+    headline,
+    quote: await lastWords(req, l.leadId, run.channel),
+  });
 }
 
 const keyOf = (l: { runId: string; leadId: string }) =>
@@ -622,7 +806,7 @@ export async function aiCtx(
   lead: LeadRow,
   templates: AutopilotCtx["templates"],
   /** A reply's read: the engine's clock, and the calls LUME AI may say yes to (spec 2026-11-02). */
-  o: { now?: Date; calls?: boolean; d?: AppDeps } = {},
+  o: { now?: Date; calls?: boolean; d?: AppDeps; instagram?: { accountId: string } | undefined } = {},
 ): Promise<
   AutopilotCtx & {
     profileRaw: AiProfile;
@@ -655,21 +839,23 @@ export async function aiCtx(
     }))
     .filter((f): f is { label: string; value: string } => !!f.value);
   const A = schema.activities;
-  const acts = (
-    await req.db
-      .select({ type: A.type, at: A.occurredAt, payload: A.payload })
-      .from(A)
-      .where(and(eq(A.leadId, lead.id), inArray(A.type, ["whatsapp_received", "whatsapp_sent"])))
-      .orderBy(sql`${A.occurredAt} DESC`)
-      .limit(30)
-  ).reverse();
-  const thread = acts
-    .map((a) => ({
-      from: a.type === "whatsapp_received" ? ("lead" as const) : ("business" as const),
-      at: a.at.toISOString(),
-      text: String((a.payload as { text?: string | null }).text ?? ""),
-    }))
-    .filter((m) => m.text);
+  const thread = o.instagram
+    ? await igThread(req, lead.id, o.instagram.accountId)
+    : (
+        await req.db
+          .select({ type: A.type, at: A.occurredAt, payload: A.payload })
+          .from(A)
+          .where(and(eq(A.leadId, lead.id), inArray(A.type, ["whatsapp_received", "whatsapp_sent"])))
+          .orderBy(sql`${A.occurredAt} DESC`)
+          .limit(30)
+      )
+        .reverse()
+        .map((a) => ({
+          from: a.type === "whatsapp_received" ? ("lead" as const) : ("business" as const),
+          at: a.at.toISOString(),
+          text: String((a.payload as { text?: string | null }).text ?? ""),
+        }))
+        .filter((m) => m.text);
   const theirs = thread.filter((m) => m.from === "lead");
   const stage = (await openStages(req)).find((x) => x.id === lead.stageId)?.name ?? "";
   const goal = run.goal as RunGoal;
@@ -677,7 +863,8 @@ export async function aiCtx(
     goal.kind === "stage"
       ? ((await openStages(req)).find((x) => x.id === goal.stageId)?.name ?? "the goal stage")
       : "";
-  const files = (await filesOf(req, profile.knows.files)).filter((f) => !f.archived);
+  // LUME sends no files on Instagram: none are offered there.
+  const files = o.instagram ? [] : (await filesOf(req, profile.knows.files)).filter((f) => !f.archived);
   // What a reply may change (§1.3), by id and key: the lead's own pipeline, the live lost reasons, its empty fields.
   const St = schema.stages;
   const pipelineStages = await req.db
@@ -721,6 +908,7 @@ export async function aiCtx(
       options: f.options.filter((x) => !x.archived).map((x) => x.label),
     }));
   return {
+    ...(o.instagram ? { channel: "instagram" as const } : {}),
     business: s?.name ?? "",
     speaker: speaker?.name ?? "",
     goal: goal.kind === "stage" ? { kind: "stage", stage: goalName } : goal,
@@ -757,6 +945,36 @@ export async function aiCtx(
 }
 
 /**
+ * The lead's conversation on this Instagram account, oldest first, the newest 30: their messages, and the business's
+ * (what LUME sent, and what was sent from the Instagram app itself).
+ */
+async function igThread(
+  req: FastifyRequest,
+  leadId: string,
+  accountId: string,
+): Promise<AutopilotCtx["thread"]> {
+  const r = await req.db.execute<{ at: Date | string; who: "lead" | "business"; text: string | null }>(sql`
+    SELECT at, who, text FROM (
+      SELECT a.occurred_at AS at, CASE WHEN a.type = 'instagram_received' THEN 'lead' ELSE 'business' END AS who,
+             a.payload->>'text' AS text
+        FROM activities a
+       WHERE a.lead_id = ${leadId} AND a.type IN ('instagram_received', 'instagram_sent')
+         AND a.payload->>'accountId' = ${accountId}
+         AND NOT (a.type = 'instagram_sent' AND EXISTS (
+               SELECT 1 FROM instagram_outbox x WHERE x.lead_id = ${leadId} AND x.mid = a.payload->>'mid'))
+      UNION ALL
+      SELECT o.created_at, 'business', o.text
+        FROM instagram_outbox o
+       WHERE o.lead_id = ${leadId} AND o.account_id = ${accountId} AND o.kind = 'dm'
+         AND o.status IN ('queued', 'sending', 'sent')
+      ORDER BY at DESC LIMIT 30) x
+    ORDER BY at`);
+  return r.rows
+    .filter((m) => m.text)
+    .map((m) => ({ from: m.who, at: new Date(m.at).toISOString(), text: m.text! }));
+}
+
+/**
  * A lead now in the run's goal stage (§1.1: reached when it moves into it, by LUME AI or anyone): converted, to Ready for
  * you with their own last words. True when it was.
  */
@@ -768,7 +986,7 @@ async function reachedGoal(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead
   // Ready once for each move into it: sent back (carry on), a lead still there talks on until it's moved in again.
   if (l.goalEntryAt?.getTime() === lead.stageEnteredAt.getTime()) return false;
   const stage = (await openStages(req)).find((x) => x.id === goal.stageId)?.name ?? "the goal";
-  const quote = await lastWords(req, lead.id);
+  const quote = await lastWords(req, lead.id, run.channel);
   const headline = `Reached ${stage}`;
   await leave(req, l, "ready", headline, { headline, quote });
   await req.db.update(schema.autopilotLeads).set({ goalEntryAt: lead.stageEnteredAt }).where(keyOf(l));
@@ -777,13 +995,22 @@ async function reachedGoal(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead
   return true;
 }
 
-/** The lead's last WhatsApp message, in their own words. */
-async function lastWords(req: FastifyRequest, leadId: string): Promise<string | null> {
+/** The lead's last message in the run's app (WhatsApp unless said), in their own words. */
+async function lastWords(
+  req: FastifyRequest,
+  leadId: string,
+  channel: Run["channel"] = "whatsapp",
+): Promise<string | null> {
   const A = schema.activities;
   const [last] = await req.db
     .select({ payload: A.payload })
     .from(A)
-    .where(and(eq(A.leadId, leadId), eq(A.type, "whatsapp_received")))
+    .where(
+      and(
+        eq(A.leadId, leadId),
+        eq(A.type, channel === "instagram" ? "instagram_received" : "whatsapp_received"),
+      ),
+    )
     .orderBy(sql`${A.occurredAt} DESC`)
     .limit(1);
   return (last?.payload as { text?: string | null } | undefined)?.text ?? null;
@@ -799,14 +1026,17 @@ async function callBooked(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead,
   if (lead && goal.kind === "stage" && lead.stageId === goal.stageId)
     await req.db.update(schema.autopilotLeads).set({ goalEntryAt: lead.stageEnteredAt }).where(keyOf(l));
   const headline = `Call booked for ${label}`;
-  await leave(req, l, "ready", headline, { headline, quote: await lastWords(req, l.leadId) });
+  await leave(req, l, "ready", headline, { headline, quote: await lastWords(req, l.leadId, run.channel) });
   const pool = poolOf(o.d);
   req.afterCommit(() => void tellPeople(pool, { runId: run.id, leadId: l.leadId, kind: "ready", headline }));
   return 1;
 }
 
 /** Write a reply inside the 24 hours (§3), guarded (Task 2), as the speaker. */
-async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead) {
+async function writeReply(o: EngineDeps, req: FastifyRequest, runOf: Run, l: Lead) {
+  const run = runFor(runOf, l);
+  const instagram =
+    run.channel === "instagram" && run.instagramAccountId ? { accountId: run.instagramAccountId } : undefined;
   const lead = await leadNow(req, l.leadId);
   if (!lead) return leave(req, l, "skipped", "LUME AI can't reach this lead any more.");
   if (lead.dncAt) return leave(req, l, "stopped", "Asked not to be messaged.");
@@ -814,7 +1044,7 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead)
   const carried = carriedOn(l);
   // On a tier without Autopilot replies (Pro), the team answers: handed over before any read, so none is spent.
   if (repliesLocked(req.server.licence.view().plan)) {
-    const theirs = (await aiCtx(req, run, lead, [], { now: o.d.clock(), d: o.d })).lastLeadMessage;
+    const theirs = (await aiCtx(req, run, lead, [], { now: o.d.clock(), d: o.d, instagram })).lastLeadMessage;
     return actOn(
       o,
       req,
@@ -828,7 +1058,7 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead)
     );
   }
   const c = {
-    ...(await aiCtx(req, run, lead, [], { now: o.d.clock(), calls: true, d: o.d })),
+    ...(await aiCtx(req, run, lead, [], { now: o.d.clock(), calls: true, d: o.d, instagram })),
     carriedOn: carried,
   };
   const r = await runRead(req, o.d, {
@@ -839,6 +1069,7 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead)
     schema: autopilotReplyOutput,
     maxOutputTokens: AI_OUTPUT_TOKENS.autopilot_reply,
   });
+  await lockIgThread(req, run, l.leadId);
   if (!(await stillAsRead(req, l))) return 1;
   if ("unavailable" in r) return unavailable(o, req, run, l, r);
   const stages = await req.db
@@ -847,7 +1078,7 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead)
     .where(eq(schema.stages.pipelineId, lead.pipelineId));
   const reasons = await req.db.select({ id: schema.lostReasons.id }).from(schema.lostReasons);
   const fieldKeys = ((await contextFor(req, lead)).fields as { key: string }[]).map((f) => f.key);
-  const g = guardReply(r.output, {
+  const guarded = guardReply(r.output, {
     prices: c.profile.knows.prices.map((x) => x.price),
     fileIds: c.files.map((f) => f.id),
     leadWords: c.leadWords,
@@ -860,6 +1091,13 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead)
     fieldKeys,
     calls: c.callCheck,
   });
+  // Instagram takes at most 1,000 bytes: a longer reply is never cut or sent, a person gets the lead.
+  const g: GuardedReply =
+    instagram &&
+    (guarded.kind === "send" || guarded.kind === "ask") &&
+    textBytes(guarded.message) > IG_LIMITS.textBytes
+      ? { kind: "handover", reason: "LUME AI's reply was too long for Instagram.", evidence: null }
+      : guarded;
   return actOn(
     o,
     req,
@@ -894,7 +1132,7 @@ async function actOn(
   atMax = false,
 ) {
   if (g.kind === "stop") {
-    await setDoNotContact(req, lead.id, { reason: "Said stop on WhatsApp", byAi: { runId: run.id } });
+    await setDoNotContact(req, lead.id, { reason: `Said stop on ${appOf(run)}`, byAi: { runId: run.id } });
     // The one apology a stop allows (§3), with do not contact: the same as a stop LUME's own list catches.
     await queueApology(o, req, run.id, lead.id);
     return leave(req, l, "stopped", "Said stop. LUME AI marked them do not contact.");
@@ -968,6 +1206,22 @@ async function unavailable(
   l: Lead,
   r: { unavailable: string; by?: string; until?: string },
 ) {
+  if (
+    run.channel === "instagram" &&
+    (r.unavailable === "leads" || (r.unavailable === "limit" && r.by === "month"))
+  ) {
+    const headline = IG_NO_AI_LEADS;
+    const pool = poolOf(o.d);
+    req.afterCommit(
+      () => void tellPeople(pool, { runId: run.id, leadId: l.leadId, kind: "needs_you", headline }),
+    );
+    await leave(req, l, "needs_you", headline, {
+      headline,
+      quote: await lastWords(req, l.leadId, run.channel),
+    });
+    if (r.unavailable === "limit") await pauseRunIn(req, run.id, "month");
+    return 1;
+  }
   if (r.unavailable === "limit" && r.by === "month")
     return (await pauseRun(poolOf(o.d), run.id, "month")) ? 1 : 0;
   if (r.unavailable === "limit") {
@@ -1003,13 +1257,15 @@ async function unavailable(
  * LUME AI's, queued as the speaker through the same checks a person's send passes. A pause waits on this lock, and the
  * send job checks again before Meta.
  */
-async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): Promise<number> {
+async function sendStep(o: EngineDeps, req: FastifyRequest, runOf: Run, l: Lead): Promise<number> {
+  const run = runFor(runOf, l);
   const live = (
     await req.db.execute<{ status: string }>(
       sql`SELECT status FROM autopilot_runs WHERE id = ${run.id} FOR UPDATE`,
     )
   ).rows[0];
   if (live?.status !== "running") return 0;
+  await lockIgThread(req, run, l.leadId);
   const L = schema.autopilotLeads;
   const [now] = await req.db.select().from(L).where(keyOf(l)).for("update");
   if (!now || now.state !== "writing" || !now.active || !now.draft) return 0;
@@ -1034,7 +1290,9 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
   // (unsent.ts) is a new message, not the held one.
   const key = (part: string) =>
     messageKey(run.id, l.leadId, `${now.lastSentAt?.getTime() ?? 0}:${now.updatedAt.getTime()}:${part}`);
-  const auto = { runId: run.id, numberId: run.numberId };
+  const auto = { runId: run.id, numberId: run.numberId ?? undefined };
+  // An Instagram reply's lead is looked at again when the 24 hours end (to be let go if nothing came).
+  let igUntil: Date | null = null;
   let booked: Booked | null = null;
   try {
     await req.db.execute(sql`SAVEPOINT autopilot_send`);
@@ -1065,10 +1323,34 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
       }
       // The Meet link LUME made (spec 2026-11-03), on its own line under the yes.
       const text = booked?.link ? `${now.draft}\n\nGoogle Meet: ${booked.link}` : now.draft;
-      await sendReply(req, o.d, UNLIMITED, l.leadId, { clientKey: key("m"), text }, auto);
-      for (const [i, f] of (p.fileIds ?? []).entries()) {
-        const { media } = await attachLibraryFile(req, o.d, l.leadId, f);
-        await sendReply(req, o.d, UNLIMITED, l.leadId, { clientKey: key(`f${i}`), mediaId: media.id }, auto);
+      if (run.channel === "instagram") {
+        // On Instagram, LUME AI's message in the lead's conversation on the run's account; no files go there.
+        const t = await igThreadOf(req, run.instagramAccountId, l.leadId);
+        if (!t)
+          throw new HttpError(409, "THREAD_GONE", "LUME AI can't reach this lead on Instagram any more.");
+        const w = igWindowOf(t, o.d.clock());
+        if (w.state === "open") igUntil = w.until;
+        await sendInstagram(
+          req,
+          o.d,
+          UNLIMITED,
+          l.leadId,
+          { clientKey: key("m"), threadId: t.id, text },
+          { runId: run.id },
+        );
+      } else {
+        await sendReply(req, o.d, UNLIMITED, l.leadId, { clientKey: key("m"), text }, auto);
+        for (const [i, f] of (p.fileIds ?? []).entries()) {
+          const { media } = await attachLibraryFile(req, o.d, l.leadId, f);
+          await sendReply(
+            req,
+            o.d,
+            UNLIMITED,
+            l.leadId,
+            { clientKey: key(`f${i}`), mediaId: media.id },
+            auto,
+          );
+        }
       }
     }
     await req.db.execute(sql`RELEASE SAVEPOINT autopilot_send`);
@@ -1092,7 +1374,10 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
       req.afterCommit(
         () => void tellPeople(pool, { runId: run.id, leadId: l.leadId, kind: "needs_you", headline }),
       );
-      return leave(req, now, "needs_you", headline, { headline, quote: await lastWords(req, l.leadId) });
+      return leave(req, now, "needs_you", headline, {
+        headline,
+        quote: await lastWords(req, l.leadId, run.channel),
+      });
     }
     return leave(req, now, "needs_you", e.message);
   }
@@ -1109,7 +1394,7 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, run: Run, l: Lead): 
       draft: null,
       draftPayload: null,
       thought: null,
-      nextAt: null,
+      nextAt: igUntil,
       updatedAt: at,
     })
     .where(keyOf(l));
@@ -1282,16 +1567,26 @@ async function queueApology(
   const [p] = await req.db.select({ p: schema.aiProfile.profile }).from(schema.aiProfile);
   const signOff = mergeAiProfile(p?.p ?? null, {}).voice.signOff.trim();
   const text = signOff ? `${STOP_APOLOGY}\n${signOff}` : STOP_APOLOGY;
+  const [run] = await req.db
+    .select({ channel: schema.autopilotRuns.channel, accountId: schema.autopilotRuns.instagramAccountId })
+    .from(schema.autopilotRuns)
+    .where(eq(schema.autopilotRuns.id, runId));
   await req.db.execute(sql`SAVEPOINT autopilot_apology`);
   try {
-    await sendReply(
-      req,
-      o.d,
-      UNLIMITED,
-      leadId,
-      { clientKey: messageKey(runId, leadId, "stop"), text },
-      { runId, afterStop: true },
-    );
+    const clientKey = messageKey(runId, leadId, "stop");
+    if (run?.channel === "instagram") {
+      // On Instagram, only inside the 24 hours they just opened (sendInstagram refuses after them).
+      const t = await igThreadOf(req, run.accountId, leadId);
+      if (t)
+        await sendInstagram(
+          req,
+          o.d,
+          UNLIMITED,
+          leadId,
+          { clientKey, threadId: t.id, text },
+          { runId, afterStop: true },
+        );
+    } else await sendReply(req, o.d, UNLIMITED, leadId, { clientKey, text }, { runId, afterStop: true });
     await req.db.execute(sql`RELEASE SAVEPOINT autopilot_apology`);
   } catch (err) {
     // Never at the cost of the stop itself: do not contact stands without it.

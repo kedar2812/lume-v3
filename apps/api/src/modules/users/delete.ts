@@ -99,9 +99,14 @@ export async function eraseAccount(req: FastifyRequest, d: AppDeps, id: string, 
   await revokeUserSessions(req.db, id, "user_deleted", now);
 
   // 2. LUME AI never speaks as someone who's gone: runs they started, or that speak as them, end.
-  await req.db.execute(sql`
+  const ended = await req.db.execute<{ id: string }>(sql`
     UPDATE autopilot_runs SET status = 'ended', pause_reason = NULL, ended_at = ${now}, updated_at = ${now}
-     WHERE (started_by = ${id} OR speaker_id = ${id}) AND status <> 'ended'`);
+     WHERE (started_by = ${id} OR speaker_id = ${id}) AND status <> 'ended' RETURNING id`);
+  // Their leads are free for another run, as End leaves them (found 2026-11-27: they stayed held for good).
+  for (const r of ended.rows)
+    await req.db.execute(
+      sql`UPDATE autopilot_leads SET active = false, updated_at = ${now} WHERE run_id = ${r.id}`,
+    );
   // A WhatsApp number that was theirs becomes the business's.
   await req.db.execute(sql`UPDATE whatsapp_numbers SET owner_user_id = NULL WHERE owner_user_id = ${id}`);
   // Live sheets (2026-11-14): LUME forgets their Google accounts, so it never writes into a departed person's Drive

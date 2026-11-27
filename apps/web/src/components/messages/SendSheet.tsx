@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { createPortal } from "react-dom";
 import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { render, type RenderContext, type TemplateCategory } from "@lume/core/shared";
@@ -401,19 +402,7 @@ function SheetBody({
             aria-expanded={addingFile}
             onClick={() => setAddingFile((v) => !v)}
           >
-            <svg
-              aria-hidden="true"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M21 11.5 12.6 19.9a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 0 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 0 1-2.6-2.6l7.8-7.8" />
-            </svg>
+            <UI_ICONS.attach size={ICON_SIZE.sm} aria-hidden />
             Add a file
           </button>
           {addingFile && (

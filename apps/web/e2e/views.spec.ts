@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
 import { PEOPLE, callApi, expect, freezeVolatile, openApp, reviewCopy, stateFile, test } from "./fixtures";
+import { messagedFromNumber } from "./db";
 import { settle } from "./settle";
 
 async function axe(page: Page) {
@@ -141,36 +142,51 @@ test.describe("Saved views (4B)", () => {
   test("screenshots and axe: the sidebar's views, Save view, an open view and More filters — both themes", async ({
     page,
   }) => {
-    for (const theme of ["light", "dark"] as const) {
-      await page.emulateMedia({ colorScheme: theme });
-      await openApp(page, "/leads");
-      const side = page.locator("aside").first();
-      await expect(row(page, "Chase list")).toBeVisible();
-      await settle(page);
-      await reviewCopy(side, `sidebar-views-${theme}.png`);
+    // "Messaged from" always shows, with the longest kind of label, whatever numbers the specs before left.
+    const dropNumber = await messagedFromNumber(PEOPLE.owner.email);
+    try {
+      for (const theme of ["light", "dark"] as const) {
+        await page.emulateMedia({ colorScheme: theme });
+        await openApp(page, "/leads");
+        const side = page.locator("aside").first();
+        await expect(row(page, "Chase list")).toBeVisible();
+        await settle(page);
+        await reviewCopy(side, `sidebar-views-${theme}.png`);
 
-      await row(page, "Chase list").click();
-      await expect(page.getByRole("heading", { name: "Chase list" })).toBeVisible();
-      await settle(page);
-      await reviewCopy(page.locator("main"), `open-view-${theme}.png`);
-      expect(await axe(page)).toEqual([]);
+        await row(page, "Chase list").click();
+        await expect(page.getByRole("heading", { name: "Chase list" })).toBeVisible();
+        await settle(page);
+        await reviewCopy(page.locator("main"), `open-view-${theme}.png`);
+        expect(await axe(page)).toEqual([]);
 
-      await page.getByRole("button", { name: /more filters/i }).click();
-      const more = page.getByRole("dialog", { name: "More filters" });
-      await expect(more).toBeVisible();
-      await reviewCopy(more, `more-filters-${theme}.png`);
-      await expect(more).toHaveScreenshot(`more-filters-${theme}.png`);
-      expect(await axe(page)).toEqual([]);
-      await page.keyboard.press("Escape");
+        await page.getByRole("button", { name: /more filters/i }).click();
+        const more = page.getByRole("dialog", { name: "More filters" });
+        await expect(more).toBeVisible();
+        await expect(more.getByRole("combobox", { name: "Messaged from" })).toBeVisible();
+        // Nothing runs past the panel's right edge (a long "Messaged from" number once pushed the switch out of it).
+        const past = await more.evaluate((d) => {
+          const edge = d.getBoundingClientRect().right + 0.5;
+          return [...d.querySelectorAll("select, input, button, [role=switch]")].filter(
+            (e) => e.getBoundingClientRect().right > edge,
+          ).length;
+        });
+        expect(past).toBe(0);
+        await reviewCopy(more, `more-filters-${theme}.png`);
+        await expect(more).toHaveScreenshot(`more-filters-${theme}.png`);
+        expect(await axe(page)).toEqual([]);
+        await page.keyboard.press("Escape");
 
-      await page.getByRole("button", { name: "Save view" }).click();
-      const form = page.getByRole("dialog", { name: "Save view" });
-      await expect(form).toBeVisible();
-      await reviewCopy(form, `save-view-${theme}.png`);
-      await expect(form).toHaveScreenshot(`save-view-${theme}.png`);
-      expect(await axe(page)).toEqual([]);
-      await page.keyboard.press("Escape");
-      await freezeVolatile(page);
+        await page.getByRole("button", { name: "Save view" }).click();
+        const form = page.getByRole("dialog", { name: "Save view" });
+        await expect(form).toBeVisible();
+        await reviewCopy(form, `save-view-${theme}.png`);
+        await expect(form).toHaveScreenshot(`save-view-${theme}.png`);
+        expect(await axe(page)).toEqual([]);
+        await page.keyboard.press("Escape");
+        await freezeVolatile(page);
+      }
+    } finally {
+      await dropNumber();
     }
   });
 });

@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { render, type RenderContext } from "@lume/core/shared";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -92,18 +93,5 @@ function List({ leadId, onPick }: { leadId: string; onPick(text: string): void }
 }
 
 function Lines() {
-  return (
-    <svg
-      aria-hidden="true"
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-    >
-      <path d="M4 6h16M4 12h10M4 18h13" />
-    </svg>
-  );
+  return <UI_ICONS.templates size={ICON_SIZE.lg} aria-hidden />;
 }

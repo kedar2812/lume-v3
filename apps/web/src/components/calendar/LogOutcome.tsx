@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
@@ -130,10 +131,7 @@ export function LogOutcome({
     <Dialog label={title} onClose={onClose} wide>
       <div className={s.head}>
         <span className={s.icon} aria-hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-            <rect x="3" y="5" width="18" height="16" rx="2.5" />
-            <path d="M3 10h18M8 3v4M16 3v4" />
-          </svg>
+          <UI_ICONS.calendar size={ICON_SIZE.md} aria-hidden />
         </span>
         <div>
           <p className={s.when}>
@@ -227,18 +225,7 @@ export function LogOutcome({
       )}
       <div className={s.foot}>
         <span className={s.private}>
-          <svg
-            viewBox="0 0 24 24"
-            width="12"
-            height="12"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            aria-hidden
-          >
-            <rect x="5" y="11" width="14" height="9" rx="2" />
-            <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-          </svg>
+          <UI_ICONS.private size={ICON_SIZE.sm} aria-hidden />
           Seen by whoever can see this meeting
         </span>
         {unfinished ? (

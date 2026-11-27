@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/Switch";
 import { shortDate } from "@/lib/dates";
 import { instagramClient } from "@/lib/instagram/client";
 import { instagramSwitched } from "@/lib/instagram/use-instagram-on";
-import type { IgAccount } from "@/lib/instagram/types";
+import type { IgAccount, IgAccounts, IgAiGoal } from "@/lib/instagram/types";
 import type { IntegrationsView } from "@/lib/sheets/types";
 import { NOT_IN_PLAN_NOTE, NotInPlanPill, inPlan } from "./NotInPlan";
 import s from "./integrations.module.css";
@@ -47,14 +47,27 @@ const POINTS = [
  * Who answers, in the order LUME applies it (spec 2026-11-22 §2; board Main). LUME AI joins as the third line once it
  * can answer on Instagram (plan 2026-11-25-instagram-screens, Part E); until then it isn't offered.
  */
+const WHO_ANSWERS = [
+  { value: "team", label: "Your team" },
+  { value: "ai", label: "LUME AI" },
+] as const;
+
 const ORDER = [
   {
     title: "Your team, once someone steps in",
-    text: "Typing in a conversation takes it over from a flow, at once.",
+    text: "Typing in a conversation takes it over from a flow or LUME AI, at once.",
+  },
+  {
+    title: "LUME AI, in a conversation it has",
+    text: "Until it passes the person to your team, or Instagram’s 24 hours end.",
   },
   {
     title: "A flow, for what it was made for",
-    text: "Its keyword, story reply or ad. A flow can pass the person to your team when it ends.",
+    text: "Its keyword, story reply or ad. A flow can pass the person to your team or LUME AI when it ends.",
+  },
+  {
+    title: "LUME AI, on an account set to it",
+    text: "New DMs no flow claims, while Instagram’s 24 hours are open.",
   },
   {
     title: "Your team, for everything else",
@@ -134,6 +147,61 @@ function ConnectSheet({ onClose }: { onClose(): void }) {
  * Settings → Integrations → Instagram (plan 2026-11-25-instagram-screens D1; canvas boards Main, Connect): the switch,
  * the accounts connected, whose each is and what happens to new people who write, and connecting another.
  */
+/** What LUME AI aims for on Instagram: one of the goal stages chosen in Settings → LUME AI, or the business's words. */
+function AiGoal({ ai, onSaved }: { ai: NonNullable<IgAccounts["ai"]>; onSaved(goal: IgAiGoal): void }) {
+  const WORDS = "words";
+  const [pick, setPick] = useState(ai.goal.kind === "stage" ? ai.goal.stageId : WORDS);
+  const [text, setText] = useState(ai.goal.kind === "brief" ? ai.goal.text : "");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const save = async () => {
+    setNote(null);
+    setBusy(true);
+    const goal: IgAiGoal = pick === WORDS ? { kind: "brief", text } : { kind: "stage", stageId: pick };
+    const r = await instagramClient.setAiGoal(goal);
+    setBusy(false);
+    if (!r.ok) return setNote(r.message);
+    setNote("Saved.");
+    onSaved(r.data.goal);
+  };
+  return (
+    <section className={s.igQuestion} aria-labelledby="ig-ai-goal">
+      <h3 id="ig-ai-goal" className={s.igQuestionTitle}>
+        What LUME AI aims for on Instagram
+      </h3>
+      <select
+        aria-label="What LUME AI aims for on Instagram"
+        value={pick}
+        onChange={(e) => setPick(e.target.value)}
+      >
+        {ai.stages.map((x) => (
+          <option key={x.id} value={x.id}>
+            Move them to {x.name}
+          </option>
+        ))}
+        <option value={WORDS}>In my own words</option>
+      </select>
+      {pick === WORDS && (
+        <input
+          aria-label="LUME AI's goal, in your words"
+          value={text}
+          maxLength={300}
+          onChange={(e) => setText(e.target.value)}
+        />
+      )}
+      <Button size="sm" loading={busy} onClick={() => void save()}>
+        Save
+      </Button>
+      {note && (
+        <p role="status" className={s.igQuestionNote}>
+          {note}
+        </p>
+      )}
+      <p className={s.igQuestionNote}>A flow’s Hand to LUME AI step keeps its own goal.</p>
+    </section>
+  );
+}
+
 export function InstagramCard({
   ig,
   onView,
@@ -148,6 +216,7 @@ export function InstagramCard({
   const usable = ig.available && !out;
   const on = ig.enabled && usable;
   const [accounts, setAccounts] = useState<IgAccount[] | null>(null);
+  const [ai, setAi] = useState<IgAccounts["ai"]>(undefined);
   const [people, setPeople] = useState<{ id: string; name: string }[]>([]);
   const [connecting, setConnecting] = useState(false);
   const [leaving, setLeaving] = useState<IgAccount | null>(null);
@@ -157,8 +226,10 @@ export function InstagramCard({
   const load = useCallback(async () => {
     setLoadFailed(false);
     const [a, p] = await Promise.all([instagramClient.accounts(), instagramClient.people()]);
-    if (a.ok) setAccounts(a.data.accounts);
-    else setLoadFailed(true);
+    if (a.ok) {
+      setAccounts(a.data.accounts);
+      setAi(a.data.ai);
+    } else setLoadFailed(true);
     if (p.ok) setPeople(p.data.people.filter((x) => x.active));
   }, []);
   useEffect(() => {
@@ -173,11 +244,15 @@ export function InstagramCard({
     instagramSwitched(enabled);
     onView(r.data);
   };
-  const change = async (a: IgAccount, b: { ownerId?: string | null; newDmCreatesLead?: boolean }) => {
+  const change = async (
+    a: IgAccount,
+    b: { ownerId?: string | null; newDmCreatesLead?: boolean; newDms?: "team" | "ai" },
+  ) => {
     setError(null);
     const r = await instagramClient.setAccount(a.id, b);
     if (!r.ok) return setError(r.message);
     setAccounts(r.data.accounts);
+    if (r.data.ai) setAi(r.data.ai);
   };
   const [leavingBusy, setLeavingBusy] = useState(false);
   const disconnect = async (a: IgAccount) => {
@@ -337,10 +412,34 @@ export function InstagramCard({
                         : "Each becomes a lead under the account’s source, with its owner rule."}
                     </p>
                   </div>
+                  <div className={s.igQuestion}>
+                    <span className={s.igQuestionTitle}>Who answers new DMs</span>
+                    <SegmentedControl
+                      label={`Who answers new DMs on ${handle}`}
+                      size="sm"
+                      value={a.newDms}
+                      options={WHO_ANSWERS}
+                      // Off while LUME AI can't answer, unless it's chosen already (back to your team is always open).
+                      disabled={!ai?.ok && a.newDms === "team"}
+                      onChange={(v) => void change(a, { newDms: v })}
+                    />
+                    <p className={s.igQuestionNote}>
+                      {!ai?.ok
+                        ? a.newDms === "ai"
+                          ? `LUME AI can’t answer now, so your team does. ${ai?.why ?? ""}`.trim()
+                          : (ai?.why ?? "LUME AI can’t answer Instagram here yet.")
+                        : a.newDms === "ai"
+                          ? "LUME AI answers DMs no flow claims, within Instagram’s 24 hours. Pause it on the LUME AI page."
+                          : "Your team answers DMs no flow claims."}
+                    </p>
+                  </div>
                 </li>
               );
             })}
           </ul>
+          {ai?.ok && accounts.some((x) => x.newDms === "ai") && (
+            <AiGoal ai={ai} onSaved={(goal) => setAi({ ...ai, goal })} />
+          )}
           <div className={s.waFoot}>
             <Button onClick={() => setConnecting(true)}>Connect another account</Button>
             <Link href="/instagram/flows" className={s.waLink}>

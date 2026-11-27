@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -127,9 +128,7 @@ export function MeetingDrawer({
               </p>
             </div>
             <button type="button" className={s.ibtn} aria-label="Close" onClick={onClose}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                <path d="M6 6l12 12M18 6L6 18" />
-              </svg>
+              <UI_ICONS.close size={ICON_SIZE.md} aria-hidden />
             </button>
           </div>
 

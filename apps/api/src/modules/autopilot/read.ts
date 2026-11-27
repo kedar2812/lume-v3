@@ -67,6 +67,46 @@ const countsOf = (rows: { state: LeadState }[]) =>
     number
   >;
 
+/** Each run's number as a run says it ("From +91 90000 00001"), by id (2026-11-26). */
+async function numberDisplays(req: FastifyRequest, ids: string[]): Promise<Map<string, string>> {
+  if (!ids.length) return new Map();
+  const N = schema.whatsappNumbers;
+  const rows = await req.db
+    .select({ id: N.id, display: N.displayPhone })
+    .from(N)
+    .where(inArray(N.id, [...new Set(ids)]));
+  return new Map(rows.map((r) => [r.id, r.display]));
+}
+
+/** An Instagram run's account as a run says it ("From @harbour.studio"), by id (plan 2026-11-27-instagram-lume-ai). */
+async function accountDisplays(req: FastifyRequest, ids: string[]): Promise<Map<string, string>> {
+  if (!ids.length) return new Map();
+  const A = schema.instagramAccounts;
+  const rows = await req.db
+    .select({ id: A.id, username: A.username })
+    .from(A)
+    .where(inArray(A.id, [...new Set(ids)]));
+  return new Map(rows.map((r) => [r.id, `@${r.username}`]));
+}
+/** Where a run sends from, in words: its number, or its Instagram account. */
+async function fromOf(
+  req: FastifyRequest,
+  runs: { numberId: string | null; instagramAccountId: string | null }[],
+) {
+  const numbers = await numberDisplays(
+    req,
+    runs.flatMap((r) => (r.numberId ? [r.numberId] : [])),
+  );
+  const accounts = await accountDisplays(
+    req,
+    runs.flatMap((r) => (r.instagramAccountId ? [r.instagramAccountId] : [])),
+  );
+  return (r: { numberId: string | null; instagramAccountId: string | null }) =>
+    (r.numberId && numbers.get(r.numberId)) ||
+    (r.instagramAccountId && accounts.get(r.instagramAccountId)) ||
+    null;
+}
+
 /** `GET /api/v1/autopilot/runs`: the newest runs, each with the counts of the leads this person sees. */
 export async function listRuns(req: FastifyRequest) {
   const runs = await req.db
@@ -78,8 +118,13 @@ export async function listRuns(req: FastifyRequest) {
     req,
     runs.map((r) => r.id),
   );
+  const from = await fromOf(req, runs);
   return {
-    runs: runs.map((r) => ({ ...runView(r), counts: countsOf(leads.filter((l) => l.runId === r.id)) })),
+    runs: runs.map((r) => ({
+      ...runView(r),
+      number: from(r),
+      counts: countsOf(leads.filter((l) => l.runId === r.id)),
+    })),
     /** Runs going now that this person can see (the Autopilot nav's Live pill). */
     running: runs.filter((r) => r.status === "running").length,
   };
@@ -144,6 +189,7 @@ export async function getRun(req: FastifyRequest, id: string) {
       ...runView(run),
       canControl: mayControl(req, run),
       speakerName: await speakerName(req, run.speakerId),
+      number: (await fromOf(req, [run]))(run),
     },
     counts: countsOf(leads),
     leads: leads.map((l) => ({

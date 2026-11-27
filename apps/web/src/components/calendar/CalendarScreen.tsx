@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Popover } from "@/components/ui/Popover";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
@@ -368,17 +369,7 @@ export function CalendarScreen({
       {!phone && (
         <div className={s.lines}>
           <span className={s.privacy}>
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              aria-hidden
-              className={s.lock}
-            >
-              <rect x="5" y="11" width="14" height="9" rx="2" />
-              <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-            </svg>
+            <UI_ICONS.private size={ICON_SIZE.md} aria-hidden className={s.lock} />
             Meetings with leads only. Personal events are read only to find them, and never kept.
           </span>
           {sources && (sources.google || sources.calendly) && (

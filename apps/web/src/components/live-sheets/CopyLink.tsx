@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { useEffect, useRef, useState } from "react";
 import s from "./live-sheets.module.css";
 
@@ -42,14 +43,9 @@ export function CopyLink({ url }: { url: string }) {
       >
         <span className={s.copyIcon} aria-hidden>
           {said === "Copied" ? (
-            <svg viewBox="0 0 16 16">
-              <path className={s.copyTick} d="M3.5 8.4 6.6 11.3 12.5 4.9" />
-            </svg>
+            <UI_ICONS.done size={ICON_SIZE.md} aria-hidden />
           ) : (
-            <svg viewBox="0 0 16 16">
-              <rect x="5.5" y="5.5" width="8" height="8" rx="2" />
-              <path d="M10.5 3.5v-.5a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5" />
-            </svg>
+            <UI_ICONS.copy size={ICON_SIZE.md} aria-hidden />
           )}
         </span>
         <span aria-hidden>{said === "Copied" ? "Copied" : "Copy link"}</span>

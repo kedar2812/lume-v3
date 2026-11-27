@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { BodyPortal } from "@/components/ui/BodyPortal";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
@@ -10,10 +11,16 @@ import {
   doneOf,
   queueChanged,
   queuesClient,
+  type LumeChannel,
   type QueueItem,
   type QueueStep,
   type QueueView,
 } from "@/lib/queues/client";
+import { StartSheet } from "@/components/autopilot/StartSheet";
+import { useWhatsApp } from "@/lib/notifications/stream";
+import { whatsappClient } from "@/lib/whatsapp/client";
+import type { WaThreadMessage } from "@/lib/whatsapp/types";
+import type { LumePhase } from "./LumeSend";
 import { QueueCard, type CardPhase } from "./QueueCard";
 import { QueueSummary } from "./QueueSummary";
 import s from "./run.module.css";
@@ -22,6 +29,10 @@ import s from "./run.module.css";
 const NOTE_MS = 1200;
 /** How long the tick (and a stage's move) shows after Yes. */
 const TICK_MS = 700;
+/** Sent from LUME: how long the card waits for WhatsApp's answer before moving on (it keeps trying meanwhile). */
+const WAIT_MS = 10_000;
+/** How often the card looks at the message while it waits, between the live stream's words. */
+const LOOK_MS = 2_000;
 
 const isTyping = (t: EventTarget | null) =>
   t instanceof HTMLElement && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
@@ -61,7 +72,7 @@ function pickCurrent(q: QueueView | null, claims: number[]): QueueItem | null {
  * back in LUME, Sent?; the answer moves on to the next lead, which slides in from the right. Pause keeps
  * the place; Esc leaves it paused. Finishing plays `cleared` and says how it went.
  */
-export function QueueRun({ id }: { id: string }) {
+export function QueueRun({ id, tz, canAi = false }: { id: string; tz?: string; canAi?: boolean }) {
   const router = useRouter();
   const sound = useSound();
   const reduce = useReducedMotion();
@@ -86,6 +97,59 @@ export function QueueRun({ id }: { id: string }) {
   };
 
   const current = pickCurrent(q, claims.current);
+
+  // Sent from inside LUME (spec 2026-11-26): how this lead goes, its conversation, and where its message has got to.
+  const [channel, setChannel] = useState<{ pos: number; c: LumeChannel } | null>(null);
+  const [thread, setThread] = useState<WaThreadMessage[] | null>(null);
+  const [lumePhase, setLumePhase] = useState<LumePhase>("ready");
+  const [problem, setProblem] = useState<string | null>(null);
+  const [aiSheet, setAiSheet] = useState(false);
+  const sentMsg = useRef<{ id: string; step: QueueStep; at: number } | null>(null);
+  const zone = tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const lume =
+    channel && current && channel.pos === current.position && channel.c.via === "lume" ? channel.c : null;
+  // How this lead goes isn't known yet: nothing can be sent either way until it is.
+  const known = !!channel && !!current && channel.pos === current.position;
+  const opensWhy =
+    channel && current && channel.pos === current.position && channel.c.via === "whatsapp" && channel.c.why
+      ? channel.c.why
+      : null;
+  // Answers about a lead no longer in front are dropped: never another lead's conversation or way under this name.
+  const posNow = useRef<number | null>(null);
+  const leadNow = useRef<string | null>(null);
+  posNow.current = current?.position ?? null;
+  leadNow.current = current?.leadId ?? null;
+  const loadChannel = useCallback(
+    async (pos: number) => {
+      const r = await queuesClient.channel(id, pos);
+      if (posNow.current !== pos) return;
+      if (!r.ok) return setChannel({ pos, c: { via: "whatsapp", why: "" } });
+      setChannel({ pos, c: r.data });
+    },
+    [id],
+  );
+  const loadThread = useCallback(async (leadId: string) => {
+    const r = await whatsappClient.thread(leadId);
+    if (r.ok && leadNow.current === leadId) setThread(r.data.messages);
+  }, []);
+  // A new lead in front: what it allows, and its conversation.
+  const pos = current?.position ?? null;
+  const leadId = current?.leadId ?? null;
+  useEffect(() => {
+    setLumePhase("ready");
+    setProblem(null);
+    setThread(null);
+    sentMsg.current = null;
+    if (pos === null) return;
+    void loadChannel(pos);
+  }, [pos, loadChannel]);
+  useEffect(() => {
+    if (lume && leadId) void loadThread(leadId);
+  }, [lume, leadId, loadThread]);
+  // Their reply, and the message's ticks, as they happen.
+  useWhatsApp((e) => {
+    if (leadId && (e.lead === leadId || e.lead === "*") && lume) void loadThread(leadId);
+  });
 
   const load = useCallback(async () => {
     const r = await queuesClient.get(id);
@@ -114,7 +178,7 @@ export function QueueRun({ id }: { id: string }) {
   };
 
   const send = async (text: string | undefined) => {
-    if (!q || !current || busy.current || q.status !== "active") return;
+    if (!q || !current || busy.current || q.status !== "active" || !known || lume) return;
     const tab = window.open("", "_blank");
     if (!tab) return setError("Your browser blocked the new tab. Allow pop-ups for LUME, then try again.");
     tab.opener = null;
@@ -205,6 +269,11 @@ export function QueueRun({ id }: { id: string }) {
 
   const skip = async () => {
     if (!current || busy.current || phase !== "ready") return;
+    // Sent from LUME and refused: the lead is already Not sent; Skip moves on.
+    if (lume && lumePhase === "failed") return void load();
+    if (lume && lumePhase !== "ready") return;
+    // Nothing can go to them (their choice stands): the run skips them with why, in its summary.
+    if (lume?.blocked) return void sendLume({ mode: "template" });
     busy.current = true;
     // A skip leaves its own way (down and out of the way), not as a sent lead does.
     setLeaving("skip");
@@ -223,6 +292,107 @@ export function QueueRun({ id }: { id: string }) {
     const r = await queuesClient.retry(id, position);
     if (!r.ok) return setError(r.message);
     setFinishedHere(false);
+    queueChanged();
+    await load();
+  };
+
+  /** One lead sent from inside LUME: one key per press, so a retried request is the same message, never two. */
+  const sendLume = async (body: { mode: "template" | "message"; text?: string }) => {
+    if (!current || busy.current || lumePhase !== "ready" || q?.status !== "active") return;
+    busy.current = true;
+    setError(null);
+    setLumePhase("sending");
+    const r = await queuesClient.sendItem(id, current.position, { ...body, clientKey: crypto.randomUUID() });
+    busy.current = false;
+    if (!r.ok) {
+      setLumePhase("ready");
+      // What it allows changed (their 24 hours ended, WhatsApp switched off): look again. A pause: the run says so.
+      void loadChannel(current.position);
+      queueChanged();
+      await load();
+      // After the run is read again (which clears an old message), so this one stays.
+      setError(r.message);
+      return;
+    }
+    if ("skipped" in r.data) {
+      const step = r.data;
+      setLumePhase("ready");
+      setNote(step.skipped);
+      setSkippedLeaving(true);
+      timer.current = setTimeout(() => {
+        setNote(null);
+        void after(step).then(() => setSkippedLeaving(false));
+      }, NOTE_MS);
+      return;
+    }
+    const { message, ...step } = r.data;
+    sentMsg.current = { id: message.id, step, at: Date.now() };
+    setThread((t) => [...(t ?? []).filter((m) => m.id !== message.id), message]);
+  };
+  // Waiting for WhatsApp's answer: Sent moves on, a refusal stays with its words, slow moves on after 10 seconds.
+  useEffect(() => {
+    const m = sentMsg.current;
+    if (lumePhase !== "sending" || !m) return;
+    const now = thread?.find((x) => x.id === m.id);
+    if (now && (now.status === "sent" || now.status === "delivered" || now.status === "read")) {
+      setLumePhase("sent");
+      sound.play("sent");
+      const step = m.step;
+      timer.current = setTimeout(() => void after(step), TICK_MS);
+      return;
+    }
+    if (now?.status === "failed") {
+      setLumePhase("failed");
+      setProblem(now.problem);
+      return;
+    }
+    const look = setTimeout(() => leadId && void loadThread(leadId), LOOK_MS);
+    const slow = setTimeout(
+      () => {
+        setLumePhase("slow");
+        const step = m.step;
+        timer.current = setTimeout(() => void after(step), NOTE_MS);
+      },
+      Math.max(0, WAIT_MS - (Date.now() - m.at)),
+    );
+    return () => {
+      clearTimeout(look);
+      clearTimeout(slow);
+    };
+  }, [lumePhase, thread, leadId, loadThread]);
+  /** Refused by WhatsApp: the lead goes back in the run and can go again. */
+  const retryLume = async () => {
+    if (!current) return;
+    const r = await queuesClient.retry(id, current.position);
+    if (!r.ok) return setError(r.message);
+    sentMsg.current = null;
+    setProblem(null);
+    setLumePhase("ready");
+    queueChanged();
+    await load();
+    void loadChannel(current.position);
+  };
+  /**
+   * Let LUME AI take the rest: the leads still waiting as the run has them now, never the one just messaged (it may
+   * still be waiting for WhatsApp's answer here).
+   */
+  const [aiLeads, setAiLeads] = useState<string[]>([]);
+  const openAi = async () => {
+    const r = await queuesClient.get(id);
+    if (!r.ok) return setError(r.message);
+    const going = lumePhase !== "ready" && current ? current.leadId : null;
+    const waiting = r.data.items
+      .filter((i) => i.status === "pending" && i.leadId !== going)
+      .map((i) => i.leadId);
+    if (!waiting.length) return;
+    setAiLeads(waiting);
+    setAiSheet(true);
+  };
+  /** Let LUME AI take the rest: the leads it took leave this run. */
+  const handOver = async (runId: string) => {
+    setAiSheet(false);
+    const r = await queuesClient.handed(id, runId);
+    if (!r.ok) return setError(r.message);
     queueChanged();
     await load();
   };
@@ -321,6 +491,7 @@ export function QueueRun({ id }: { id: string }) {
             <div className={s.title}>
               <span className={s.kicker}>Send queue</span>
               <span className={s.template}>{q?.templateName ?? (q ? "Your own words" : "")}</span>
+              {q?.number && <span className={s.from}>From {q.number.display}</span>}
             </div>
             <p className={s.progressText} aria-live="polite">
               <span className={s.num}>
@@ -351,6 +522,11 @@ export function QueueRun({ id }: { id: string }) {
                       Pause
                     </Button>
                   )}
+                  {canAi && q?.status === "active" && q.items.some((i) => i.status === "pending") && (
+                    <Button size="sm" variant="ghost" onClick={() => void openAi()}>
+                      Let LUME AI take the rest
+                    </Button>
+                  )}
                   {q && !over && (
                     <Button size="sm" variant="ghost" onClick={() => setEnding(true)}>
                       End run
@@ -364,9 +540,7 @@ export function QueueRun({ id }: { id: string }) {
                 aria-label="Leave the run"
                 onClick={() => void leave()}
               >
-                <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden>
-                  <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
+                <UI_ICONS.close size={ICON_SIZE.sm} aria-hidden />
               </button>
             </div>
             <span className={s.bar} aria-hidden>
@@ -405,7 +579,9 @@ export function QueueRun({ id }: { id: string }) {
                   {capNote ??
                     (q.pausedReason === "daily_cap"
                       ? "Today's limit is reached; the run waits until tomorrow."
-                      : "LUME kept your place.")}
+                      : q.pausedReason
+                        ? `${q.pausedReason} LUME kept your place.`
+                        : "LUME kept your place.")}
                 </p>
                 <Button variant="primary" onClick={() => void resume()}>
                   Resume
@@ -442,6 +618,21 @@ export function QueueRun({ id }: { id: string }) {
                       onSkip={() => void skip()}
                       onAnswer={(sent) => void answer(sent)}
                       onBack={() => setPhase("asking")}
+                      opensWhy={opensWhy}
+                      waiting={!known}
+                      {...(lume
+                        ? {
+                            lume: {
+                              channel: lume,
+                              thread,
+                              phase: lumePhase,
+                              problem,
+                              tz: zone,
+                              onSend: (b) => void sendLume(b),
+                              onRetry: () => void retryLume(),
+                            },
+                          }
+                        : {})}
                     />
                   </motion.div>
                 </AnimatePresence>
@@ -450,6 +641,14 @@ export function QueueRun({ id }: { id: string }) {
           </div>
         </motion.div>
       </div>
+      {aiSheet && (
+        <StartSheet
+          target={{ leadIds: aiLeads }}
+          count={aiLeads.length}
+          onClose={() => setAiSheet(false)}
+          onStarted={(r) => void handOver(r.run.id)}
+        />
+      )}
     </BodyPortal>
   );
 }

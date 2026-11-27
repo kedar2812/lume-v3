@@ -114,6 +114,33 @@ export async function listSources(req: FastifyRequest) {
   };
 }
 
+/**
+ * The business's WhatsApp numbers, connected now or before (Leads → More filters → Messaged from, owner 2026-11-26):
+ * each with whose it is. No token, no account ids: only what the filter names.
+ */
+export async function listWaNumbers(req: FastifyRequest) {
+  const N = schema.whatsappNumbers;
+  const rows = await req.db
+    .select({
+      id: N.id,
+      display: N.displayPhone,
+      owner: N.ownerUserId,
+      name: schema.users.name,
+      status: N.status,
+    })
+    .from(N)
+    .leftJoin(schema.users, eq(schema.users.id, N.ownerUserId))
+    .orderBy(asc(N.displayPhone));
+  return {
+    numbers: rows.map((r) => ({
+      id: r.id,
+      display: r.display,
+      whose: r.owner ? `${r.name ?? "A teammate"}'s` : "the business's",
+      connected: r.status !== "disconnected",
+    })),
+  };
+}
+
 export async function listTags(req: FastifyRequest) {
   return { tags: (await req.db.select().from(schema.tags).orderBy(asc(schema.tags.label))).map(tagView) };
 }

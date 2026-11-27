@@ -186,6 +186,74 @@ describe("StartSheet", () => {
     );
   });
 
+  it("two numbers or more (owner 2026-11-26): nothing chosen for them, Start waits, and the run goes on the one chosen", async () => {
+    vi.mocked(autopilotClient.setup).mockResolvedValue(
+      ok(
+        setup({
+          number: null,
+          you: "me",
+          numbers: [
+            {
+              id: "n1",
+              display: "+91 90000 00001",
+              whose: "the business's",
+              ownerId: null,
+              tierLimit: 250,
+              problem: null,
+            },
+            {
+              id: "n2",
+              display: "+91 90000 00002",
+              whose: "Your own",
+              ownerId: "me",
+              tierLimit: 1000,
+              problem: null,
+            },
+            {
+              id: "n3",
+              display: "+91 90000 00003",
+              whose: "Rahul Mehta's",
+              ownerId: "u2",
+              tierLimit: 250,
+              problem: null,
+            },
+            {
+              id: "n4",
+              display: "+91 90000 00004",
+              whose: "the business's",
+              ownerId: null,
+              tierLimit: 250,
+              problem: "WhatsApp rated +91 90000 00004 red.",
+            },
+          ],
+        }),
+      ),
+    );
+    vi.mocked(autopilotClient.start).mockResolvedValue(
+      ok({ run: { id: "run1" } as never, skipped: [], remembered: false, leads: 3 }),
+    );
+    open();
+    await screen.findByRole("radiogroup", { name: "Send from" });
+    // Rahul's own number only while LUME AI speaks as Rahul.
+    expect(screen.queryByRole("radio", { name: /\+91 90000 00003/ })).toBeNull();
+    expect(screen.getByRole("radio", { name: /\+91 90000 00004/ })).toBeDisabled();
+    expect(start()).toBeDisabled();
+    expect(screen.getByText("Choose the number LUME AI sends from")).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Speaks as" }), "Rahul Mehta");
+    await userEvent.click(screen.getByRole("radio", { name: /\+91 90000 00003/ }));
+    expect(screen.getByText("Up to 250 a day, your number's WhatsApp limit")).toBeInTheDocument();
+    // Back to speaking as themselves: Rahul's number is no longer theirs to send from, so it's asked again.
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Speaks as" }), "You");
+    expect(start()).toBeDisabled();
+    await userEvent.click(screen.getByRole("radio", { name: /\+91 90000 00002/ }));
+    expect(screen.getByText("Up to 1,000 a day, your number's WhatsApp limit")).toBeInTheDocument();
+    await waitFor(() => expect(start()).toBeEnabled());
+    await userEvent.click(start());
+    expect(autopilotClient.start).toHaveBeenCalledWith(
+      expect.objectContaining({ numberId: "n2", speakerId: null }),
+    );
+  });
+
   it("a refusal is said in its own words, and the sheet stays", async () => {
     vi.mocked(autopilotClient.start).mockResolvedValue(
       refused(

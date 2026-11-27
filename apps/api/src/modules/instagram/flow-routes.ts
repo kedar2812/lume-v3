@@ -1,7 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { READY_KEYS, flowGraphSchema, flowStepsSchema, readyFlow, type ReadyKey } from "@lume/core";
+import {
+  READY_KEYS,
+  can,
+  scopeOf,
+  flowGraphSchema,
+  flowStepsSchema,
+  readyFlow,
+  type ReadyKey,
+} from "@lume/core";
 import {
   archiveFlow,
   createFlow,
@@ -57,7 +65,14 @@ export async function instagramFlowRoutes(app: FastifyInstance, d: AppDeps): Pro
     .strict();
   r.get("/api/v1/instagram/flows/summary", { ...manage, schema: { querystring: range } }, async (req) => {
     await requireFlows(req);
-    return flowsSummary(req, req.query, d.clock());
+    // Money only for someone who sees it (analytics.revenue) across the business: these numbers are the whole
+    // business's, so someone whose analytics reach is their own or their team's doesn't see the money.
+    return flowsSummary(
+      req,
+      req.query,
+      d.clock(),
+      can(req.actor!, "analytics.revenue") && scopeOf(req.actor!, "analytics.view") === "all",
+    );
   });
   r.get("/api/v1/instagram/flows/templates", manage, () => ({
     // The ready-made flows (plan 2026-11-25-instagram-screens D4), in the order the New flow sheet shows them.

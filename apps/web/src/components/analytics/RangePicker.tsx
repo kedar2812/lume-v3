@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { pressedWithin } from "@/components/ui/Popover";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
@@ -97,16 +98,10 @@ export function RangePicker({
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
-        <svg viewBox="0 0 24 24" aria-hidden>
-          <path d="M8 2v3M16 2v3" />
-          <rect x="3" y="4" width="18" height="17" rx="2" />
-          <path d="M3 9h18" />
-        </svg>
+        <UI_ICONS.calendar size={ICON_SIZE.md} aria-hidden />
         {words.label}
         {compare && <span className={s.vs}>{words.vs}</span>}
-        <svg viewBox="0 0 24 24" aria-hidden className={s.chev}>
-          <path d="m6 9 6 6 6-6" />
-        </svg>
+        <UI_ICONS.menu size={ICON_SIZE.md} aria-hidden className={s.chev} />
       </button>
       <AnimatePresence>
         {open && (

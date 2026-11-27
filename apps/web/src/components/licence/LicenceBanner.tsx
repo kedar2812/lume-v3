@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useState } from "react";
@@ -58,16 +59,7 @@ export function LicenceBanner() {
       <AnimatePresence initial={false}>
         {words && (
           <motion.div key="grace" role="status" data-tone="grace" className={s.banner} {...motionProps}>
-            <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden className={s.bannerIcon}>
-              <path
-                d="M9 2l7.5 13h-15z"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinejoin="round"
-              />
-              <path d="M9 7.5v3.5M9 13.4v.1" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
+            <UI_ICONS.warning size={ICON_SIZE.lg} aria-hidden className={s.bannerIcon} />
             <span className={s.bannerText}>
               <strong>{words.lead}</strong> {words.rest}
             </span>

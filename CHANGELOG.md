@@ -6,6 +6,55 @@ column in the release that stops using it.
 
 ## Unreleased
 
+- **One icon set across LUME** (`docs/design/icons.md`): the leads, settings, analytics, calendar, media, Today and the
+  other screens take their icons from LUME's registry (Lucide's line icons, one meaning one icon), not their own
+  drawings; a call outcome, a contact's channel and every close, search and remove look the same everywhere.
+- **LUME AI answers Instagram** (`docs/superpowers/specs/2026-11-22-instagram-lume-ai-design.md`): on each connected
+  account, **Who answers new DMs** is Your team (the default) or LUME AI, off with the reason when LUME AI can't answer
+  (switched off, the plan, no replies). LUME AI then answers DMs no flow claims, and a flow's **Hand to LUME AI** step
+  passes the person to it with the step's goal; each account has one standing run, "New DMs on @account", on the LUME
+  AI page, pausable like any run, aiming for what the Instagram card says. One driver per conversation: a person who
+  typed, else LUME AI's run, else a flow, else the team. LUME AI writes only inside Instagram's 24 hours, never with the
+  human agent tag, at most 1,000 bytes; when the 24 hours end with the person unanswered, a person gets the lead with
+  the day and time they can still answer until, and a quiet conversation is let go so flows and other runs can have
+  them. The lead's Instagram tab shows **LUME AI** as who's answering, with Take over and Hand back, and its messages
+  say "LUME AI for {speaker}"; Analytics → Instagram's Who answered gains LUME AI's row. Migration 0138.
+- **Instagram comments from a lead's tab** (Meta's App Review asks for these): reply publicly, hide or unhide, and
+  delete (asked twice), one call to Instagram each, kept only once Instagram took it; a reply whose answer was lost says
+  to check Instagram and is never sent again by itself. Migration 0137.
+- **Fixed:** a flow's public reply under a comment never went (the job couldn't read the comment); a deleted person's
+  LUME AI runs ended but kept their leads held, so no other run could take them.
+- **Which number a run sends from** (`docs/superpowers/specs/2026-11-26-run-number-choice-design.md`): a focus run and a
+  LUME AI run both ask before they start. One number: named ("Sends from +91 … · the business's"). Two or more: a
+  choice with nothing chosen for the person, Start off until one is picked; the business's numbers and the person's own
+  (and, for LUME AI, the number of whoever it speaks as), a number WhatsApp rated yellow or red said and not pickable.
+  The run keeps it: its templates (and a focus run's messages) go from it, "you can text them directly" only when they
+  wrote to that number, only
+  templates approved on its account, and its screen says "From +91 …". **Leads → More filters → Messaged from** shows
+  the leads a number reached; a lead's chat says "from" or "to" which number once the business has more than one.
+  Migration 0136.
+- **When the connection drops or slows, LUME says so** (canvas v14): one message at the bottom, in LUME's own toast.
+  Offline at once (and only when LUME can't be reached, never while LUME restarts), Back online for 3 seconds, and
+  "Your internet is slow" when 3 of the last 5 answers spent over 1.5 seconds on the way, from LUME's own time on every
+  answer (Server-Timing), so a slow LUME never blames anyone's Wi-Fi; Dismiss keeps it away until the connection has
+  been quick again.
+- **The focus run, inside LUME** (`docs/superpowers/specs/2026-11-26-focus-run-in-lume-design.md`): with a WhatsApp
+  number connected and Reply from LUME on, each lead of a send queue is sent from LUME, never a WhatsApp tab and never
+  Sent?. The card shows the conversation with the lead. Someone who hasn't written in 24 hours gets the run's template
+  as WhatsApp approved it, in their words; someone who has is marked "you can text them directly" and gets a choice, a
+  message (the run's words, editable) or the template. LUME waits for WhatsApp to take it, then the next lead comes; a
+  refusal says why with Try again, and one that comes later makes the lead Not sent in the run's summary and off the
+  day's count. Their reply shows in the card as it arrives. The start says how many go through LUME and how many open
+  WhatsApp (a template not approved yet goes through LUME only to those who wrote). **Let LUME AI take the rest** hands
+  the leads still waiting to LUME AI. A lead without a number on WhatsApp, or with Reply from LUME off, goes as before.
+  Migration 0135.
+- **Instagram numbers open their people** (D6b-2): each number on Analytics → Instagram opens the leads behind it, as
+  Analytics' other boards do, and a **LUME noticed** card says what stands out (with counts, and nothing from too few).
+  The **Flows** page gains the approved board: twelve tiles (finished, first answer, passed to your team and how fast
+  the team answered, time to answer ran out, asked to stop), conversations by what started them, where people stop
+  (every flow, or one flow's steps in the order people reach them, the biggest drop marked), the posts and ads that
+  started them, its own notes, and Finished and Revenue in the list of flows. Money only for someone who sees
+  everyone's.
 - **Team Chat, part 1** (`docs/superpowers/specs/2026-11-24-team-chat-design.md`): a **Chat** page for the team, beside
   Leads. **Channels** (everyone in one, or chosen by person, team or role, and kept right as those change), **direct
   messages** for two to eight people, and a **Team** tab on every lead whose talk only people who may see that lead can

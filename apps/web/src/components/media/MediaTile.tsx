@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { useEffect, useRef, useState } from "react";
 import type { LibraryFile } from "@/lib/files/client";
 import { lengthText, mediaMeta } from "@/lib/files/words";
@@ -49,9 +50,7 @@ export function MediaTile({ file: f, onOpen }: { file: LibraryFile; onOpen(id: s
         {f.preview === "pending" && <span className={s.waiting}>Preview on its way</span>}
         {f.viewAs === "video" && (
           <span className={s.play} aria-hidden>
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M8 5.5v13l11-6.5z" />
-            </svg>
+            <UI_ICONS.play size={ICON_SIZE.md} aria-hidden />
           </span>
         )}
         {f.durationMs !== null && (f.viewAs === "video" || f.viewAs === "audio") && (
@@ -61,16 +60,7 @@ export function MediaTile({ file: f, onOpen }: { file: LibraryFile; onOpen(id: s
         )}
         {f.link.on && (
           <span className={s.badge} aria-hidden>
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.6"
-              strokeLinecap="round"
-            >
-              <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
-              <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
-            </svg>
+            <UI_ICONS.link size={ICON_SIZE.md} aria-hidden />
             Link on
           </span>
         )}

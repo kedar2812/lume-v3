@@ -84,6 +84,12 @@ type Row = {
   buttons: { title: string; url: string }[] | null;
   tag: string | null;
   flow_run_id: string | null;
+  autopilot_run_id: string | null;
+  allow_after_dnc: boolean;
+  /** LUME AI's run and its lead, as they are now (null for a person's or a flow's message). */
+  run_status: string | null;
+  run_lead_active: boolean | null;
+  run_lead_state: string | null;
   step_key: string | null;
   user_id: string;
   user_name: string | null;
@@ -139,6 +145,8 @@ export async function sendInstagramOutbox(o: IgSendDeps, id: string): Promise<vo
         await c.query<Row>(
           `SELECT o.status, o.updated_at < now() - make_interval(secs => $2) AS stuck, o.tries, o.kind, o.text,
                   o.quick_replies, o.buttons, o.tag, o.flow_run_id, o.step_key, o.user_id, u.name AS user_name, o.lead_id, o.thread_id,
+                  o.autopilot_run_id, o.allow_after_dnc, ar.status AS run_status, al.active AS run_lead_active,
+                  al.state AS run_lead_state,
                   l.deleted_at IS NOT NULL AS lead_deleted, l.dnc_at IS NOT NULL AS lead_dnc, l.name AS lead_name,
                   t.igsid, t.last_in_at, t.ad_window_until, a.id AS account_id, a.ig_user_id, a.status AS account_status,
                   a.token_enc, o.comment_id, c.at AS comment_at, c.private_reply AS comment_state,
@@ -149,6 +157,8 @@ export async function sendInstagramOutbox(o: IgSendDeps, id: string): Promise<vo
              JOIN instagram_accounts a ON a.id = o.account_id
              LEFT JOIN users u ON u.id = o.user_id
              LEFT JOIN instagram_comments c ON c.comment_id = o.comment_id
+             LEFT JOIN autopilot_runs ar ON ar.id = o.autopilot_run_id
+             LEFT JOIN autopilot_leads al ON al.run_id = o.autopilot_run_id AND al.lead_id = o.lead_id
             WHERE o.id = $1`,
           [id, IG_SENDING_STUCK_MS / 1000],
         )
@@ -186,7 +196,7 @@ export async function sendInstagramOutbox(o: IgSendDeps, id: string): Promise<vo
   }
   if (row.status !== "queued") return;
   if (row.lead_deleted) return void (await fail("This lead isn't here any more."));
-  if (row.lead_dnc) {
+  if (row.lead_dnc && !row.allow_after_dnc) {
     await set("cancelled", { problem: `${row.lead_name || "This lead"} asked not to be messaged.` });
     return void (await wakeNext(o, row.thread_id));
   }
@@ -197,8 +207,20 @@ export async function sendInstagramOutbox(o: IgSendDeps, id: string): Promise<vo
   if (!on.rows[0]?.on) return void (await fail("Instagram was switched off before this went."));
   if (!moduleIncluded(o.app.licence.view().plan, "instagram"))
     return void (await fail("Instagram left this LUME's plan before this went."));
-  if (row.flow_run_id && row.taken_over)
+  if ((row.flow_run_id || row.autopilot_run_id) && row.taken_over)
     return void (await fail("A person took this conversation over before this went."));
+  // LUME AI's: paused, ended, or the lead no longer LUME AI's since it was queued: never sent (as WhatsApp's).
+  if (
+    row.autopilot_run_id &&
+    !row.allow_after_dnc &&
+    (row.run_status !== "running" ||
+      !row.run_lead_active ||
+      row.run_lead_state === "with_you" ||
+      row.run_lead_state === "stopped")
+  ) {
+    await set("cancelled", { problem: "LUME AI's run was paused before this went." });
+    return void (await wakeNext(o, row.thread_id));
+  }
   if (row.account_status !== "active" || !row.token_enc)
     return void (await fail("This Instagram account needs connecting again before LUME can send from it."));
   const problems = messageProblems({
@@ -216,7 +238,8 @@ export async function sendInstagramOutbox(o: IgSendDeps, id: string): Promise<vo
       return void (await fail("Instagram allows a private reply only within 7 days of the comment."));
   } else {
     const w = instagramWindow({ lastInAt: at(row.last_in_at), adWindowUntil: at(row.ad_window_until) }, now);
-    if (w.state === "closed" || (w.state === "human" && row.flow_run_id))
+    // Past the 24 hours only a person may answer (Meta's human agent tag): never a flow, never LUME AI.
+    if (w.state === "closed" || (w.state === "human" && (row.flow_run_id || row.autopilot_run_id)))
       return void (await fail(
         "Instagram's time to reply ran out before this went. LUME can send again once they write.",
       ));
@@ -270,10 +293,17 @@ export async function sendInstagramOutbox(o: IgSendDeps, id: string): Promise<vo
           AND NOT EXISTS (SELECT 1 FROM instagram_outbox e
                            WHERE e.thread_id = o.thread_id AND e.id <> o.id AND e.status IN ('queued', 'sending')
                              AND (e.created_at, e.id) < (o.created_at, o.id))
-          AND EXISTS (SELECT 1 FROM leads l WHERE l.id = o.lead_id AND l.deleted_at IS NULL AND l.dnc_at IS NULL)
-          -- A flow's message never goes into a conversation a person has taken over since it was queued.
-          AND (o.flow_run_id IS NULL OR NOT EXISTS (
-            SELECT 1 FROM instagram_threads t WHERE t.id = o.thread_id AND t.taken_over_by IS NOT NULL))`,
+          AND EXISTS (SELECT 1 FROM leads l WHERE l.id = o.lead_id AND l.deleted_at IS NULL
+                                                 AND (l.dnc_at IS NULL OR o.allow_after_dnc))
+          -- A flow's or LUME AI's message never goes into a conversation a person has taken over since it was queued.
+          AND ((o.flow_run_id IS NULL AND o.autopilot_run_id IS NULL) OR NOT EXISTS (
+            SELECT 1 FROM instagram_threads t WHERE t.id = o.thread_id AND t.taken_over_by IS NOT NULL))
+          -- LUME AI's: its run still running and the lead still LUME AI's (its one apology for a stop aside).
+          AND (o.autopilot_run_id IS NULL OR o.allow_after_dnc OR EXISTS (
+            SELECT 1 FROM autopilot_runs ar
+              JOIN autopilot_leads al ON al.run_id = ar.id AND al.lead_id = o.lead_id
+             WHERE ar.id = o.autopilot_run_id AND ar.status = 'running' AND al.active
+               AND al.state NOT IN ('with_you', 'stopped')))`,
       [id, tries],
     ),
   );
@@ -319,10 +349,12 @@ export async function sendInstagramOutbox(o: IgSendDeps, id: string): Promise<vo
         WHERE id = $1 AND status = 'sending'`,
       [id, mid],
     );
+    // LUME's own clock, as Meta's times for their messages are read against it (who wrote last: LUME AI's hand back).
+    const sentAt = d.clock();
     await c.query(
-      `UPDATE instagram_threads SET last_out_at = now(), last_message_at = GREATEST(coalesce(last_message_at, now()), now())
+      `UPDATE instagram_threads SET last_out_at = $2, last_message_at = GREATEST(coalesce(last_message_at, $2), $2)
         WHERE id = $1`,
-      [row.thread_id],
+      [row.thread_id, sentAt],
     );
     if (row.kind === "private_reply")
       await c.query(
@@ -336,7 +368,8 @@ export async function sendInstagramOutbox(o: IgSendDeps, id: string): Promise<vo
     async (req) => {
       const lead = await visibleLead(req, row.lead_id);
       await recordActivity(req, lead.id, "instagram_confirmed_sent", {
-        via: row.flow_run_id ? "flow" : "lume",
+        // Who answered, for Analytics: a flow, LUME AI, or a person from LUME.
+        via: row.flow_run_id ? "flow" : row.autopilot_run_id ? "ai" : "lume",
         outboxId: id,
         threadId: row.thread_id,
       });

@@ -12,7 +12,13 @@ export const autopilotRuns = pgTable("autopilot_runs", {
   name: text("name").notNull(),
   startedBy: uuid("started_by").notNull(),
   speakerId: uuid("speaker_id").notNull(),
-  numberId: uuid("number_id").notNull(),
+  /** A WhatsApp run's number; null for an Instagram run (2026-11-27). */
+  numberId: uuid("number_id"),
+  /** Where it works: WhatsApp (a number) or Instagram (an account), plan 2026-11-27-instagram-lume-ai. */
+  channel: text("channel").$type<"whatsapp" | "instagram">().notNull().default("whatsapp"),
+  instagramAccountId: uuid("instagram_account_id"),
+  /** An Instagram account's standing run, "New DMs on @account". */
+  standing: boolean("standing").notNull().default(false),
   goal: jsonb("goal").$type<RunGoal>().notNull(),
   permissions: jsonb("permissions").$type<Record<AutopilotAction, Allow>>().notNull(),
   followUpDays: integer("follow_up_days").array().notNull(),
@@ -34,6 +40,8 @@ export const autopilotLeads = pgTable(
     state: text("state").$type<LeadState>().notNull(),
     reason: text("reason"),
     card: jsonb("card").$type<{ headline: string; quote: string | null } | null>(),
+    /** Its own goal (a flow's Hand to LUME AI step), over its run's. */
+    goal: jsonb("goal").$type<RunGoal | null>(),
     active: boolean("active").notNull().default(true),
     nextAt: tz("next_at"),
     firstSentAt: tz("first_sent_at"),

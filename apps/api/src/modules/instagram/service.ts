@@ -10,6 +10,7 @@ import { HttpError, badRequest, notFound } from "../../http/errors";
 import { assertModule } from "../../licence/plan";
 import { adminIds, notify } from "../notifications/notify";
 import { integrationsView } from "../sheets/service";
+import { aiOnInstagram, instagramAiGoal, instagramGoalStages } from "./ai-on";
 import { FLOW_WORDS, stopFlowRuns } from "./flow-run";
 import { igGraph } from "./graph";
 
@@ -68,8 +69,11 @@ export async function setInstagramSettings(req: FastifyRequest, d: AppDeps, body
   return integrationsView(req, d);
 }
 
-/** The connected accounts, for the card: never a token. */
-export async function accountsView(req: FastifyRequest) {
+/**
+ * The connected accounts, for the card: never a token. With the server's deps, whether LUME AI may answer them (and why
+ * not) and what it aims for.
+ */
+export async function accountsView(req: FastifyRequest, d?: AppDeps) {
   const rows = await req.db
     .select({
       id: A.id,
@@ -80,6 +84,7 @@ export async function accountsView(req: FastifyRequest) {
       status: A.status,
       problem: A.problem,
       newDmCreatesLead: A.newDmCreatesLead,
+      newDms: A.newDms,
       newLeadsPerHour: A.newLeadsPerHour,
       mediaMbPerPersonDay: A.mediaMbPerPersonDay,
       mediaMbPerDay: A.mediaMbPerDay,
@@ -91,6 +96,15 @@ export async function accountsView(req: FastifyRequest) {
     .where(ne(A.status, "disconnected"))
     .orderBy(asc(A.connectedAt));
   return {
+    ...(d
+      ? {
+          ai: {
+            ...(await aiOnInstagram(req, d)),
+            goal: await instagramAiGoal(req),
+            stages: await instagramGoalStages(req),
+          },
+        }
+      : {}),
     accounts: rows.map((r) => ({
       id: r.id,
       username: r.username,
@@ -99,6 +113,7 @@ export async function accountsView(req: FastifyRequest) {
       status: r.status,
       problem: r.problem,
       newDmCreatesLead: r.newDmCreatesLead,
+      newDms: r.newDms,
       limits: {
         newLeadsPerHour: r.newLeadsPerHour,
         mediaMbPerPersonDay: r.mediaMbPerPersonDay,
@@ -283,10 +298,12 @@ type IntakeLimit = (typeof INTAKE_LIMITS)[number];
  */
 export async function setAccount(
   req: FastifyRequest,
+  d: AppDeps,
   id: string,
   body: {
     ownerId?: string | null | undefined;
     newDmCreatesLead?: boolean | undefined;
+    newDms?: "team" | "ai" | undefined;
     limits?: Partial<Record<IntakeLimit, number>> | undefined;
   },
 ) {
@@ -298,8 +315,19 @@ export async function setAccount(
       .where(and(eq(schema.users.id, body.ownerId), eq(schema.users.status, "active")));
     if (!u) throw badRequest("OWNER_INVALID", "Pick someone who uses LUME now.");
   }
+  // LUME AI answering new DMs only while it can (the card shows the choice off, with why).
+  if (body.newDms === "ai") {
+    const ai = await aiOnInstagram(req, d);
+    if (!ai.ok) throw new HttpError(409, "AI_UNAVAILABLE", ai.why);
+  }
   const set: Partial<typeof A.$inferInsert> = { updatedAt: new Date() };
+  if (body.newDms !== undefined) set.newDms = body.newDms;
   if (body.ownerId !== undefined) set.ownerUserId = body.ownerId;
+  // The account's standing LUME AI run speaks as its person (else whoever connected it): it follows the change.
+  if (body.ownerId !== undefined)
+    await req.db.execute(sql`
+      UPDATE autopilot_runs SET speaker_id = coalesce(${body.ownerId}::uuid, ${a.runAs}::uuid), updated_at = now()
+       WHERE instagram_account_id = ${a.id} AND standing AND status <> 'ended'`);
   if (body.newDmCreatesLead !== undefined) set.newDmCreatesLead = body.newDmCreatesLead;
   for (const k of INTAKE_LIMITS) if (body.limits?.[k] !== undefined) set[k] = body.limits[k];
   await req.db.update(A).set(set).where(eq(A.id, a.id));
@@ -312,6 +340,7 @@ export async function setAccount(
       ...(body.newDmCreatesLead !== undefined
         ? { newDmCreatesLead: { from: a.newDmCreatesLead, to: body.newDmCreatesLead } }
         : {}),
+      ...(body.newDms !== undefined ? { newDms: { from: a.newDms, to: body.newDms } } : {}),
       ...Object.fromEntries(
         INTAKE_LIMITS.filter((k) => body.limits?.[k] !== undefined).map((k) => [
           k,
@@ -320,7 +349,7 @@ export async function setAccount(
       ),
     },
   });
-  return accountsView(req);
+  return accountsView(req, d);
 }
 
 /** Tells the relay this LUME no longer holds the account (best effort: a missing route harms nothing). */

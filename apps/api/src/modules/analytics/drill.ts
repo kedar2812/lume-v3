@@ -38,7 +38,27 @@ export type DrillKind =
   | "person_won"
   | "unowned"
   | "phone_needs_country"
-  | "phone_invalid";
+  | "phone_invalid"
+  | "ig";
+
+/** One of Instagram's numbers (D6b-2): which measure, and for a source row, which post or ad. */
+export type IgDrill = {
+  m:
+    | "conversations"
+    | "leads"
+    | "in_time"
+    | "ran_out"
+    | "booked"
+    | "won"
+    | "stopped"
+    | "who_flows"
+    | "who_team"
+    | "who_ai"
+    | "source";
+  src?: { kind: "ad" | "post"; id: string };
+  /** The moment the board was counted at: what had run out of time then. */
+  now: string;
+};
 
 export type SlotKind = "arrivals" | "sends" | "replies" | "booked" | "held" | "no_show";
 export type DrillExtra = {
@@ -51,6 +71,7 @@ export type DrillExtra = {
   slot?: { kind: SlotKind; dow: number; hour: number };
   outcome?: "completed" | "no_show" | "cancelled" | "rescheduled" | "scheduled";
   wait?: "under_1h" | "under_1d" | "under_7d" | "over_7d";
+  ig?: IgDrill;
 };
 
 export type DrillSpec = {
@@ -342,6 +363,8 @@ export function kindWhere(s: Scoped): SQL | null {
             WHERE fs.id = lume_furthest_stage(l.id, l.pipeline_id) AND target.id = ${x.stageId}::uuid
               AND (fs.kind = 'won' OR (target.kind = 'open' AND fs.position >= target.position)))`
         : null;
+    case "ig":
+      return x.ig ? igWhere(s, x.ig) : null;
     case "funnel_stopped":
       return x.stageId
         ? sql`${frag.cohort(s)} AND lume_furthest_stage(l.id, l.pipeline_id) = ${x.stageId}::uuid`
@@ -349,6 +372,53 @@ export function kindWhere(s: Scoped): SQL | null {
     default:
       return frag.metric(s);
   }
+}
+
+/**
+ * Instagram's numbers as their leads (D6b-2), by the board's own definitions (analytics/instagram.ts): a conversation is
+ * a thread started in the span; its first message and the first answers after it are on that thread; in time inside
+ * Meta's window for what started it (7 days after an ad click, else 24 hours). Only leads are listed: a conversation
+ * not yet a lead has nobody to open.
+ */
+function igWhere(s: Scoped, ig: IgDrill): SQL {
+  // The viewer's reach (read afresh) and any people asked for, through the lead's owner, as the board counts them.
+  const own = credit(sql`l.owner_id`, s.q);
+  if (ig.m === "stopped")
+    return sql`l.dnc_reason = 'Said stop on Instagram' AND ${frag.span(s, sql`l.dnc_at`)} AND ${own}`;
+  const first = sql`(SELECT min(a.occurred_at) FROM activities a WHERE a.lead_id = l.id
+    AND a.type = 'instagram_received' AND a.payload ->> 'threadId' = t.id::text)`;
+  const start = sql`coalesce(t.source ->> 'start', t.source ->> 'trigger')`;
+  const win = sql`(CASE WHEN ${start} = 'ad' THEN interval '7 days' ELSE interval '24 hours' END)`;
+  const flowSend = sql`b.type = 'instagram_confirmed_sent' AND b.payload ->> 'via' = 'flow'`;
+  const aiSend = sql`b.type = 'instagram_confirmed_sent' AND b.payload ->> 'via' = 'ai'`;
+  const teamSend = sql`(b.type = 'instagram_sent'
+    OR (b.type = 'instagram_confirmed_sent' AND coalesce(b.payload ->> 'via', '') NOT IN ('flow', 'ai')))`;
+  const answer = (who: SQL, within: boolean) => sql`EXISTS (SELECT 1 FROM activities b WHERE b.lead_id = l.id
+    AND b.payload ->> 'threadId' = t.id::text AND b.occurred_at >= i.at
+    ${within ? sql`AND b.occurred_at <= i.at + ${win}` : sql``} AND ${who})`;
+  const anyone = sql`(${flowSend} OR ${aiSend} OR ${teamSend})`;
+  const cond: Record<Exclude<IgDrill["m"], "stopped">, SQL> = {
+    conversations: sql`true`,
+    leads: sql`l.created_at >= t.created_at`,
+    in_time: sql`i.at IS NOT NULL AND ${answer(anyone, true)}`,
+    ran_out: sql`i.at IS NOT NULL AND i.at + ${win} <= ${ig.now}::timestamptz AND NOT ${answer(anyone, true)}`,
+    booked: sql`EXISTS (SELECT 1 FROM meetings m WHERE m.lead_id = l.id AND m.created_at >= t.created_at
+      AND m.status <> 'cancelled')`,
+    won: sql`l.won_at IS NOT NULL AND l.won_at >= t.created_at`,
+    who_flows: sql`i.at IS NOT NULL AND ${answer(flowSend, false)}`,
+    who_team: sql`i.at IS NOT NULL AND ${answer(teamSend, false)}`,
+    who_ai: sql`i.at IS NOT NULL AND ${answer(aiSend, false)}`,
+    source: !ig.src
+      ? sql`false`
+      : // A source row counts the new leads its conversations made.
+        ig.src.kind === "ad"
+        ? sql`l.created_at >= t.created_at AND t.source ->> 'adId' = ${ig.src.id}`
+        : sql`l.created_at >= t.created_at AND t.source ->> 'adId' IS NULL AND (SELECT k.media_id
+            FROM instagram_comments k WHERE k.thread_id = t.id AND k.media_id IS NOT NULL ORDER BY k.at LIMIT 1)
+            = ${ig.src.id}`,
+  };
+  return sql`${own} AND EXISTS (SELECT 1 FROM instagram_threads t CROSS JOIN LATERAL (SELECT ${first} AS at) i
+    WHERE t.lead_id = l.id AND ${frag.span(s, sql`t.created_at`)} AND ${cond[ig.m]})`;
 }
 
 /** "Open these in Leads" (8D spec §4): a drill token, read and checked as the drill-down reads it, as lead ids. */

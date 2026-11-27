@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { pressedWithin } from "@/components/ui/Popover";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -39,11 +40,7 @@ function listWords(names: string[]): string {
 const toggle = (xs: string[] | undefined, x: string) =>
   xs?.includes(x) ? xs.filter((y) => y !== x) : [...(xs ?? []), x];
 
-const Icon = () => (
-  <svg viewBox="0 0 24 24" aria-hidden>
-    <path d="M3 6h18M7 12h10M10 18h4" />
-  </svg>
-);
+const Icon = () => <UI_ICONS.filter size={ICON_SIZE.md} aria-hidden />;
 
 /**
  * Filters (the approved artboard): a glass panel from the Filters button, no scrim, every change counted at once.

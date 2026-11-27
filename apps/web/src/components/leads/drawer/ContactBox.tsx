@@ -1,18 +1,14 @@
 "use client";
 import { useState } from "react";
 import { useToast } from "@/components/feedback/ToastProvider";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { leadsClient } from "@/lib/leads/client";
 import type { Lead } from "@/lib/leads/types";
 import s from "./drawer.module.css";
 import { NearLimitNotice } from "@/components/security/NearLimitNotice";
 
-const ICON = {
-  phone:
-    "M4 2.5h2l1 3-1.5 1a8 8 0 0 0 4 4l1-1.5 3 1v2a1.5 1.5 0 0 1-1.6 1.5A11 11 0 0 1 2.5 4.1 1.5 1.5 0 0 1 4 2.5z",
-  email: "M2.5 4.5h11v7h-11zM2.5 4.5 8 9l5.5-4.5",
-  instagram:
-    "M4.5 2.5h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2zM8 5.6a2.4 2.4 0 1 1 0 4.8 2.4 2.4 0 0 1 0-4.8zM11.3 4.6h.01",
-} as const;
+/** Each contact's mark (docs/design/icons.md): the registry's, and Instagram's own logo. */
+const ICON = { phone: UI_ICONS.call, email: UI_ICONS.email, instagram: null } as const;
 type Kind = keyof typeof ICON;
 const LABEL: Record<Kind, string> = { phone: "Phone", email: "Email", instagram: "Instagram" };
 
@@ -57,16 +53,20 @@ export function ContactBox({ lead, onRevealed }: { lead: Lead; onRevealed: () =>
         const shown = revealed ? (revealed[k] ?? lead[k]!.display) : lead[k]!.display;
         return (
           <div key={k} className={s.cv}>
-            <svg
-              viewBox="0 0 16 16"
-              width="15"
-              height="15"
-              aria-label={LABEL[k]}
-              role="img"
-              className={s.cvIcon}
-            >
-              <path d={ICON[k]} fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-            </svg>
+            {(() => {
+              const Mark = ICON[k];
+              return Mark ? (
+                <Mark size={ICON_SIZE.md} aria-label={LABEL[k]} role="img" className={s.cvIcon} />
+              ) : (
+                <img
+                  src="/brand/instagram.png"
+                  alt={LABEL[k]}
+                  width={ICON_SIZE.md}
+                  height={ICON_SIZE.md}
+                  className={s.cvIcon}
+                />
+              );
+            })()}
             <span className={s.cvValue} data-blur={busy || undefined}>
               {shown}
             </span>

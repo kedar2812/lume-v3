@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { useState } from "react";
 import { MediaPicker } from "@/components/media/MediaPicker";
 import { Button } from "@/components/ui/Button";
@@ -16,18 +17,7 @@ export type KnowsDraft = {
 };
 
 const key = () => crypto.randomUUID();
-const X = (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    aria-hidden
-  >
-    <path d="M6 6l12 12M18 6L6 18" />
-  </svg>
-);
+const X = <UI_ICONS.remove size={ICON_SIZE.md} aria-hidden />;
 
 /** A file chosen for LUME AI, by its content: the thumbnail Media made, or the document mark while there's none. */
 function FileThumb({ id }: { id: string }) {

@@ -32,6 +32,8 @@ export type ListQuery = {
   lostReasonId?: string;
   /** 4B: has an open follow-up whose time has passed. */
   followUpOverdue?: boolean;
+  /** Messaged from (owner 2026-11-26): leads this WhatsApp number sent a message to, one that didn't fail. */
+  messagedFrom?: string;
   /**
    * 4B: added within today and the days before it (1 = today), in the business's timezone: by the enquiry
    * date when the lead has one (a sheet's), else by when it reached LUME, as the drawer's "Enquiry" line.
@@ -277,6 +279,15 @@ export function leadFilters(
   if (q.followUpOverdue)
     where.push(
       sql`EXISTS (SELECT 1 FROM tasks t WHERE t.lead_id = ${L.id} AND t.status = 'open' AND t.due_at < now())`,
+    );
+  // One probe per lead on the sent-messages-by-number index (migration 0136). A message WhatsApp refused, or one sent
+  // again from the chat, didn't reach them from this number; from the phone (no outbox), it did.
+  if (q.messagedFrom)
+    where.push(
+      sql`EXISTS (SELECT 1 FROM activities a
+                   WHERE a.lead_id = ${L.id} AND a.type = 'whatsapp_sent' AND a.payload->>'numberId' = ${q.messagedFrom}
+                     AND NOT EXISTS (SELECT 1 FROM whatsapp_outbox o
+                                      WHERE o.id = (a.payload->>'outboxId')::uuid AND o.status IN ('failed', 'cancelled')))`,
     );
   if (q.createdDays) {
     // Midnight where the business is, whatever zone the server runs in (Review Focus 5).

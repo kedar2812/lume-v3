@@ -806,12 +806,15 @@
 /* More filters (4B): what's gone quiet first, then the business's own fields. */
 .more {
   display: grid;
+  /* One column the panel's width: a select is as wide as its longest option, which mustn't push the panel. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   padding: 8px;
   width: 260px;
 }
 .more label {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 5px;
   font-size: var(--fs-xs);
   letter-spacing: var(--ls-xs);
@@ -819,6 +822,7 @@
   color: var(--text-2);
 }
 .more select {
+  min-width: 0;
   height: 36px;
   padding: 0 10px;
   border-radius: 9px;

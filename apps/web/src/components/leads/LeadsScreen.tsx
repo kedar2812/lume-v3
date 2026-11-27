@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { AnimatePresence } from "motion/react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
@@ -619,9 +620,7 @@ function Screen({
               title="Close view (keeps the filters)"
               onClick={() => setActiveView(null)}
             >
-              <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden>
-                <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
+              <UI_ICONS.remove size={ICON_SIZE.sm} aria-hidden />
             </button>
           </div>
         )}
@@ -703,21 +702,7 @@ function Screen({
                 title="Recent bulk actions"
                 onClick={() => setRunsOpen(true)}
               >
-                <svg
-                  width="17"
-                  height="17"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                  <path d="M3 3v5h5" />
-                  <path d="M12 7v5l4 2" />
-                </svg>
+                <UI_ICONS.recent size={ICON_SIZE.lg} aria-hidden />
               </button>
             )}
             <NotYetLink />
@@ -894,11 +879,7 @@ function Screen({
   );
 }
 
-const Caret = () => (
-  <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden className={s.caret}>
-    <path d="M3 4.5 6 7.5l3-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-  </svg>
-);
+const Caret = () => <UI_ICONS.menu size={ICON_SIZE.sm} aria-hidden className={s.caret} />;
 
 /** "Select all loaded": checked, unchecked, or mixed when only some loaded rows are selected. */
 function HeaderCheck({

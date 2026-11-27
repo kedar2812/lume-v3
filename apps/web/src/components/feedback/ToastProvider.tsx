@@ -1,7 +1,19 @@
 "use client";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { SPRINGS, toMotion } from "@/lib/motion";
+import { startNetMonitor } from "@/lib/network/monitor";
+import { createNetWatch } from "@/lib/network/watch";
+import { ConnectionNotice } from "./ConnectionNotice";
 import type { SoundCue } from "@/lib/sound";
 import { useSound } from "./SoundProvider";
 import s from "./Toast.module.css";
@@ -45,6 +57,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const seq = useRef(0);
   const { play } = useSound();
   const reduce = useReducedMotion();
+  // The connection notice (2026-11-26): one watch for the page, at the bottom of the toast stack.
+  const [net] = useState(createNetWatch);
+  useEffect(() => {
+    const stop = startNetMonitor(net);
+    return () => {
+      stop();
+      net.stop();
+    };
+  }, [net]);
 
   const dismiss = useCallback((id: string) => {
     clearTimeout(timers.current.get(id));
@@ -80,6 +101,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={api}>
       {children}
       <div className={s.region} role="status" aria-live="polite">
+        <ConnectionNotice watch={net} />
         <AnimatePresence initial={false}>
           {items.map((t) => {
             const tone = t.tone ?? "ok";

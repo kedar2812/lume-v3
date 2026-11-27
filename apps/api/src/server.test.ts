@@ -206,3 +206,15 @@ describe("errors (report §4.4)", () => {
     await app.close();
   });
 });
+
+describe("LUME's own time on every answer (the connection notice, 2026-11-26)", () => {
+  it("every answer says how long LUME spent on it, so the browser can tell the trip from LUME", async () => {
+    const app = await buildServer({ checks: {} });
+    const ok = await app.inject({ method: "GET", url: "/healthz" });
+    expect(ok.headers["server-timing"]).toMatch(/^app;dur=\d+(\.\d)?$/);
+    const missing = await app.inject({ method: "GET", url: "/nowhere" });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.headers["server-timing"]).toMatch(/^app;dur=\d+(\.\d)?$/);
+    await app.close();
+  });
+});

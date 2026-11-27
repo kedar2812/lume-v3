@@ -1,4 +1,5 @@
 "use client";
+import { unreachable } from "@/lib/network/monitor";
 
 /**
  * Browser calls to the API (spec §3). Same-origin, with the CSRF double-submit header and an
@@ -66,6 +67,8 @@ async function send<T>(
     // The connection can drop while the answer is still arriving, too.
     text = await res.text();
   } catch {
+    // The connection notice checks whether it's this device's connection.
+    unreachable();
     return { ok: false, status: 0, code: "OFFLINE", message: OFFLINE };
   }
   let payload: unknown = null;
@@ -202,7 +205,10 @@ async function sendWithProgress<T>(
     xhr.onabort = () => resolve(null);
     xhr.send(file);
   });
-  if (!res) return { ok: false, status: 0, code: "OFFLINE", message: OFFLINE };
+  if (!res) {
+    unreachable();
+    return { ok: false, status: 0, code: "OFFLINE", message: OFFLINE };
+  }
   let payload: unknown = null;
   try {
     payload = res.text ? JSON.parse(res.text) : null;

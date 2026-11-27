@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { NewPill } from "@/components/whats-new/NewPill";
 import { AnimatePresence, Reorder, motion, useDragControls, useReducedMotion } from "motion/react";
 import { useCallback, useState, type KeyboardEvent, useRef } from "react";
@@ -305,14 +306,7 @@ function Card({
           onPointerDown={(e) => drag.start(e)}
           onKeyDown={onHandleKey}
         >
-          <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden>
-            <path
-              d="M4 3h.01M8 3h.01M4 6h.01M8 6h.01M4 9h.01M8 9h.01"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          </svg>
+          <UI_ICONS.drag size={ICON_SIZE.sm} aria-hidden />
         </button>
       )}
       <button type="button" className={s.cardMain} onClick={onOpen}>
@@ -330,14 +324,7 @@ function Card({
           triggerClassName={s.more}
           trigger={
             <>
-              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-                <path
-                  d="M3.5 8h.01M8 8h.01M12.5 8h.01"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                />
-              </svg>
+              <UI_ICONS.more size={ICON_SIZE.md} aria-hidden />
               <span className={s.srOnly}>More for {t.name}</span>
             </>
           }

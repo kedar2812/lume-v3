@@ -21,6 +21,23 @@ describe("lead filters in the URL", () => {
     expect(filtersToParams(f).has("arrivedAfter")).toBe(false);
   });
 
+  it("Messaged from (2026-11-26): in the address bar as wa, to the API as messagedFrom; a number never connected is dropped", () => {
+    const id = "0190e0c0-0000-7000-8000-0000000000a1";
+    const withNumbers = {
+      ...cat,
+      waNumbers: [{ id, display: "+91 90000 00001", whose: "the business's", connected: true }],
+    };
+    const f: ListFilters = { ...EMPTY_FILTERS, messagedFrom: id };
+    expect(filtersToParams(f).get("wa")).toBe(id);
+    expect(new URLSearchParams(apiQuery(f)).get("messagedFrom")).toBe(id);
+    expect(parseFilters(filtersToParams(f), withNumbers).messagedFrom).toBe(id);
+    expect(
+      parseFilters(new URLSearchParams("wa=0190e0c0-0000-7000-8000-0000000000ff"), withNumbers).messagedFrom,
+    ).toBeUndefined();
+    expect(activeFilterCount(f)).toBe(1);
+    expect(fromViewFilters(toViewFilters(f), withNumbers).messagedFrom).toBe(id);
+  });
+
   it("round-trips every filter through the address bar", () => {
     const f: ListFilters = {
       ...EMPTY_FILTERS,

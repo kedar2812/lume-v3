@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -100,16 +101,7 @@ export function SourceDetail({ id }: { id: string }) {
   return (
     <div className={s.detail}>
       <Link href="/settings/integrations" className={s.back}>
-        <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden>
-          <path
-            d="M7.5 2.5 4 6l3.5 3.5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <UI_ICONS.back size={ICON_SIZE.sm} aria-hidden />
         Integrations
       </Link>
       <header className={s.detailHead}>

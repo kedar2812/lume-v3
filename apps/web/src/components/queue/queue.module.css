@@ -368,3 +368,15 @@
   color: var(--danger-ink);
   font-weight: var(--fw-semibold);
 }
+
+/* How the run will go through LUME (2026-11-26). */
+.lumeLine {
+  display: grid;
+  gap: 4px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.lumeLine p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

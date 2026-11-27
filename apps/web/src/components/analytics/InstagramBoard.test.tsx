@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { IgTotals, InstagramBoard as Data } from "@/lib/analytics/client";
 import { InstagramBoard, answerTime } from "./InstagramBoard";
 
@@ -51,6 +51,8 @@ const data = (o: Partial<Data> = {}): Data => ({
   ],
   accounts: [{ id: "a1", username: "harbour.studio", status: "active", conversations: 0, leads: 0 }],
   sources: [],
+  drill: null,
+  notes: [],
   ...o,
 });
 const busy: IgTotals = {
@@ -159,8 +161,8 @@ describe("Analytics → Instagram (D6b)", () => {
           { id: "a2", username: "maya.coach", status: "needs_attention", conversations: 40, leads: 16 },
         ],
         sources: [
-          { kind: "ad", id: "120200000000001", conversations: 25, leads: 12 },
-          { kind: "reels", id: "17980000000000001", conversations: 60, leads: 10 },
+          { kind: "ad", id: "120200000000001", conversations: 25, leads: 12, drill: null },
+          { kind: "reels", id: "17980000000000001", conversations: 60, leads: 10, drill: null },
         ],
       }),
     );
@@ -176,6 +178,71 @@ describe("Analytics → Instagram (D6b)", () => {
     const src = screen.getByRole("region", { name: "The posts and ads that started them" });
     expect(src).toHaveTextContent("Ad120200000000001");
     expect(src).toHaveTextContent("Reel17980000000000001");
+  });
+
+  it("a number opens the leads behind it; one with none, or with no way to open them, doesn't (D6b-2)", async () => {
+    const onDrill = vi.fn();
+    const drill = {
+      conversations: "t-conv",
+      leads: "t-leads",
+      inTime: "t-in",
+      ranOut: "t-out",
+      booked: "t-booked",
+      won: "t-won",
+      stopped: "t-stop",
+      flows: "t-flows",
+      team: "t-team",
+    };
+    const { unmount } = render(
+      <InstagramBoard
+        data={data({
+          totals: { ...busy, stopped: 0 },
+          rates: { inTime: 0.85, leadRate: 0.4 },
+          drill,
+          whoAnswered: [
+            { id: "flows", conversations: 150, booked: 20, won: 6, revenue: 54000, firstAnswerSec: 3 },
+            { id: "team", conversations: 0, booked: 0, won: 0, revenue: 0, firstAnswerSec: null },
+          ],
+          sources: [{ kind: "ad", id: "120200000000001", conversations: 25, leads: 12, drill: "t-ad" }],
+        })}
+        currency="INR"
+        compare
+        rangeWords="in the last 30 days"
+        onDrill={onDrill}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /^New leads from Instagram: 96.*See the leads\.$/ }),
+    );
+    expect(onDrill).toHaveBeenLastCalledWith("t-leads", "New leads from Instagram");
+    await userEvent.click(screen.getByRole("button", { name: /^Revenue won:/ }));
+    expect(onDrill).toHaveBeenLastCalledWith("t-won", "Revenue won");
+    // Nobody asked to stop: nothing to open. A median has no list.
+    expect(screen.getByRole("group", { name: /^Asked to stop: 0/ })).toBeVisible();
+    expect(screen.getByRole("group", { name: /^First answer \(median\)/ })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Flows" }));
+    expect(onDrill).toHaveBeenLastCalledWith("t-flows", "Flows");
+    expect(screen.queryByRole("button", { name: "Your team" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /^Ad/ }));
+    expect(onDrill).toHaveBeenLastCalledWith("t-ad", "Ad");
+    unmount();
+    // Without a way to open them (no sheet): plain numbers.
+    board(data({ totals: busy, rates: { inTime: 0.85, leadRate: 0.4 }, drill }));
+    expect(screen.queryByRole("button", { name: /See the leads/ })).toBeNull();
+  });
+
+  it("LUME noticed: its notes, or that nothing stands out", () => {
+    const { unmount } = board(data());
+    expect(screen.getByText("Nothing stands out yet in these numbers.")).toBeVisible();
+    unmount();
+    board(
+      data({
+        notes: [{ id: "ran_out", title: "3 ran out of time", body: "They wrote and nobody answered." }],
+      }),
+    );
+    const card = screen.getByRole("region", { name: "LUME noticed" });
+    expect(card).toHaveTextContent("3 ran out of time");
+    expect(card).toHaveTextContent("They wrote and nobody answered.");
   });
 
   it("how long an answer took, in words", () => {

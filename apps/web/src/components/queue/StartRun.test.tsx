@@ -88,6 +88,126 @@ describe("StartRun (4C Task 3)", () => {
     expect(within(dialog).getByText("37 / 150")).toBeInTheDocument();
   });
 
+  it("sent through LUME (2026-11-26): how many go through LUME and how many open WhatsApp", async () => {
+    vi.mocked(queuesClient.plan).mockResolvedValue(
+      ok({ ...PLAN, lume: { on: true, through: 34, inWindow: 5, approvedTemplateIds: ["t1"] } }),
+    );
+    const dialog = await open();
+    await userEvent.click(within(dialog).getByRole("radio", { name: /First hello/ }));
+    expect(within(dialog).getByText("Sends through LUME: 34 · Opens WhatsApp: 6")).toBeVisible();
+    // A template WhatsApp hasn't approved: those who haven't written in 24 hours open WhatsApp instead.
+    await userEvent.click(within(dialog).getByRole("radio", { name: /Gentle nudge/ }));
+    expect(
+      within(dialog).getByText(
+        "Gentle nudge isn't approved by WhatsApp yet. Leads who haven't written in 24 hours will open in WhatsApp instead.",
+      ),
+    ).toBeVisible();
+    expect(within(dialog).getByText("Sends through LUME: 5 · Opens WhatsApp: 35")).toBeVisible();
+  });
+
+  it("two numbers (owner 2026-11-26): Start waits until one is chosen, and the run starts on it", async () => {
+    const numbers = [
+      { id: "n1", display: "+91 90000 00001", whose: "the business's" },
+      { id: "n2", display: "+91 90000 00002", whose: "Riya Sharma's" },
+    ];
+    vi.mocked(queuesClient.plan).mockImplementation(async (_src, numberId) =>
+      ok({
+        ...PLAN,
+        numbers,
+        lume: numberId
+          ? {
+              on: true,
+              numberId,
+              through: 34,
+              inWindow: numberId === "n2" ? 9 : 2,
+              approvedTemplateIds: ["t1"],
+            }
+          : { on: true, numberId: null, through: 34, inWindow: 0, approvedTemplateIds: [] },
+      }),
+    );
+    vi.mocked(queuesClient.start).mockResolvedValue(
+      ok({ queue: { ...RUN, id: "q1", status: "active" }, leftOut: [], more: 0 }) as never,
+    );
+    const dialog = await open();
+    const start = within(dialog).getByRole("button", { name: "Start" });
+    expect(start).toBeDisabled();
+    expect(within(dialog).getByText("Choose the number this run sends from")).toBeVisible();
+    expect(within(dialog).queryByText(/Sends through LUME/)).toBeNull();
+    await userEvent.click(within(dialog).getByRole("radio", { name: /First hello/ }));
+    await userEvent.click(within(dialog).getByRole("radio", { name: /\+91 90000 00002/ }));
+    expect(await within(dialog).findByText("Sends through LUME: 34 · Opens WhatsApp: 6")).toBeVisible();
+    expect(start).toBeEnabled();
+    await userEvent.click(start);
+    expect(queuesClient.start).toHaveBeenCalledWith(expect.anything(), "t1", "n2");
+  });
+
+  it("a slow answer for the number picked first never shows once another is picked", async () => {
+    const numbers = [
+      { id: "n1", display: "+91 90000 00001", whose: "the business's" },
+      { id: "n2", display: "+91 90000 00002", whose: "Riya Sharma's" },
+    ];
+    let late: (v: unknown) => void = () => {};
+    const planFor = (numberId: string | null, inWindow: number) =>
+      ok({ ...PLAN, numbers, lume: { on: true, numberId, through: 34, inWindow, approvedTemplateIds: [] } });
+    vi.mocked(queuesClient.plan).mockImplementation(async (_src, numberId) =>
+      numberId === "n1"
+        ? ((await new Promise((r) => (late = r as (v: unknown) => void))) as never)
+        : planFor(numberId ?? null, numberId === "n2" ? 9 : 0),
+    );
+    const dialog = await open();
+    await userEvent.click(within(dialog).getByRole("radio", { name: /Gentle nudge/ }));
+    await userEvent.click(within(dialog).getByRole("radio", { name: /\+91 90000 00001/ }));
+    await userEvent.click(within(dialog).getByRole("radio", { name: /\+91 90000 00002/ }));
+    expect(await within(dialog).findByText("Sends through LUME: 9 · Opens WhatsApp: 31")).toBeVisible();
+    await act(async () => late(planFor("n1", 2)));
+    expect(within(dialog).getByText("Sends through LUME: 9 · Opens WhatsApp: 31")).toBeVisible();
+  });
+
+  it("the chosen number's plan didn't come: no line about how the leads go, rather than the wrong one", async () => {
+    const numbers = [
+      { id: "n1", display: "+91 90000 00001", whose: "the business's" },
+      { id: "n2", display: "+91 90000 00002", whose: "Riya Sharma's" },
+    ];
+    vi.mocked(queuesClient.plan).mockImplementation(async (_src, numberId) =>
+      numberId
+        ? ({
+            ok: false,
+            status: 0,
+            code: "OFFLINE",
+            message: "LUME can't reach the server right now.",
+          } as never)
+        : ok({
+            ...PLAN,
+            numbers,
+            lume: { on: true, numberId: null, through: 34, inWindow: 0, approvedTemplateIds: [] },
+          }),
+    );
+    const dialog = await open();
+    await userEvent.click(within(dialog).getByRole("radio", { name: /\+91 90000 00002/ }));
+    expect(within(dialog).queryByText(/Sends through LUME/)).toBeNull();
+  });
+
+  it("one number: named, and Start needs nothing more", async () => {
+    vi.mocked(queuesClient.plan).mockResolvedValue(
+      ok({
+        ...PLAN,
+        numbers: [{ id: "n1", display: "+91 90000 00001", whose: "the business's" }],
+        lume: { on: true, numberId: "n1", through: 34, inWindow: 5, approvedTemplateIds: ["t1"] },
+      }),
+    );
+    const dialog = await open();
+    expect(within(dialog).getByText("Sends from +91 90000 00001 · the business's")).toBeVisible();
+    expect(within(dialog).getByRole("button", { name: "Start" })).toBeEnabled();
+  });
+
+  it("WhatsApp not connected to LUME: no word about it, the run is today's", async () => {
+    vi.mocked(queuesClient.plan).mockResolvedValue(
+      ok({ ...PLAN, lume: { on: false, through: 0, inWindow: 0, approvedTemplateIds: [] } }),
+    );
+    const dialog = await open();
+    expect(within(dialog).queryByText(/Sends through LUME/)).toBeNull();
+  });
+
   it("a template's line reads as words, its variables as named chips", async () => {
     vi.mocked(templatesClient.list).mockResolvedValue(
       ok({ templates: [{ ...t("t9", "Hello", "first_touch"), body: "Hi {{lead.first_name}}, welcome" }] }),
@@ -123,7 +243,7 @@ describe("StartRun (4C Task 3)", () => {
     const dialog = await open();
     await userEvent.click(within(dialog).getByRole("radio", { name: /Gentle nudge/ }));
     await userEvent.click(within(dialog).getByRole("button", { name: "Start" }));
-    expect(queuesClient.start).toHaveBeenCalledWith({ viewId: "v1" }, "t2");
+    expect(queuesClient.start).toHaveBeenCalledWith({ viewId: "v1" }, "t2", undefined);
     expect(push).toHaveBeenCalledWith("/queue/q1");
     expect(changed).toHaveBeenCalled();
     window.removeEventListener(QUEUE_CHANGED, changed);
@@ -148,7 +268,7 @@ describe("StartRun (4C Task 3)", () => {
     await within(dialog).findByText("40 leads");
     await userEvent.click(within(dialog).getByRole("radio", { name: /Your own words/ }));
     await userEvent.click(within(dialog).getByRole("button", { name: "Start" }));
-    expect(queuesClient.start).toHaveBeenCalledWith({ leadIds: ["l2", "l1"] }, undefined);
+    expect(queuesClient.start).toHaveBeenCalledWith({ leadIds: ["l2", "l1"] }, undefined, undefined);
   });
 
   it("with a run already open: finish or end it first, and Resume takes you there", async () => {

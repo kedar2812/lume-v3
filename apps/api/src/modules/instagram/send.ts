@@ -15,6 +15,7 @@ import { pgCodeOf } from "../../errors";
 import { sendable } from "../leads/sending";
 import { visibleLead } from "../leads/service";
 import type { SendLimiter } from "../whatsapp/send";
+import { handedBack, personSent } from "../autopilot/lead-events";
 import { createInstagramLead } from "./leads";
 import { FLOW_WORDS, stopFlowRuns } from "./flow-run";
 import { instagramOn } from "./service";
@@ -43,7 +44,7 @@ async function businessZone(req: FastifyRequest): Promise<string> {
   return r.rows[0]?.tz ?? "UTC";
 }
 
-async function requireInstagram(req: FastifyRequest) {
+export async function requireInstagram(req: FastifyRequest) {
   if (!(await instagramOn(req)) || !moduleIncluded(req.server.licence.view().plan, "instagram"))
     throw conflict(
       "INSTAGRAM_OFF",
@@ -56,6 +57,7 @@ type ThreadRow = {
   lead_id: string | null;
   account_id: string;
   account_status: string;
+  taken_over_by: string | null;
   last_in_at: Date | string | null;
   ad_window_until: Date | string | null;
 };
@@ -64,7 +66,7 @@ const at = (v: Date | string | null) => (v === null ? null : new Date(v));
 /** The conversation, on this lead, locked for this send. */
 async function threadOn(req: FastifyRequest, leadId: string, threadId: string): Promise<ThreadRow> {
   const r = await req.db.execute<ThreadRow>(sql`
-    SELECT t.id, t.lead_id, t.account_id, a.status AS account_status, t.last_in_at, t.ad_window_until
+    SELECT t.id, t.lead_id, t.account_id, a.status AS account_status, t.last_in_at, t.ad_window_until, t.taken_over_by
       FROM instagram_threads t JOIN instagram_accounts a ON a.id = t.account_id
      WHERE t.id = ${threadId} AND t.lead_id = ${leadId} FOR UPDATE OF t`);
   const t = r.rows[0];
@@ -79,11 +81,14 @@ async function threadOn(req: FastifyRequest, leadId: string, threadId: string): 
 
 /** A person writing in a conversation takes it over: flows and LUME AI stop for it until someone hands it back. */
 async function takeOver(req: FastifyRequest, threadId: string) {
-  await req.db.execute(sql`
+  const r = await req.db.execute<{ lead_id: string | null; account_id: string }>(sql`
     UPDATE instagram_threads SET taken_over_by = coalesce(taken_over_by, ${req.actor!.userId}::uuid),
            taken_over_at = coalesce(taken_over_at, now()), updated_at = now()
-     WHERE id = ${threadId}`);
+     WHERE id = ${threadId} RETURNING lead_id, account_id`);
   await stopFlowRuns(req, { threadId }, FLOW_WORDS.takenOver);
+  // LUME AI's run on the lead: with this person now ("With you"), nothing more from LUME AI.
+  const leadId = r.rows[0]?.lead_id;
+  if (leadId) await personSent(req, leadId, { channel: "instagram", accountId: r.rows[0]!.account_id });
 }
 
 /** One message as the thread shows it (thread.ts's shape). */
@@ -159,6 +164,9 @@ async function insertOnce(
  * A person's reply on Instagram from LUME (NEW_FEATURES_PLAN §4.4, §4.6): inside Meta's 24 hours as is; after them and
  * within 7 days of the person's last message, with Meta's human agent tag (a person's only); after that, not at all,
  * and LUME says from when. Checked again just before Meta. The person takes the conversation over.
+ *
+ * LUME AI's (`auto`, plan 2026-11-27-instagram-lume-ai): inside the 24 hours only, never with the human agent tag (a
+ * person's alone), never into a conversation a person took over, and it takes nothing over.
  */
 export async function sendInstagram(
   req: FastifyRequest,
@@ -172,15 +180,20 @@ export async function sendInstagram(
     quickReplies?: { title: string; payload: string }[] | undefined;
     retryOf?: string | undefined;
   },
+  auto?: { runId: string; afterStop?: boolean },
 ) {
   const again = await prior(req, body.clientKey, leadId);
   if (again) return again;
   await requireInstagram(req);
-  const lead = await sendable(req, leadId);
+  const lead = await sendable(req, leadId, { ignoreDnc: !!auto?.afterStop });
   const t = await threadOn(req, lead.id, body.threadId);
   const problems = messageProblems({ text: body.text, quickReplies: body.quickReplies ?? [] });
   if (problems.length) throw badRequest("MESSAGE_INVALID", problems[0]!, { problems });
   const w = instagramWindow({ lastInAt: at(t.last_in_at), adWindowUntil: at(t.ad_window_until) }, d.clock());
+  if (auto && t.taken_over_by)
+    throw conflict("TAKEN_OVER", "A person took this conversation over, so LUME AI leaves it to them.");
+  if (auto && w.state !== "open")
+    throw conflict("WINDOW_CLOSED", "Instagram's 24 hours ran out, so LUME AI can't answer this one.");
   if (w.state === "closed")
     throw conflict(
       "WINDOW_CLOSED",
@@ -188,7 +201,7 @@ export async function sendInstagram(
         ? `Instagram only lets a business reply within 7 days of the person's last message, and that ended ${whenWords(w.since, await businessZone(req))}. LUME can send again once they write.`
         : "This person hasn't written to you on Instagram, so LUME can't message them there. Instagram allows a reply only after they write.",
     );
-  const verdict = limiter.take(req.actor!.userId);
+  const verdict = auto ? { ok: true as const } : limiter.take(req.actor!.userId);
   if (!verdict.ok)
     throw new HttpError(429, "TOO_MANY", "That's a lot of messages at once. Wait a minute and send again.", {
       retryAfterSec: verdict.retryAfterSec,
@@ -210,13 +223,15 @@ export async function sendInstagram(
   const id = newId();
   const raced = await insertOnce(req, body.clientKey, lead.id, () =>
     req.db.execute(sql`
-      INSERT INTO instagram_outbox (id, thread_id, lead_id, account_id, user_id, client_key, kind, text, quick_replies, tag, status)
+      INSERT INTO instagram_outbox (id, thread_id, lead_id, account_id, user_id, client_key, kind, text, quick_replies, tag,
+                                    status, autopilot_run_id, allow_after_dnc)
       VALUES (${id}, ${t.id}, ${lead.id}, ${t.account_id}, ${req.actor!.userId}, ${body.clientKey}, 'dm', ${body.text},
               ${body.quickReplies?.length ? JSON.stringify(body.quickReplies) : null}::jsonb,
-              ${w.state === "human" ? "human_agent" : null}, 'queued')`),
+              ${!auto && w.state === "human" ? "human_agent" : null}, 'queued', ${auto?.runId ?? null},
+              ${!!auto?.afterStop})`),
   );
   if (raced) return raced;
-  await takeOver(req, t.id);
+  if (!auto) await takeOver(req, t.id);
   req.afterCommit(() => void d.instagram?.enqueueSend(id));
   return { message: await viewOf(req, id) };
 }
@@ -351,19 +366,31 @@ export async function privateReply(
   return { message: await viewOf(req, id) };
 }
 
-/** Take a conversation over (flows and LUME AI stop for it), or hand it back. Seen with its lead, as the sender. */
-export async function setTakeover(req: FastifyRequest, threadId: string, take: boolean) {
+/**
+ * Take a conversation over (flows and LUME AI stop for it), or hand it back: to LUME AI when its run on the account still
+ * holds the lead, else to the team. Seen with its lead, as the sender.
+ */
+export async function setTakeover(req: FastifyRequest, threadId: string, take: boolean, d?: AppDeps) {
   const t = (
-    await req.db.execute<{ id: string; lead_id: string | null; taken_over_by: string | null }>(sql`
-      SELECT id, lead_id, taken_over_by FROM instagram_threads WHERE id = ${threadId} AND lead_id IS NOT NULL FOR UPDATE`)
+    await req.db.execute<{
+      id: string;
+      lead_id: string | null;
+      taken_over_by: string | null;
+      account_id: string;
+    }>(sql`
+      SELECT id, lead_id, taken_over_by, account_id FROM instagram_threads
+       WHERE id = ${threadId} AND lead_id IS NOT NULL FOR UPDATE`)
   ).rows[0];
   if (!t) throw notFound("THREAD_NOT_FOUND", "That Instagram conversation isn't on a lead you can see.");
   const lead = await visibleLead(req, t.lead_id!);
   if (!canOnRecord(req.actor!, "messages.send", lead.ownerId)) throw forbidden();
   if (take) await takeOver(req, t.id);
-  else
+  else {
     await req.db.execute(sql`
       UPDATE instagram_threads SET taken_over_by = NULL, taken_over_at = NULL, updated_at = now() WHERE id = ${t.id}`);
+    const runId = await handedBack(req, t.lead_id!, t.account_id);
+    if (runId) req.afterCommit(() => void d?.autopilot?.kick(runId).catch(() => undefined));
+  }
   const r = (
     await req.db.execute<{ taken_over_by: string | null; name: string | null }>(sql`
       SELECT t.taken_over_by, u.name FROM instagram_threads t LEFT JOIN users u ON u.id = t.taken_over_by WHERE t.id = ${t.id}`)

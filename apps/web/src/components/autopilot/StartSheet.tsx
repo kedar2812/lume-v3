@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { plural } from "@lume/core/shared";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
@@ -9,6 +10,7 @@ import { Field } from "@/components/ui/Field";
 import { Sheet } from "@/components/ui/Sheet";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Switch } from "@/components/ui/Switch";
+import { SendFrom } from "@/components/whatsapp/SendFrom";
 import { autopilotClient } from "@/lib/autopilot/client";
 import type {
   AutopilotSetup,
@@ -118,6 +120,8 @@ export function StartSheet({
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [drawing, setDrawing] = useState(false);
+  // The number it sends from (owner 2026-11-26): with two or more, nothing is chosen for the person.
+  const [numberId, setNumberId] = useState<string | null>(null);
   const title = `Let LUME AI handle ${leadsWord(count)}`;
   const tooMany = count > RUN_MAX;
 
@@ -140,9 +144,24 @@ export function StartSheet({
     if (!tooMany) load();
   }, [load, tooMany]);
 
+  // The business's numbers, the person's own, and the own number of whoever LUME AI speaks as: never anyone else's.
+  const numbers = useMemo(() => {
+    const who = speaker || setup?.you;
+    return (setup?.numbers ?? []).filter(
+      (n) => n.ownerId === null || n.ownerId === setup?.you || n.ownerId === who,
+    );
+  }, [setup, speaker]);
+  // A number chosen for a speaker no longer chosen isn't on offer any more: asked again.
+  const chosenNumber = numberId && numbers.some((n) => n.id === numberId) ? numberId : null;
+  const askNumber = numbers.length > 1;
+  const tierLimit = askNumber
+    ? (numbers.find((n) => n.id === chosenNumber)?.tierLimit ?? null)
+    : (numbers[0]?.tierLimit ?? setup?.number?.tierLimit ?? null);
+
   const body = useMemo((): RunBody | null => {
     if (!setup || !permissions) return null;
     return {
+      ...(askNumber && chosenNumber ? { numberId: chosenNumber } : {}),
       ...target,
       // An unconfirmed brief isn't sent: the estimate counts the same leads whatever the goal's words.
       goal: goal.kind === "brief" && !goal.locked ? { kind: "reply" } : goalOf(goal),
@@ -152,7 +171,7 @@ export function StartSheet({
       dailyCap: cap,
       remember,
     };
-  }, [setup, permissions, target, goal, speaker, cap, remember]);
+  }, [setup, permissions, target, goal, speaker, cap, remember, askNumber, chosenNumber]);
 
   // The estimate follows the choices, once they've settled; an answer for older choices never shows.
   const asked = useRef(0);
@@ -182,9 +201,11 @@ export function StartSheet({
   const why =
     goal.kind === "brief" && !goal.locked
       ? "Confirm your goal to start the run"
-      : est && est.eligible === 0
-        ? "None of these leads can be messaged"
-        : null;
+      : askNumber && !chosenNumber
+        ? "Choose the number LUME AI sends from"
+        : est && est.eligible === 0
+          ? "None of these leads can be messaged"
+          : null;
 
   const go = async () => {
     if (!body || why) return;
@@ -346,21 +367,13 @@ export function StartSheet({
               )}
             </Field>
             <div className={s.when}>
-              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden className={s.whenIcon}>
-                <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
-                <path
-                  d="M12 7.5V12l3 2"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                />
-              </svg>
+              <UI_ICONS.later size={ICON_SIZE.md} aria-hidden className={s.whenIcon} />
               <span>{setup.hours.line}</span>
               <Link href="/settings/follow-ups" className={s.link}>
                 Change hours
               </Link>
             </div>
+            {numbers.length > 0 && <SendFrom numbers={numbers} value={chosenNumber} onChange={setNumberId} />}
             <div className={s.capRow}>
               <Switch
                 checked={cap !== null}
@@ -372,8 +385,8 @@ export function StartSheet({
               />
               {cap === null ? (
                 <span className={s.capNote}>
-                  {typeof setup.number?.tierLimit === "number"
-                    ? `Up to ${setup.number.tierLimit.toLocaleString("en-US")} a day, your number's WhatsApp limit`
+                  {typeof tierLimit === "number"
+                    ? `Up to ${tierLimit.toLocaleString("en-US")} a day, your number's WhatsApp limit`
                     : "Paced to your number's WhatsApp limit"}
                 </span>
               ) : (

@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { firstNameOf } from "@lume/core/shared";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -43,10 +44,7 @@ export function DoNotContact({
   return (
     <section className={s.dnc} role="status" aria-label="Do not contact">
       <p className={s.dncTitle}>
-        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden>
-          <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
-          <path d="M3.6 12.4 12.4 3.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
+        <UI_ICONS.doNotContact size={ICON_SIZE.md} aria-hidden />
         {who} asked not to be messaged
       </p>
       {value.reason && <p className={s.dncWhy}>{value.reason}</p>}

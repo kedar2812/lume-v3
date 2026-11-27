@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { nextTier, PLAN_TIERS, TIER_LINES, tierName, type PlanTier } from "@lume/core/shared";
 import { AskAboutPlan } from "./AskAboutPlan";
 import { useLicence } from "./LicenceProvider";
@@ -13,23 +14,8 @@ function linesUpTo(tier: PlanTier): string[] {
   return all.filter((l, i) => !LEADS.test(l) || i === last);
 }
 
-const Tick = () => (
-  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
-    <path
-      d="M3.5 8.5l3 3 6-7"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-const Plus = () => (
-  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
-    <path d="M8 3.5v9M3.5 8h9" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
-  </svg>
-);
+const Tick = () => <UI_ICONS.done size={ICON_SIZE.sm} aria-hidden />;
+const Plus = () => <UI_ICONS.add size={ICON_SIZE.sm} aria-hidden />;
 
 /**
  * Settings → About, Your plan (Plans and pricing, November 2026): the tier, what's in it, and what the next tier adds,

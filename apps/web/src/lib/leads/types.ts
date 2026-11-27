@@ -113,6 +113,8 @@ export type Catalog = {
   country: string | null;
   /** Where leads came from (imports), to name the "From …" filter. */
   sources: { id: string; name: string; type: string }[];
+  /** The business's WhatsApp numbers, connected now or before (Messaged from, 2026-11-26). */
+  waNumbers?: { id: string; display: string; whose: string; connected: boolean }[];
 };
 
 export type Activity = {

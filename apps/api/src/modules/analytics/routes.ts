@@ -178,7 +178,7 @@ export async function analyticsRoutes(app: FastifyInstance, d: AppDeps): Promise
   );
   // Instagram's board (D6b): conversations, answers and what they led to, at the viewer's reach.
   r.get("/api/v1/analytics/instagram", { config: view, schema: { querystring: query } }, async (req) =>
-    instagramBoard(req, await toQuery(req, req.query), d.clock()),
+    instagramBoard(req, await toQuery(req, req.query), d.clock(), d),
   );
   r.get("/api/v1/analytics/instagram/there", { config: view }, async (req) => ({
     there: await instagramThere(req),

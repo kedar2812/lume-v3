@@ -104,3 +104,66 @@
 .mark img {
   border-radius: 5px;
 }
+
+/* The connection notice (canvas v14, 2026-11-26): the toast's own look, at the bottom of the stack. */
+.netIcon {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+}
+.netIcon[data-tone="slow"] {
+  background: var(--warn);
+}
+.netIcon[data-tone="back"] {
+  background: var(--ok);
+}
+.dots {
+  display: flex;
+  gap: 4px;
+  padding: 0 8px 0 4px;
+  flex: none;
+}
+.dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(244, 245, 247, 0.75);
+  animation: dot 1.2s ease-in-out infinite;
+}
+.dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dots i {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+/* Never wider than a phone's screen (the toast's 300px floor is wider than a 320px phone's room). */
+.net {
+  min-width: min(300px, calc(100vw - 32px));
+}
+.net .text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

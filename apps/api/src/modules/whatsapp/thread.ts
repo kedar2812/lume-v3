@@ -23,6 +23,7 @@ type Payload = {
   media?: Partial<Media>;
   via?: string;
   runId?: string;
+  numberId?: string;
 };
 
 /** One message on a lead's thread: the lead's, one sent from the phone, or one sent from LUME (with its status). */
@@ -44,6 +45,11 @@ export type ThreadMessage = {
    * (`dueAt`: the follow-up as a moment); `{ failed: true }` when the read didn't work; null when it wasn't read.
    */
   meaning: ThreadMeaning | { failed: true } | null;
+  /**
+   * The business's number it went from or came to (owner 2026-11-26), only when the business has had more than one;
+   * absent otherwise, so a business with one number reads as before.
+   */
+  number?: string;
 };
 export type ThreadMeaning = {
   readId: string;
@@ -70,6 +76,11 @@ async function shape(req: FastifyRequest, rows: Row[]): Promise<ThreadMessage[]>
         .where(inArray(O.id, ids))
     : [];
   const byId = new Map(sent.map((s) => [s.id, s]));
+  // Which number: said only when there's been more than one (connected now or before).
+  const numbers = await req.db
+    .select({ id: schema.whatsappNumbers.id, display: schema.whatsappNumbers.displayPhone })
+    .from(schema.whatsappNumbers);
+  const displays = numbers.length > 1 ? new Map(numbers.map((n) => [n.id, n.display])) : null;
   const meanings = await meaningsOf(
     req,
     rows.filter((r) => r.type === "whatsapp_received").map((r) => r.id),
@@ -78,7 +89,9 @@ async function shape(req: FastifyRequest, rows: Row[]): Promise<ThreadMessage[]>
     const p = payloads[i]!;
     const o = p.outboxId ? byId.get(p.outboxId) : undefined;
     // LUME AI's, cancelled by a Pause before it went (Autopilot A2): never sent, so never shown as a message.
-    if (!o || o.status !== "cancelled") return [{ ...shown(r, p, o), meaning: meanings.get(r.id) ?? null }];
+    const number = p.numberId ? displays?.get(p.numberId) : undefined;
+    if (!o || o.status !== "cancelled")
+      return [{ ...shown(r, p, o), meaning: meanings.get(r.id) ?? null, ...(number ? { number } : {}) }];
     return [];
   });
 }

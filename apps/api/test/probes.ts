@@ -309,6 +309,8 @@ export const PROBES: Record<string, Probe> = {
     access: "leads.view",
     path: () => "/api/v1/views/0190e0c0-0000-7000-8000-00000000abcd/restore",
   },
+  // Messaged from (2026-11-26): the business's WhatsApp numbers, by display and whose, for the leads filter.
+  "GET /api/v1/wa-numbers": { access: "leads.view" },
   // 4C: the send queue is a person's own run (row-level security); items re-check each lead.
   "POST /api/v1/queues": { access: "messages.send_queue", body: (f) => ({ leadIds: [f.leadId] }) },
   "POST /api/v1/queues/plan": { access: "messages.send_queue", body: (f) => ({ leadIds: [f.leadId] }) },
@@ -341,6 +343,21 @@ export const PROBES: Record<string, Probe> = {
   "POST /api/v1/queues/:id/items/:pos/skip": {
     access: "messages.send_queue",
     path: () => "/api/v1/queues/0190e0c0-0000-7000-8000-00000000abcd/items/0/skip",
+  },
+  // The run inside LUME (2026-11-26): how a lead goes, sending it from LUME, and the leads LUME AI took.
+  "GET /api/v1/queues/:id/items/:pos/channel": {
+    access: "messages.send_queue",
+    path: () => "/api/v1/queues/0190e0c0-0000-7000-8000-00000000abcd/items/0/channel",
+  },
+  "POST /api/v1/queues/:id/items/:pos/send": {
+    access: "messages.send_queue",
+    path: () => "/api/v1/queues/0190e0c0-0000-7000-8000-00000000abcd/items/0/send",
+    body: () => ({ mode: "template", clientKey: "0190e0c0-0000-7000-8000-00000000abce" }),
+  },
+  "POST /api/v1/queues/:id/handed": {
+    access: "messages.send_queue",
+    path: () => "/api/v1/queues/0190e0c0-0000-7000-8000-00000000abcd/handed",
+    body: () => ({ runId: "0190e0c0-0000-7000-8000-00000000abcf" }),
   },
   "POST /api/v1/queues/:id/pause": {
     access: "messages.send_queue",
@@ -897,6 +914,11 @@ export const PROBES: Record<string, Probe> = {
     body: () => ({ p: "x", s: "y" }),
   },
   "GET /api/v1/instagram/accounts": { access: "integrations.manage" },
+  "PUT /api/v1/instagram/ai-goal": {
+    access: "integrations.manage",
+    body: () => ({ goal: { kind: "brief", text: "Book a trial class" } }),
+  },
+  "POST /api/v1/instagram/ai/handle": { access: "messages.send_queue", body: () => ({ leadIds: [uuid] }) },
   "PATCH /api/v1/instagram/accounts/:id": {
     access: "integrations.manage",
     path: () => `/api/v1/instagram/accounts/${uuid}`,
@@ -924,6 +946,21 @@ export const PROBES: Record<string, Probe> = {
     access: "messages.send",
     path: () => `/api/v1/instagram/comments/${uuid}/private-reply`,
     body: () => ({ clientKey: uuid, text: "Hi" }),
+  },
+  // A person's actions on a comment (2026-11-27).
+  "POST /api/v1/instagram/comments/:id/public-reply": {
+    access: "messages.send",
+    path: () => `/api/v1/instagram/comments/${uuid}/public-reply`,
+    body: () => ({ text: "Hi" }),
+  },
+  "POST /api/v1/instagram/comments/:id/hide": {
+    access: "messages.send",
+    path: () => `/api/v1/instagram/comments/${uuid}/hide`,
+    body: () => ({ hidden: true }),
+  },
+  "DELETE /api/v1/instagram/comments/:id": {
+    access: "messages.send",
+    path: () => `/api/v1/instagram/comments/${uuid}`,
   },
   "POST /api/v1/instagram/threads/:id/take-over": {
     access: "messages.send",

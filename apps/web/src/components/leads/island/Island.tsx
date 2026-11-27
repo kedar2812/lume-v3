@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { AnimatePresence } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
@@ -38,114 +39,13 @@ const filterOf = (b: SelectionBody) =>
     : { filters: {}, except: [], expected: 0 };
 
 const Ico = {
-  stage: (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <rect width="18" height="18" x="3" y="3" rx="2" />
-      <path d="M8 7v7M12 7v4M16 7v9" />
-    </svg>
-  ),
-  assign: (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M19 8v6M22 11h-6" />
-    </svg>
-  ),
-  tag: (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
-    </svg>
-  ),
-  more: (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.6"
-      strokeLinecap="round"
-      aria-hidden
-    >
-      <path d="M5 12h.01M12 12h.01M19 12h.01" />
-    </svg>
-  ),
-  close: (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      aria-hidden
-    >
-      <path d="M18 6 6 18M6 6l12 12" />
-    </svg>
-  ),
-  tick: (
-    <svg
-      className={s.tick}
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
-  ),
-  undo: (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M9 14 4 9l5-5" />
-      <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
-    </svg>
-  ),
+  stage: <UI_ICONS.stage size={ICON_SIZE.md} aria-hidden />,
+  assign: <UI_ICONS.assign size={ICON_SIZE.md} aria-hidden />,
+  tag: <UI_ICONS.tag size={ICON_SIZE.md} aria-hidden />,
+  more: <UI_ICONS.more size={ICON_SIZE.md} aria-hidden />,
+  close: <UI_ICONS.close size={ICON_SIZE.md} aria-hidden />,
+  tick: <UI_ICONS.done size={ICON_SIZE.md} aria-hidden className={s.tick} />,
+  undo: <UI_ICONS.undo size={ICON_SIZE.md} aria-hidden />,
   hide: (
     <svg
       width="14"
@@ -162,21 +62,7 @@ const Ico = {
       <path d="M19 5 5 19" />
     </svg>
   ),
-  check: (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
-  ),
+  check: <UI_ICONS.done size={ICON_SIZE.lg} aria-hidden />,
 };
 
 /**

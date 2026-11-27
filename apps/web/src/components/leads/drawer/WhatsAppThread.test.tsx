@@ -86,6 +86,38 @@ describe("the WhatsApp thread on a lead (spec 2026-10-18 §4.2; canvas board Thr
     expect(items[2]).toHaveAttribute("data-direction", "out");
   });
 
+  it("which of the business's numbers each message went from or came to, when it has more than one (2026-11-26)", () => {
+    render(
+      <WhatsAppThread
+        leadName="Sneha Reddy"
+        tz={TZ}
+        messages={[
+          msg({
+            id: "1",
+            at: "2026-10-21T04:32:00.000Z",
+            text: "Hi, saw your ad.",
+            number: "+91 90000 00001",
+          }),
+          msg({
+            id: "2",
+            direction: "out",
+            at: "2026-10-21T04:35:00.000Z",
+            text: "Yes we do!",
+            number: "+91 90000 00002",
+          }),
+        ]}
+      />,
+    );
+    const items = within(screen.getByRole("list", { name: "WhatsApp messages with Sneha" })).getAllByRole(
+      "listitem",
+    );
+    expect(items.map((li) => li.textContent)).toEqual([
+      "Today",
+      "Sneha, 10:02 am · to +91 90000 00001: Hi, saw your ad.",
+      "From the phone, 10:05 am · from +91 90000 00002: Yes we do!",
+    ]);
+  });
+
   it("only the newest reply's suggestion can be applied: older ones keep their meaning, without Apply (2026-11-02)", () => {
     const meaning = (readId: string, summary: string) => ({
       readId,

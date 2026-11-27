@@ -33,6 +33,8 @@ export const instagramAccounts = pgTable("instagram_accounts", {
   status: text("status").$type<"active" | "needs_attention" | "disconnected">().notNull(),
   problem: text("problem"),
   newDmCreatesLead: boolean("new_dm_creates_lead").notNull().default(true),
+  /** Who answers a new DM no flow claims (2026-11-27): the team, or LUME AI. */
+  newDms: text("new_dms").$type<"team" | "ai">().notNull().default("team"),
   /** Sent once at a flow's start where the law asks automation to say so (0123); null: none. */
   automatedNote: text("automated_note"),
   /** Words that ask for a person at any point of a run (0123). */
@@ -128,6 +130,15 @@ export const instagramComments = pgTable("instagram_comments", {
   privateReply: text("private_reply").$type<PrivateReplyState>().notNull().default("none"),
   privateReplyAt: tz("private_reply_at"),
   publicReplyAt: tz("public_reply_at"),
+  /** Hidden on Instagram, from LUME (2026-11-27): Instagram's only update to a comment. */
+  hidden: boolean("hidden").notNull().default(false),
+  /** Deleted from Instagram, from LUME (or found gone there). */
+  deletedAt: tz("deleted_at"),
+  /** A person's public reply under it, from LUME: its words and Instagram's id for it. */
+  publicReply: text("public_reply"),
+  publicReplyId: text("public_reply_id"),
+  /** Instagram's answer to it never came: it may be there; never sent again by itself. */
+  publicReplyUnsure: boolean("public_reply_unsure").notNull().default(false),
   createdAt: tz("created_at").notNull().defaultNow(),
 });
 
@@ -149,6 +160,10 @@ export const instagramOutbox = pgTable("instagram_outbox", {
   buttons: jsonb("buttons").$type<{ title: string; url: string }[]>(),
   tag: text("tag").$type<"human_agent">(),
   flowRunId: uuid("flow_run_id"),
+  /** Written by LUME AI, in this run. */
+  autopilotRunId: uuid("autopilot_run_id"),
+  /** LUME AI's one apology for a stop: the only message that may go to a lead in do not contact. */
+  allowAfterDnc: boolean("allow_after_dnc").notNull().default(false),
   stepKey: text("step_key"),
   status: text("status").$type<InstagramOutboxStatus>().notNull(),
   mid: text("mid").unique(),

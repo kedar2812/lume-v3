@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { plural } from "@lume/core/shared";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -84,16 +85,7 @@ export function ExportSheet({
         )}
         {made && (
           <p className={s.ready} role="status">
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-              <path
-                d="M3.5 8.5 6.5 11.5 12.5 4.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <UI_ICONS.done size={ICON_SIZE.md} aria-hidden />
             Ready · {plural(made.rows, "lead")} · code {made.code}
           </p>
         )}

@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
 import { useLoadingSignal } from "@/lib/loading";
 import { useInstagram, useWhatsApp } from "@/lib/notifications/stream";
@@ -628,35 +629,17 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
         >
           <div className={s.top}>
             <IconButton label="Close (Esc)" onClick={onClose}>
-              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-                <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
+              <UI_ICONS.close size={ICON_SIZE.md} aria-hidden />
             </IconButton>
             <IconButton label="Previous lead (K)" disabled={index <= 0} onClick={() => step(-1)}>
-              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-                <path
-                  d="M4 10l4-4 4 4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                />
-              </svg>
+              <UI_ICONS.previous size={ICON_SIZE.md} aria-hidden />
             </IconButton>
             <IconButton
               label="Next lead (J)"
               disabled={index === -1 || index >= neighbours.length - 1}
               onClick={() => step(1)}
             >
-              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-                <path
-                  d="M4 6l4 4 4-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                />
-              </svg>
+              <UI_ICONS.next size={ICON_SIZE.md} aria-hidden />
             </IconButton>
             {index !== -1 && (
               <span className={s.position}>
@@ -671,15 +654,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                   triggerClassName={s.deleteBtn}
                   trigger={
                     <>
-                      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden>
-                        <path
-                          d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.4"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      <UI_ICONS.delete size={ICON_SIZE.md} aria-hidden />
                       <span className={s.srOnly}>Delete lead</span>
                     </>
                   }
@@ -848,19 +823,7 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                         >
                           {replyIn && lead.lastReplyAt ? (
                             <span className={s.replyIn}>
-                              <svg
-                                width="14"
-                                height="14"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.4"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                aria-hidden
-                              >
-                                <path d="M20 6 9 17l-5-5" />
-                              </svg>
+                              <UI_ICONS.done size={ICON_SIZE.sm} aria-hidden />
                               Replied · {relativeTime(lead.lastReplyAt, undefined, tz)}
                             </span>
                           ) : (

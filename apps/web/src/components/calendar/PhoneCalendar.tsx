@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { AiGlyph } from "@/components/ai/AiGlyph";
 import { BodyPortal } from "@/components/ui/BodyPortal";
 import Link from "next/link";
@@ -77,18 +78,7 @@ export function PhoneCalendar({
           <p className={s.date}>{longDate(now, tz)}</p>
           <h1 className={s.title}>Calendar</h1>
           <p className={s.privacy}>
-            <svg
-              viewBox="0 0 16 16"
-              width="12"
-              height="12"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.45"
-              aria-hidden
-            >
-              <rect x="3" y="7" width="10" height="7" rx="1.8" />
-              <path d="M5.2 7V5.2a2.8 2.8 0 0 1 5.6 0V7" />
-            </svg>
+            <UI_ICONS.private size={ICON_SIZE.sm} aria-hidden />
             Meetings with leads only
           </p>
         </div>
@@ -134,17 +124,7 @@ export function PhoneCalendar({
                           {t ? ` · ${t}` : ""}
                         </span>
                       </span>
-                      <svg
-                        viewBox="0 0 16 16"
-                        width="14"
-                        height="14"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.45"
-                        aria-hidden
-                      >
-                        <path d="m6.2 3.4 4.5 4.6-4.5 4.6" />
-                      </svg>
+                      <UI_ICONS.open size={ICON_SIZE.sm} aria-hidden />
                     </button>
                   );
                 })}
@@ -217,20 +197,7 @@ function Hero({
   );
 }
 
-const VideoIcon = () => (
-  <svg
-    viewBox="0 0 16 16"
-    width="17"
-    height="17"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.45"
-    aria-hidden
-  >
-    <rect x="1.7" y="4" width="8.8" height="8" rx="1.8" />
-    <path d="m10.5 7 3.8-2.1v6.2L10.5 9" />
-  </svg>
-);
+const VideoIcon = () => <UI_ICONS.video size={ICON_SIZE.lg} aria-hidden />;
 
 /** How far up past rest the sheet can be pulled, for the rubber band. */
 const STRETCH = 300;

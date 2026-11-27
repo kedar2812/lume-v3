@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { profileProblem, type AiProfile } from "@lume/core/shared";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/Button";
@@ -124,16 +125,7 @@ export function PriceList({
                 aria-label={`Remove ${name}`}
                 onClick={() => onChange(rows.filter((_, j) => j !== i))}
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  aria-hidden
-                >
-                  <path d="M6 6l12 12M18 6L6 18" />
-                </svg>
+                <UI_ICONS.remove size={ICON_SIZE.md} aria-hidden />
               </button>
               <input
                 className={`${s.input} ${s.notes}`}

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import type { NotificationView } from "./client";
+import { unreachable } from "@/lib/network/monitor";
 
 type Listener = (n: NotificationView) => void;
 const listeners = new Set<Listener>();
@@ -229,6 +230,8 @@ function open() {
   // the API restarts). Then LUME opens a new one, from where it was, backing off to 30 s (Important 4): half the
   // back-off, plus a share of the rest, so the tabs a restart dropped together don't all come back together.
   s.onerror = () => {
+    // Dropped: the connection notice checks whether it's this device's connection (a restart still answers).
+    if (source === s) unreachable();
     if (s.readyState !== EventSource.CLOSED || source !== s || !anyone()) return;
     clearTimeout(retry);
     const backOff = Math.min(30_000, 1000 * 2 ** Math.min(failures++, 5));

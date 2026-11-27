@@ -2,6 +2,8 @@ import { can, canOnRecord } from "@lume/core";
 import { loadActor } from "../../rbac/actor";
 import { jobServer, withJobRequest } from "../imports/job-request";
 import { HttpError } from "../../http/errors";
+import { allScope } from "../whatsapp/sender";
+import { giveToAi } from "./ai-intake";
 import { adminIds, notify } from "../notifications/notify";
 import { recordActivity } from "../leads/writer";
 import { visibleLead } from "../leads/service";
@@ -84,6 +86,29 @@ export async function afterFlow(o: InstagramJobDeps, out: FlowOut) {
       ?.enqueuePublic(out.publicReply.commentId, out.publicReply.text)
       .catch((err: unknown) => o.app.log.warn({ err }, "couldn't queue a public reply"));
   const pool = o.d.jobPool ?? o.d.pool;
+  // Hand to LUME AI: the account's standing run takes the lead, as whoever connected the account; when LUME AI can't
+  // (off, the month's AI leads used up, the run paused), a person is told, as Hand to a person does. A lead another run
+  // holds stays in it (one run per lead).
+  for (const t of out.toAi) {
+    const actor = await loadActor(pool, t.runAs).catch(() => null);
+    const given = actor
+      ? await withJobRequest(
+          { app: jobServer(o.app), pool, actor, requestId: `instagram-ai:${t.leadId}`, allLeads: true },
+          (req) =>
+            giveToAi(req, o.d, {
+              accountId: t.accountId,
+              leadId: t.leadId,
+              goal: t.goal,
+              answered: t.answered,
+            }),
+        ).catch((err: unknown) => {
+          o.app.log.error({ err }, "couldn't give an Instagram lead to LUME AI");
+          return null;
+        })
+      : null;
+    if (given && given !== "held") await o.d.autopilot?.kick(given.runId).catch(() => undefined);
+    else if (!given && t.notice) out.notices.push(t.notice);
+  }
   for (const n of out.notices)
     await notify(pool, n.ownerId, {
       kind: "lead_replied",
@@ -246,10 +271,14 @@ export async function sendPublicReply(
   text: string,
 ) {
   const pool = o.d.jobPool ?? o.d.pool;
-  const { rows } = await pool.query<{ id: string; token_enc: Buffer | null }>(
-    `SELECT a.id, a.token_enc FROM instagram_comments c JOIN instagram_accounts a ON a.id = c.account_id
-      WHERE c.comment_id = $1 AND a.status = 'active'`,
-    [commentId],
+  // A job sees every comment (row-level security shows a comment only to its account's people otherwise): read
+  // without it, every flow's public reply was "gone" and never went (found 2026-11-27).
+  const { rows } = await allScope(pool, (c) =>
+    c.query<{ id: string; token_enc: Buffer | null }>(
+      `SELECT a.id, a.token_enc FROM instagram_comments c JOIN instagram_accounts a ON a.id = c.account_id
+        WHERE c.comment_id = $1 AND a.status = 'active'`,
+      [commentId],
+    ),
   );
   const a = rows[0];
   if (!a?.token_enc) return "gone" as const;
@@ -259,5 +288,21 @@ export async function sendPublicReply(
   // Meta busy or rate-limiting: the queue tries again; any other refusal is final.
   if (!r.ok && (r.status === 0 || r.status === 429 || r.status >= 500))
     throw new Error("Meta busy; public reply later");
-  return r.ok ? ("sent" as const) : ("refused" as const);
+  if (r.ok) {
+    await allScope(pool, (c) =>
+      c.query("UPDATE instagram_comments SET public_reply_id = $2 WHERE comment_id = $1", [
+        commentId,
+        typeof r.data.id === "string" ? r.data.id : null,
+      ]),
+    );
+    return "sent" as const;
+  }
+  // Refused: no reply under it, so a person can still answer it publicly from LUME.
+  await allScope(pool, (c) =>
+    c.query(
+      "UPDATE instagram_comments SET public_reply_at = NULL WHERE comment_id = $1 AND public_reply IS NULL",
+      [commentId],
+    ),
+  );
+  return "refused" as const;
 }

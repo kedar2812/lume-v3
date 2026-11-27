@@ -80,9 +80,11 @@ type ReplyNumber = { id: string; display: string; status: string; ownerName: str
  * The lead's last WhatsApp message to the business, and the number it came to: a reply goes from that number, and
  * only within 24 hours of it.
  */
-async function lastInbound(
+export async function lastInbound(
   req: FastifyRequest,
   leadId: string,
+  /** Only what they wrote to this number (a run's, 2026-11-26): WhatsApp keeps each number's 24 hours apart. */
+  toNumber?: string,
 ): Promise<{ at: Date; number: ReplyNumber | null } | null> {
   const r = await req.db.execute<{
     at: Date;
@@ -96,6 +98,7 @@ async function lastInbound(
       LEFT JOIN whatsapp_numbers n ON n.id = (a.payload->>'numberId')::uuid
       LEFT JOIN users u ON u.id = n.owner_user_id
      WHERE a.lead_id = ${leadId} AND a.type = 'whatsapp_received'
+       ${toNumber ? sql`AND a.payload->>'numberId' = ${toNumber}` : sql``}
      ORDER BY a.occurred_at DESC, a.id DESC LIMIT 1`);
   const row = r.rows[0];
   if (!row) return null;
@@ -113,8 +116,8 @@ const notReady = (n: ReplyNumber) =>
   );
 
 /** Everything that decides whether this person may reply to this lead now, and from which number. */
-async function replyRoute(req: FastifyRequest, d: AppDeps, lead: LeadRow) {
-  const last = await lastInbound(req, lead.id);
+async function replyRoute(req: FastifyRequest, d: AppDeps, lead: LeadRow, from?: string) {
+  const last = await lastInbound(req, lead.id, from);
   if (!last) throw neverWrote(lead);
   if (!last.number) throw windowClosed(lead);
   const until = new Date(last.at.getTime() + WINDOW_MS);
@@ -154,14 +157,19 @@ export async function replyState(req: FastifyRequest, d: AppDeps, lead: LeadRow)
   }
 }
 
-async function mayReply(req: FastifyRequest, d: AppDeps, leadId: string, o: { ignoreDnc?: boolean } = {}) {
+async function mayReply(
+  req: FastifyRequest,
+  d: AppDeps,
+  leadId: string,
+  o: { ignoreDnc?: boolean; from?: string } = {},
+) {
   if (!(await replyOn(req, d)))
     throw conflict(
       "REPLY_OFF",
       "Replying from LUME is off. An admin can switch it on in Settings → Integrations → WhatsApp.",
     );
   const lead = await sendable(req, leadId, o);
-  return { lead, ...(await replyRoute(req, d, lead)) };
+  return { lead, ...(await replyRoute(req, d, lead, o.from)) };
 }
 
 /**
@@ -281,6 +289,8 @@ export async function sendReply(
     taskId?: string | undefined;
     /** Try again: the failed message (its activity) this sends once more. */
     retryOf?: string | undefined;
+    /** From this number (a run's, 2026-11-26): only inside the 24 hours of what they wrote to it. */
+    fromNumber?: string | undefined;
   },
   /** LUME AI's, in a run (Autopilot A2): the same checks, marked as LUME AI's, paced by the run, not this limiter. */
   auto?: { runId: string; afterStop?: boolean },
@@ -301,7 +311,10 @@ export async function sendReply(
   const prior = await again();
   if (prior) return prior;
 
-  const { lead, number } = await mayReply(req, d, leadId, { ignoreDnc: !!auto?.afterStop });
+  const { lead, number } = await mayReply(req, d, leadId, {
+    ignoreDnc: !!auto?.afterStop,
+    ...(body.fromNumber ? { from: body.fromNumber } : {}),
+  });
   const text = body.text ?? "";
   if (!text.trim() && !body.mediaId) throw badRequest("EMPTY", "Write a message, or attach a file.");
   let media: { id: string; kind: string; mime: string; filename: string | null } | null = null;

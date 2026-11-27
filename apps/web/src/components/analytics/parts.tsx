@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import type { CSSProperties, ReactNode } from "react";
 import type { Trend } from "@lume/core/shared";
 import { areaUnder, smooth, sparkLine, toPts } from "@/lib/analytics/chart";
@@ -107,104 +108,11 @@ export const Ico = {
       <path d="M8 7h9v9" />
     </svg>
   ),
-  clock: (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 2" />
-    </svg>
-  ),
-  stuck: (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <rect x="6" y="5" width="4" height="14" rx="1" />
-      <rect x="14" y="5" width="4" height="14" rx="1" />
-    </svg>
-  ),
-  user: (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 21v-1a6 6 0 0 1 12 0v1" />
-      <path d="M19 8v6M22 11h-6" />
-    </svg>
-  ),
-  globe: (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <circle cx="12" cy="12" r="9" />
-      <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
-    </svg>
-  ),
-  close: (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      aria-hidden
-    >
-      <path d="M18 6 6 18M6 6l12 12" />
-    </svg>
-  ),
-  chevron: (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="m9 18 6-6-6-6" />
-    </svg>
-  ),
-  calendar: (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <rect x="3" y="5" width="18" height="16" rx="3" />
-      <path d="M3 10h18M8 3v4M16 3v4" />
-    </svg>
-  ),
+  clock: <UI_ICONS.later size={ICON_SIZE.md} aria-hidden />,
+  stuck: <UI_ICONS.pause size={ICON_SIZE.md} aria-hidden />,
+  user: <UI_ICONS.assign size={ICON_SIZE.md} aria-hidden />,
+  globe: <UI_ICONS.web size={ICON_SIZE.md} aria-hidden />,
+  close: <UI_ICONS.close size={ICON_SIZE.md} aria-hidden />,
+  chevron: <UI_ICONS.open size={ICON_SIZE.sm} aria-hidden />,
+  calendar: <UI_ICONS.calendar size={ICON_SIZE.md} aria-hidden />,
 };

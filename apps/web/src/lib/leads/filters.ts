@@ -27,6 +27,8 @@ export type ListFilters = {
   followUpOverdue?: boolean;
   /** Added within today and the N−1 days before it (1 = today), in the business's timezone. */
   createdDays?: number;
+  /** Leads this WhatsApp number sent a message to (owner 2026-11-26): a number's id. */
+  messagedFrom?: string;
 };
 
 /** The choices More filters offers (4B); a link can only ever carry one of these. */
@@ -88,6 +90,7 @@ export function parseFilters(p: URLSearchParams, cat: Catalog): ListFilters {
   const lost = inRange(p.get("lost"), 1, 3650);
   const reason = p.get("reason");
   const created = inRange(p.get("new"), 1, 365);
+  const wa = p.get("wa");
   const to = realDate(p.get("to"));
   const fields = new Map(filterableFields(cat).map((f) => [f.key, f]));
   const custom: Record<string, string | boolean> = {};
@@ -114,6 +117,7 @@ export function parseFilters(p: URLSearchParams, cat: Catalog): ListFilters {
     ...(reason && cat.lostReasons.some((r) => r.id === reason) ? { lostReasonId: reason } : {}),
     ...(p.get("overdue") === "1" ? { followUpOverdue: true } : {}),
     ...(created ? { createdDays: created } : {}),
+    ...(wa && (cat.waNumbers ?? []).some((n) => n.id === wa) ? { messagedFrom: wa } : {}),
   };
 }
 
@@ -135,6 +139,7 @@ export function filtersToParams(f: ListFilters): URLSearchParams {
   if (f.lostReasonId) p.set("reason", f.lostReasonId);
   if (f.followUpOverdue) p.set("overdue", "1");
   if (f.createdDays) p.set("new", String(f.createdDays));
+  if (f.messagedFrom) p.set("wa", f.messagedFrom);
   return p;
 }
 
@@ -157,6 +162,7 @@ export function apiQuery(f: ListFilters): string {
   if (f.lostReasonId) p.set("lostReasonId", f.lostReasonId);
   if (f.followUpOverdue) p.set("followUpOverdue", "true");
   if (f.createdDays) p.set("createdDays", String(f.createdDays));
+  if (f.messagedFrom) p.set("messagedFrom", f.messagedFrom);
   p.set("sort", f.sort);
   return p.toString();
 }
@@ -176,11 +182,12 @@ export const activeFilterCount = (f: ListFilters): number =>
     f.lostReasonId,
     f.followUpOverdue,
     f.createdDays,
+    f.messagedFrom,
   ].filter(Boolean).length + Object.keys(f.custom ?? {}).length;
 
-/** How many of More filters' own are set (4B, and the business's fields). */
+/** How many of More filters' own are set (4B, Messaged from, and the business's fields). */
 export const moreFilterCount = (f: ListFilters): number =>
-  [f.noReplyDays, f.lostDaysAgo, f.followUpOverdue, f.createdDays].filter(Boolean).length +
+  [f.noReplyDays, f.lostDaysAgo, f.followUpOverdue, f.createdDays, f.messagedFrom].filter(Boolean).length +
   Object.keys(f.custom ?? {}).length;
 
 /** A saved view keeps the list's own API filters (4B), as strings; paging and "new since" are left out. */
@@ -206,6 +213,7 @@ const API_TO_URL: Record<string, string> = {
   lostDaysAgo: "lost",
   lostReasonId: "reason",
   createdDays: "new",
+  messagedFrom: "wa",
 };
 
 /** A view's filters as the address bar holds them, so opening it is just a link. */

@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import Link from "next/link";
 import { useState, type CSSProperties } from "react";
 import { trend, plural } from "@lume/core/shared";
@@ -321,9 +322,7 @@ function Meetings({
         </div>
         <Link className={s.cal} href="/calendar">
           Calendar
-          <svg viewBox="0 0 12 12" aria-hidden>
-            <path d="m4.5 2.5 3.5 3.5-3.5 3.5" />
-          </svg>
+          <UI_ICONS.open size={ICON_SIZE.md} aria-hidden />
         </Link>
       </div>
       {!k.booked && !total ? (

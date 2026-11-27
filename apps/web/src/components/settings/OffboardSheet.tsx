@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Avatar } from "@/components/ui/Avatar";
@@ -345,16 +346,7 @@ export function OffboardSheet({
           {done ? (
             <>
               <p role="status" className={s.finished}>
-                <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden>
-                  <path
-                    d="M3.4 8.4 6.4 11.4 12.6 4.8"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <UI_ICONS.done size={ICON_SIZE.lg} aria-hidden />
                 {p.person.name} is offboarded. LUME recorded every step.
               </p>
               <Button variant="primary" onClick={close}>
@@ -396,20 +388,7 @@ export function Step({
   return (
     <li className={s.step}>
       <span className={s.num} data-state={state} aria-hidden>
-        {state === "ok" ? (
-          <svg viewBox="0 0 16 16" width="14" height="14">
-            <path
-              d="M3.4 8.4 6.4 11.4 12.6 4.8"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        ) : (
-          n
-        )}
+        {state === "ok" ? <UI_ICONS.done size={ICON_SIZE.sm} aria-hidden /> : n}
       </span>
       <div className={s.stepBody}>
         <b className={s.stepTitle}>{title}</b>

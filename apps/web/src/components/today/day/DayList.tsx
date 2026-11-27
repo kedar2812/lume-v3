@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import Link from "next/link";
 import b from "@/components/ui/Button.module.css";
 import { timeOf } from "@/lib/dates";
@@ -78,19 +79,7 @@ export function DayList({
                     </time>
                     <span className={s.listIcon} aria-hidden>
                       {i.kind === "call" ? (
-                        <svg
-                          viewBox="0 0 24 24"
-                          width="15"
-                          height="15"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="m16 13 5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 11" />
-                          <rect x="2" y="6" width="14" height="12" rx="2" />
-                        </svg>
+                        <UI_ICONS.video size={ICON_SIZE.md} aria-hidden />
                       ) : (
                         <i className={s.dot} data-tone={TONE[i.state]} />
                       )}

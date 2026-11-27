@@ -20,6 +20,11 @@ const PNG = Buffer.from(
   "base64",
 );
 
+/** Nothing wider than the screen. */
+async function fits(page: Page) {
+  const w = await page.evaluate(() => document.documentElement.clientWidth);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(w);
+}
 async function axe(page: Page) {
   await settle(page);
   const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
@@ -504,6 +509,89 @@ test.describe.serial("WhatsApp", () => {
     await openApp(page, "/settings/integrations");
     await card.getByRole("switch", { name: "Reply from LUME" }).click();
     await expect(card.getByRole("switch", { name: "Reply from LUME" })).not.toBeChecked();
+  });
+
+  test("the focus run inside LUME: the template to one who never wrote, a message to one who just did, no WhatsApp tab (2026-11-26)", async ({
+    page,
+  }) => {
+    await openApp(page, "/leads");
+    await callApi(page, "PUT", "/api/v1/integrations/whatsapp", { replyFromLume: true });
+    const quiet = await lead(page, "Meera Joshi", "+919876512391");
+    const talking = await lead(page, "Rohan Kapoor", "+919876512392");
+    // Rohan wrote a few minutes ago: inside WhatsApp's 24 hours.
+    await meta(
+      page.request,
+      inbound({
+        from: "919876512392",
+        name: "Rohan Kapoor",
+        id: "wamid.E2ERUN1",
+        at: new Date().toISOString(),
+        type: "text",
+        text: { body: "Is the morning batch full?" },
+      }),
+    );
+    const templates = await callApi<{ templates: { id: string; name: string }[] }>(
+      page,
+      "GET",
+      "/api/v1/templates",
+    );
+    const priceList = templates.data.templates.find((t) => t.name === "Price list")!.id;
+    const started = await callApi<{ queue: { id: string } }>(page, "POST", "/api/v1/queues", {
+      leadIds: [quiet, talking],
+      templateId: priceList,
+    });
+    expect(started.status, JSON.stringify(started.data)).toBe(201);
+    let popups = 0;
+    page.on("popup", () => (popups += 1));
+    await openApp(page, `/queue/${started.data.queue.id}`);
+    const run = page.getByRole("dialog", { name: "Send queue" });
+
+    // Meera never wrote: the approved template, in her words, and Send.
+    await expect(run.getByRole("heading", { name: "Meera Joshi" })).toBeVisible();
+    await expect(run.getByText("Sends your approved template Price list")).toBeVisible();
+    await expect(run).toContainText("Hi Meera, here is our price list, as promised.");
+    for (const theme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: theme });
+      await settle(page);
+      await reviewCopy(run, `focus-run-template-${theme}.png`);
+      expect(await axe(page)).toEqual([]);
+    }
+    await page.emulateMedia({ colorScheme: "light" });
+    // On a phone: the card, the template and Send, nothing wider than the screen.
+    const size = page.viewportSize();
+    await page.setViewportSize({ width: 375, height: 760 });
+    await settle(page);
+    await fits(page);
+    await reviewCopy(run, "focus-run-template-phone.png");
+    if (size) await page.setViewportSize(size);
+    await run.getByRole("button", { name: "Send" }).click();
+
+    // Rohan wrote: he can be texted directly, the conversation shows, and a message goes.
+    await expect(run.getByRole("heading", { name: "Rohan Kapoor" })).toBeVisible({ timeout: 20_000 });
+    await expect(run.getByText(/you can text them directly/)).toBeVisible();
+    await expect(run.getByText("Is the morning batch full?")).toBeVisible();
+    await expect(run.getByRole("radio", { name: "Message" })).toBeChecked();
+    await run
+      .getByRole("textbox", { name: "Message to Rohan Kapoor" })
+      .fill("A few places left, shall I hold one?");
+    await reviewCopy(run, "focus-run-message-light.png");
+    await run.getByRole("button", { name: "Send" }).click();
+    // Both went: the run is finished, and says so.
+    await expect(run.getByRole("region", { name: "Run finished" })).toBeVisible({ timeout: 30_000 });
+
+    type Sent = { sent: { to: string; type: string; text?: string }[] };
+    const toMeta = async (to: string) =>
+      ((await (await page.request.get(`${META}/__fake/sent`)).json()) as Sent).sent.filter(
+        (m) => m.to === to,
+      );
+    await expect
+      .poll(async () => (await toMeta("919876512391")).map((m) => m.type), { timeout: 20_000 })
+      .toEqual(["template"]);
+    await expect
+      .poll(async () => (await toMeta("919876512392")).map((m) => m.text), { timeout: 20_000 })
+      .toEqual(["A few places left, shall I hold one?"]);
+    expect(popups).toBe(0);
+    await callApi(page, "PUT", "/api/v1/integrations/whatsapp", { replyFromLume: false });
   });
 
   test("System health shows the disk, the database and WhatsApp's files — both themes", async ({ page }) => {

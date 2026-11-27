@@ -46,6 +46,22 @@ describe("RunHeader", () => {
     expect(container.querySelector("[data-draw]")).toBeNull();
   });
 
+  it("which number the run sends from (owner 2026-11-26), here and in the list of runs", () => {
+    render(
+      <RunHeader
+        {...props({
+          run: run({ number: "+91 90000 00002" }),
+          runs: [
+            { ...runs[0]!, number: "+91 90000 00002" },
+            { ...runs[1]!, number: "+91 90000 00001" },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("From +91 90000 00002")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Old leads · done · +91 90000 00001" })).toBeInTheDocument();
+  });
+
   it("Pause all with Esc while it runs; Resume when paused; End run asks first", async () => {
     const p = props();
     const { rerender } = render(<RunHeader {...p} />);

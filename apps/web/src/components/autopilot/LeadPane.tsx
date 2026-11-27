@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { useState } from "react";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { nearDay, timeOf } from "@/lib/dates";
@@ -78,17 +79,7 @@ export function LeadPane({
           onChange={onFilter}
         />
         <label className={s.search}>
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            aria-hidden
-          >
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" />
-          </svg>
+          <UI_ICONS.search size={ICON_SIZE.md} aria-hidden />
           <input
             type="search"
             aria-label="Search leads in this run"

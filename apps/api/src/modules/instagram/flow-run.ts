@@ -7,6 +7,7 @@ import {
   stepFlow,
   NEW_RUN,
   type FlowAction,
+  type FlowGoal,
   type FlowEvent,
   type FlowGraph,
   type FlowStep,
@@ -33,6 +34,8 @@ import { createInstagramLead, type IgAccountRow } from "./leads";
  * running; else the flow whose trigger matches; else the team.
  */
 export type FlowAccount = IgAccountRow & {
+  /** Who answers a DM nothing claims (plan 2026-11-27-instagram-lume-ai): the team, or LUME AI. */
+  newDms?: "team" | "ai";
   runAs: string;
   automatedNote: string | null;
   personWords: string[];
@@ -50,6 +53,19 @@ export type FlowOut = {
   tasks: { leadId: string; title: string; dueMinutes: number; runAs: string }[];
   /** A new person was turned away: the account's new leads this hour are used up (the admins hear once an hour). */
   held: boolean;
+  /**
+   * Hand to LUME AI steps: given to the account's standing run once the transaction commits; when LUME AI can't take
+   * it, the notice goes to a person as Hand to a person's does.
+   */
+  toAi: {
+    accountId: string;
+    leadId: string;
+    runAs: string;
+    goal: FlowGoal;
+    /** The flow sent something in this turn: LUME AI waits for them to write, never answering again. */
+    answered: boolean;
+    notice: { ownerId: string; leadId: string; title: string; body: string } | null;
+  }[];
 };
 export const newFlowOut = (): FlowOut => ({
   sends: [],
@@ -59,6 +75,7 @@ export const newFlowOut = (): FlowOut => ({
   userNotices: [],
   tasks: [],
   held: false,
+  toAi: [],
 });
 /** "Go to another flow" may hop at most this many times in one turn (A → B → C → D stops), so two flows can't ping-pong. */
 export const GOTO_HOPS = 3;
@@ -88,8 +105,9 @@ export const FLOW_WORDS = {
 /** How a run ended, as the interpreter says it: the run's status, and words when it stopped short. */
 function endOf(reason: string): { status: "done" | "handed" | "stopped"; reason: string | null } {
   if (reason === "handed") return { status: "handed", reason: null };
-  if (reason === "finished" || reason === "went to another flow" || reason === "no answer")
-    return { status: "done", reason: null };
+  if (reason === "finished") return { status: "done", reason: null };
+  // Done, and why (the Flows board counts only runs that reached their end as finished).
+  if (reason === "went to another flow" || reason === "no answer") return { status: "done", reason };
   return { status: "stopped", reason };
 }
 
@@ -447,13 +465,28 @@ async function apply(
         note: a.note,
       });
       const who = lead.ownerId ?? account.ownerUserId;
-      if (who)
-        out.notices.push({
-          ownerId: who,
+      const notice = who
+        ? {
+            ownerId: who,
+            leadId: lead.id,
+            title: `${firstName(lead.name) ?? "A lead"} needs you on Instagram`,
+            body: a.note || "A flow passed this conversation to you.",
+          }
+        : null;
+      if (a.to === "ai") {
+        // Whether this turn of the flow sent them something (in this transaction: no clocks compared).
+        const sent = await req.db.execute<{ yes: boolean }>(sql`
+          SELECT EXISTS (SELECT 1 FROM instagram_outbox
+                          WHERE flow_run_id = ${run.id} AND created_at >= transaction_timestamp()) AS yes`);
+        out.toAi.push({
+          accountId: account.id,
           leadId: lead.id,
-          title: `${firstName(lead.name) ?? "A lead"} needs you on Instagram`,
-          body: a.note || "A flow passed this conversation to you.",
+          runAs: account.runAs,
+          goal: a.goal,
+          answered: !!sent.rows[0]?.yes,
+          notice,
         });
+      } else if (notice) out.notices.push(notice);
       return;
     }
   }

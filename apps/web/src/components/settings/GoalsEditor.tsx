@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
@@ -231,9 +232,7 @@ export function GoalsEditor({
           />
           <span className={s.nav}>
             <button type="button" aria-label="The period before" onClick={() => setStart(prev)}>
-              <svg viewBox="0 0 16 16" aria-hidden>
-                <path d="m10 3.5-4.5 4.5 4.5 4.5" />
-              </svg>
+              <UI_ICONS.before size={ICON_SIZE.md} aria-hidden />
             </button>
             <b aria-live="polite">{words.label}</b>
             <button
@@ -241,9 +240,7 @@ export function GoalsEditor({
               aria-label="The period after"
               onClick={() => setStart(shiftPeriod(start, period, 1))}
             >
-              <svg viewBox="0 0 16 16" aria-hidden>
-                <path d="m6 3.5 4.5 4.5L6 12.5" />
-              </svg>
+              <UI_ICONS.after size={ICON_SIZE.md} aria-hidden />
             </button>
           </span>
         </div>
@@ -259,9 +256,7 @@ export function GoalsEditor({
                 <h2>The business</h2>
                 {savedAny && (
                   <span className={s.saved} role="status">
-                    <svg viewBox="0 0 16 16" aria-hidden>
-                      <path d="m3.5 8.5 3 3 6-7" />
-                    </svg>
+                    <UI_ICONS.done size={ICON_SIZE.md} aria-hidden />
                     Saved
                   </span>
                 )}

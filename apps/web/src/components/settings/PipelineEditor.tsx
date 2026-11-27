@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { describeRule, type OnEnter } from "@lume/core/shared";
@@ -244,15 +245,7 @@ export function PipelineEditor({
         onClick={() => setSelected(stage.id)}
       >
         <span>{count(stage) ? `${count(stage)} automation${count(stage) === 1 ? "" : "s"}` : ""}</span>
-        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
-          <path
-            d="M6 3.5 10.5 8 6 12.5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-          />
-        </svg>
+        <UI_ICONS.open size={ICON_SIZE.sm} aria-hidden />
       </button>
     </span>
   );
@@ -435,27 +428,11 @@ export function PipelineEditor({
                       {line.startsWith("Sets the lead's owner a WhatsApp") ? (
                         <WhatsAppIcon size={16} />
                       ) : (
-                        <svg viewBox="0 0 16 16" width="14" height="14">
-                          <path
-                            d="M3.5 8.5 6.5 11.5 12.5 4.5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                          />
-                        </svg>
+                        <UI_ICONS.done size={ICON_SIZE.sm} aria-hidden />
                       )}
                     </span>
                     <span>{line}</span>
-                    <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
-                      <path
-                        d="M6 3.5 10.5 8 6 12.5"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.6"
-                        strokeLinecap="round"
-                      />
-                    </svg>
+                    <UI_ICONS.open size={ICON_SIZE.sm} aria-hidden />
                   </button>
                 </li>
               ))}

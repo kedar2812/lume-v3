@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { metaColumns, type LiveSheetPreset, type LiveSheetRule } from "@lume/core/shared";
 import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -334,16 +335,7 @@ export function CreateLiveSheet({
             hidden={step === 0}
             onClick={() => go(step - 1)}
           >
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-              <path
-                d="M10 3 5 8l5 5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <UI_ICONS.back size={ICON_SIZE.md} aria-hidden />
           </button>
           <h2 ref={heading} tabIndex={-1}>
             {
@@ -564,16 +556,7 @@ export function CreateLiveSheet({
                           disabled={fixed || i <= 1}
                           onClick={() => set({ order: swap(d.order, i, i - 1) })}
                         >
-                          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
-                            <path
-                              d="M4 10l4-4 4 4"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
+                          <UI_ICONS.moveUp size={ICON_SIZE.sm} aria-hidden />
                         </button>
                         <button
                           type="button"
@@ -582,16 +565,7 @@ export function CreateLiveSheet({
                           disabled={fixed || i >= d.order.length - 1}
                           onClick={() => set({ order: swap(d.order, i, i + 1) })}
                         >
-                          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
-                            <path
-                              d="M4 6l4 4 4-4"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
+                          <UI_ICONS.moveDown size={ICON_SIZE.sm} aria-hidden />
                         </button>
                       </li>
                     );

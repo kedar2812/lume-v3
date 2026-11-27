@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -92,9 +93,7 @@ export function AlertHud() {
             Review
           </button>
           <button type="button" className={s.dismiss} aria-label="Dismiss" onClick={() => setNote(null)}>
-            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
-              <path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
+            <UI_ICONS.close size={ICON_SIZE.sm} aria-hidden />
           </button>
           {!reduce && <span className={s.bar} data-held={held || undefined} aria-hidden />}
         </motion.div>

@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { motion, useDragControls, useReducedMotion } from "motion/react";
 import { useRef, type ReactNode } from "react";
 import { SPRINGS, sheetDismisses, toMotion } from "@/lib/motion";
@@ -109,9 +110,7 @@ export function Sheet({
           )}
           <div className={s.top}>
             <IconButton label="Close (Esc)" onClick={onClose}>
-              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-                <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
+              <UI_ICONS.close size={ICON_SIZE.md} aria-hidden />
             </IconButton>
             {headerEnd && <div className={s.topEnd}>{headerEnd}</div>}
           </div>

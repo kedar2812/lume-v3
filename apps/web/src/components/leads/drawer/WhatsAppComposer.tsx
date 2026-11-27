@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { bytesText, formatProblem } from "@lume/core/shared";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Popover } from "@/components/ui/Popover";
@@ -19,21 +20,7 @@ const ACCEPT =
   "image/jpeg,image/png,video/mp4,video/3gpp,audio/ogg,audio/mpeg,audio/mp4,audio/aac,audio/amr,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt";
 const typeWord = (f: WaAttached) => fileTypeWord({ ...f, name: f.filename });
 
-const Clip = () => (
-  <svg
-    aria-hidden="true"
-    width="20"
-    height="20"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M21 11.5 12.6 19.9a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 0 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 0 1-2.6-2.6l7.8-7.8" />
-  </svg>
-);
+const Clip = () => <UI_ICONS.attach size={ICON_SIZE.lg} aria-hidden />;
 
 /**
  * Attach's menu (W3b-1 Task 4; Media, 2026-10-20): this device, or Media, where several can be ticked at once.
@@ -284,18 +271,7 @@ export function WhatsAppComposer({
             aria-label={`Remove ${file.filename ?? "the photo"}`}
             onClick={() => setFiles((fs) => fs.filter((x) => x.key !== k))}
           >
-            <svg
-              aria-hidden="true"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            >
-              <path d="M6 6l12 12M18 6 6 18" />
-            </svg>
+            <UI_ICONS.remove size={ICON_SIZE.md} aria-hidden />
           </button>
         </div>
       ))}
@@ -375,19 +351,7 @@ export function WhatsAppComposer({
           }}
         />
         <button type="submit" className={s.send} disabled={!canSend} data-sending={sending || undefined}>
-          <svg
-            aria-hidden="true"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M5 12h13M13 6l6 6-6 6" />
-          </svg>
+          <UI_ICONS.send size={ICON_SIZE.md} aria-hidden />
           {sending ? "Sending…" : "Send"}
         </button>
       </div>

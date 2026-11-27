@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { useRef, useState, type ReactNode } from "react";
 import type { FieldDefView, Lead } from "@/lib/leads/types";
 import { FieldEditor } from "./fields/FieldEditor";
@@ -59,15 +60,7 @@ export function EditableCell({
         aria-label={`Edit ${def.label} for ${lead.name ?? "this lead"}`}
         onClick={() => setEditing(true)}
       >
-        <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden>
-          <path
-            d="M10.5 2.5 13.5 5.5 6 13H3v-3z"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.4"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <UI_ICONS.edit size={ICON_SIZE.sm} aria-hidden />
       </button>
     </div>
   );

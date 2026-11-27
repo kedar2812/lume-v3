@@ -1,6 +1,7 @@
 import { ALL_GRANTS, newId, totpCode, type Grant } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../../../test/harness";
+import { seedNumber } from "../../../test/whatsapp";
 
 /**
  * Deleting an account (owner 2026-11-02; spec docs/superpowers/specs/2026-11-02-delete-account-and-role.md): the person
@@ -191,6 +192,19 @@ describe("an admin deleting someone's account", () => {
 
   it("someone already offboarded can be deleted too; LUME AI runs speaking as them end", async () => {
     const { u } = await person(0);
+    // A run speaking as them, holding a lead: it ends, and the lead is free for another run (as End leaves it).
+    const leadId = await h.seedLead({ ownerId: owner.id, name: "Held lead" });
+    const numberId = await seedNumber(h, { runAs: owner.id });
+    const runId = newId();
+    await h.queryAll(
+      `INSERT INTO autopilot_runs (id, name, started_by, speaker_id, number_id, goal, permissions, follow_up_days, outside_hours)
+       VALUES ($1, 'Spring', $2, $3, $4, '{"kind":"reply"}', '{}', '{}', 'wait')`,
+      [runId, owner.id, u.id, numberId],
+    );
+    await h.queryAll("INSERT INTO autopilot_leads (run_id, lead_id, state) VALUES ($1, $2, 'sent')", [
+      runId,
+      leadId,
+    ]);
     expect(
       (
         await admin.inject({
@@ -207,5 +221,14 @@ describe("an admin deleting someone's account", () => {
     });
     expect(ok.statusCode, ok.body).toBe(204);
     expect((await row(u.id)).status).toBe("deleted");
+    const [run] = await h.queryAll<{ status: string }>("SELECT status FROM autopilot_runs WHERE id = $1", [
+      runId,
+    ]);
+    expect(run!.status).toBe("ended");
+    const [held] = await h.queryAll<{ active: boolean }>(
+      "SELECT active FROM autopilot_leads WHERE run_id = $1",
+      [runId],
+    );
+    expect(held!.active).toBe(false);
   });
 });

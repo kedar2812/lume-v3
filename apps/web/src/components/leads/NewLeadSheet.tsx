@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { BodyPortal } from "@/components/ui/BodyPortal";
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
@@ -255,9 +256,7 @@ export function NewLeadSheet({
         >
           <div className={d.top}>
             <IconButton label="Close (Esc)" onClick={requestClose}>
-              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-                <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
+              <UI_ICONS.close size={ICON_SIZE.md} aria-hidden />
             </IconButton>
             <h2 id={titleId} className={s.title}>
               New lead

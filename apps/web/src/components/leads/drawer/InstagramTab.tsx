@@ -1,6 +1,6 @@
 "use client";
 import { IG_LIMITS, firstNameOf, textBytes } from "@lume/core/shared";
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { instagramClient } from "@/lib/instagram/client";
 import type { IgComment, IgMessage, IgThread, IgWindow } from "@/lib/instagram/types";
@@ -81,7 +81,15 @@ function Message({
   onRetry(m: IgMessage): void;
 }) {
   const who =
-    m.direction === "in" ? null : m.flow ? m.flow : m.fromPhone ? "From Instagram" : (m.sentBy?.name ?? null);
+    m.direction === "in"
+      ? null
+      : m.flow
+        ? m.flow
+        : m.fromPhone
+          ? "From Instagram"
+          : m.ai
+            ? `LUME AI for ${m.sentBy?.name ?? "your team"}`
+            : (m.sentBy?.name ?? null);
   const meta = [
     who,
     m.privateReply ? "private reply" : null,
@@ -132,6 +140,11 @@ function Message({
   );
 }
 
+/** Instagram's limit for a comment's words. */
+const COMMENT_MAX = 2200;
+/** How long Delete waits for its second tap. */
+const SURE_MS = 4000;
+
 function CommentRow({
   c,
   tz,
@@ -143,23 +156,60 @@ function CommentRow({
   canReply: boolean;
   onSent(): void;
 }) {
-  const [open, setOpen] = useState(false);
+  // One box at a time: the private reply (their DMs, once) or the public one (under the comment, for everyone).
+  const [open, setOpen] = useState<"private" | "public" | null>(null);
   const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Delete is asked twice, on the same button (as Team Chat's); asked, it goes back to Delete after a few seconds.
+  const [sure, setSure] = useState(false);
+  useEffect(() => {
+    if (!sure) return;
+    const t = setTimeout(() => setSure(false), SURE_MS);
+    return () => clearTimeout(t);
+  }, [sure]);
   const key = useRef(crypto.randomUUID());
   const fieldId = useId();
+  const done = () => {
+    setOpen(null);
+    setText("");
+    setSure(false);
+    onSent();
+  };
   const send = async () => {
     if (!text.trim() || busy) return;
-    setBusy(true);
+    setBusy("send");
     setError(null);
-    const r = await instagramClient.privateReply(c.id, { clientKey: key.current, text: text.trim() });
-    setBusy(false);
+    const r =
+      open === "public"
+        ? await instagramClient.replyPublicly(c.id, text.trim())
+        : await instagramClient.privateReply(c.id, { clientKey: key.current, text: text.trim() });
+    setBusy(null);
     if (!r.ok) return setError(r.message);
     key.current = crypto.randomUUID();
-    setOpen(false);
-    setText("");
-    onSent();
+    done();
+  };
+  const hide = async () => {
+    if (busy) return;
+    setBusy("hide");
+    setError(null);
+    const r = await instagramClient.hideComment(c.id, !c.hidden);
+    setBusy(null);
+    if (!r.ok) return setError(r.message);
+    done();
+  };
+  const remove = async () => {
+    if (busy) return;
+    if (!sure) return setSure(true);
+    setBusy("delete");
+    setError(null);
+    const r = await instagramClient.deleteComment(c.id);
+    setBusy(null);
+    if (!r.ok) {
+      setSure(false);
+      return setError(r.message);
+    }
+    done();
   };
   const state =
     c.privateReply === "sent"
@@ -170,26 +220,80 @@ function CommentRow({
           ? c.replyOpen
             ? "The private reply didn’t go"
             : "The private reply didn’t go, and its 7 days have ended"
-          : c.replyOpen
+          : c.replyOpen || c.deleted
             ? null
             : "Its 7 days for a private reply have ended";
+  const tooLong = open === "public" ? [...text].length > COMMENT_MAX : textBytes(text) > IG_LIMITS.textBytes;
+  const actions = canReply && !c.deleted && !open;
   return (
-    <li className={s.comment}>
+    <li className={s.comment} data-deleted={c.deleted || undefined}>
       <p className={s.commentText}>{c.text || "A comment with no words"}</p>
       <span className={s.meta}>
-        {[c.mediaType === "REELS" ? "On a reel" : c.mediaType ? "On a post" : null, when(c.at, tz), state]
+        {[
+          c.mediaType === "REELS" ? "On a reel" : c.mediaType ? "On a post" : null,
+          when(c.at, tz),
+          c.deleted ? "Deleted from Instagram" : c.hidden ? "Hidden on Instagram" : null,
+          state,
+        ]
           .filter(Boolean)
           .join(" · ")}
       </span>
-      {c.replyOpen && canReply && !open && (
-        <Button size="sm" onClick={() => setOpen(true)}>
-          Reply privately
-        </Button>
+      {c.publicReply && (
+        <p className={s.publicReply}>
+          {c.publicReplyUnsure
+            ? `Replied publicly, though Instagram didn’t answer: ${c.publicReply}. Check Instagram.`
+            : `Replied publicly: ${c.publicReply}`}
+        </p>
+      )}
+      {actions && (
+        <div className={s.commentActions}>
+          {c.replyOpen && (
+            <Button
+              size="sm"
+              onClick={() => {
+                setError(null);
+                setOpen("private");
+              }}
+            >
+              Reply privately
+            </Button>
+          )}
+          {c.canReplyPublicly && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setError(null);
+                setOpen("public");
+              }}
+            >
+              Reply publicly
+            </Button>
+          )}
+          {c.hidden !== undefined && (
+            <Button size="sm" variant="ghost" loading={busy === "hide"} onClick={() => void hide()}>
+              {c.hidden ? "Unhide" : "Hide"}
+            </Button>
+          )}
+          {c.deleted !== undefined && (
+            <Button
+              size="sm"
+              variant={sure ? "danger" : "ghost"}
+              loading={busy === "delete"}
+              onClick={() => void remove()}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setSure(false);
+              }}
+            >
+              {sure ? "Delete from Instagram?" : "Delete"}
+            </Button>
+          )}
+        </div>
       )}
       {open && (
         <div className={s.privateBox}>
           <label htmlFor={fieldId} className={s.srOnly}>
-            Private reply to this comment
+            {open === "public" ? "Public reply to this comment" : "Private reply to this comment"}
           </label>
           <textarea
             id={fieldId}
@@ -197,28 +301,30 @@ function CommentRow({
             rows={2}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Lands in their DMs, once"
+            placeholder={
+              open === "public" ? "Shows under their comment, for everyone" : "Lands in their DMs, once"
+            }
           />
-          {error && (
-            <p role="alert" className={s.error}>
-              {error}
-            </p>
-          )}
           <div className={s.row}>
-            <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
+            <Button size="sm" variant="ghost" onClick={() => setOpen(null)}>
               Cancel
             </Button>
             <Button
               size="sm"
               variant="primary"
-              loading={busy}
-              disabled={!text.trim() || textBytes(text) > IG_LIMITS.textBytes}
+              loading={busy === "send"}
+              disabled={!text.trim() || tooLong}
               onClick={() => void send()}
             >
-              Send privately
+              {open === "public" ? "Reply publicly" : "Send privately"}
             </Button>
           </div>
         </div>
+      )}
+      {error && (
+        <p role="alert" className={s.error}>
+          {error}
+        </p>
       )}
     </li>
   );
@@ -258,6 +364,8 @@ export function InstagramTab({
   const tooLong = bytes > IG_LIMITS.textBytes;
   const mine = t.takenOver?.id === me.id;
   const flowHas = !!t.flow && !t.takenOver;
+  // LUME AI holds it (over a flow: one driver at a time).
+  const aiHas = !!t.ai && !t.takenOver;
   const canType = canSend && t.account.connected && t.window.state !== "closed";
   const known = new Set(t.messages.map((m) => m.id));
   const messages = [...t.messages, ...(sentNow[t.id] ?? []).filter((m) => !known.has(m.id))];
@@ -304,12 +412,21 @@ export function InstagramTab({
     ? mine
       ? { chip: "You", note: `Nothing automated writes to ${first} until you hand ${first} back.` }
       : { chip: t.takenOver.name, note: `${t.takenOver.name} took this conversation over.` }
-    : t.flow
+    : aiHas
       ? {
-          chip: `Flow: ${t.flow.name}`,
-          note: t.flow.waiting ? `The flow is waiting for ${first}’s answer.` : "The flow is answering now.",
+          chip: "LUME AI",
+          note: t.ai!.paused
+            ? "LUME AI’s run is paused. Nothing goes until it’s resumed, or you take over."
+            : "LUME AI is answering, within Instagram’s 24 hours.",
         }
-      : { chip: "Your team", note: "No flow is answering. Your team answers here." };
+      : t.flow
+        ? {
+            chip: `Flow: ${t.flow.name}`,
+            note: t.flow.waiting
+              ? `The flow is waiting for ${first}’s answer.`
+              : "The flow is answering now.",
+          }
+        : { chip: "Your team", note: "No flow is answering. Your team answers here." };
 
   let day0 = "";
   return (
@@ -341,11 +458,11 @@ export function InstagramTab({
       </header>
 
       <div className={s.driver}>
-        <span className={s.chip} data-who={t.takenOver ? "person" : t.flow ? "flow" : "team"}>
+        <span className={s.chip} data-who={t.takenOver ? "person" : aiHas ? "ai" : t.flow ? "flow" : "team"}>
           {driver.chip}
         </span>
         <span className={s.driverNote}>{driver.note}</span>
-        {canSend && t.account.connected && flowHas && (
+        {canSend && t.account.connected && (flowHas || aiHas) && (
           <Button size="sm" onClick={() => void act("takeOver")}>
             Take over
           </Button>
@@ -429,11 +546,13 @@ export function InstagramTab({
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={onKey}
             placeholder={
-              flowHas
-                ? `Type to take over from ${t.flow!.name}…`
-                : t.takenOver && !mine
-                  ? `Type to take over from ${t.takenOver.name}…`
-                  : `Reply to ${first}…`
+              aiHas
+                ? "Type to take over from LUME AI…"
+                : flowHas
+                  ? `Type to take over from ${t.flow!.name}…`
+                  : t.takenOver && !mine
+                    ? `Type to take over from ${t.takenOver.name}…`
+                    : `Reply to ${first}…`
             }
           />
           <div className={s.row}>

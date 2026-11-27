@@ -215,7 +215,7 @@ export type InstagramBoard = {
   series: ({ day: string } & Record<IgStart, number>)[];
   funnel: { id: "wrote" | "lead" | "booked" | "won"; n: number }[];
   whoAnswered: {
-    id: "flows" | "team";
+    id: "flows" | "ai" | "team";
     conversations: number;
     booked: number;
     won: number;
@@ -223,7 +223,16 @@ export type InstagramBoard = {
     firstAnswerSec: number | null;
   }[];
   accounts: { id: string; username: string | null; status: string; conversations: number; leads: number }[];
-  sources: { kind: string; id: string; conversations: number; leads: number }[];
+  sources: { kind: string; id: string; conversations: number; leads: number; drill: string | null }[];
+  /** Each number's leads (a drill token), for someone who may open them. */
+  drill:
+    | (Record<
+        "conversations" | "leads" | "inTime" | "ranOut" | "booked" | "won" | "stopped" | "flows" | "team",
+        string
+      > & { /** LUME AI's row's leads (once LUME AI answers Instagram). */ ai?: string })
+    | null;
+  /** LUME noticed: at most three, from these numbers. */
+  notes: { id: string; title: string; body: string }[];
 };
 
 export type Lost = {

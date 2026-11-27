@@ -1,44 +1,86 @@
 import {
+  Archive,
+  ArrowDown,
+  ArrowUp,
   ArrowUpRight,
   AtSign,
+  Ban,
   BellRing,
   CalendarCheck,
+  CalendarDays,
+  CalendarPlus,
+  Camera,
   Check,
+  CheckCheck,
+  ChevronDown,
   ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  CircleAlert,
   CircleDot,
   CircleStop,
   Clock,
+  Columns3,
+  Copy,
+  Download,
+  Ellipsis,
+  EyeOff,
   FileDown,
   Forward,
   Gift,
   GitBranch,
+  Globe,
+  GripVertical,
   Hand,
-  History,
   Handshake,
+  History,
   Hourglass,
   Inbox,
   Info,
   Link,
+  ListFilter,
   Lock,
+  Mail,
+  Maximize2,
   Megaphone,
   MessageCircleMore,
   MessageCircleQuestionMark,
   MessageSquare,
   MessageSquarePlus,
+  Paperclip,
+  Pause,
+  Pencil,
   Percent,
+  Phone,
+  PhoneCall,
+  PhoneMissed,
   Play,
   Plus,
   Reply,
   Search,
+  SendHorizontal,
+  Settings,
   ShieldCheck,
+  SlidersHorizontal,
   Split,
   Star,
   Tag,
   Ticket,
   Timer,
+  Trash2,
   TriangleAlert,
+  Undo2,
+  Upload,
+  UserMinus,
   UserPen,
+  UserPlus,
+  Video,
+  Voicemail,
+  WifiLow,
+  WifiOff,
   X,
+  ZoomIn,
+  ZoomOut,
   type LucideIcon,
 } from "lucide-react";
 
@@ -123,6 +165,107 @@ export const UI_ICONS = {
   add: Plus,
   /** Search. */
   search: Search,
+  /** This device's connection is down. */
+  offline: WifiOff,
+  /** This device's connection is slow. */
+  slowNetwork: WifiLow,
+  /** Opens a list to choose from. */
+  menu: ChevronDown,
+  /** The one before, and the one after (a lead in the drawer). */
+  previous: ChevronUp,
+  next: ChevronDown,
+  /** Move it up or down the order. */
+  moveUp: ArrowUp,
+  moveDown: ArrowDown,
+  /** Take it off (a filter, a file waiting to go). Closing a panel is `close`. */
+  remove: X,
+  /** Delete for good. */
+  delete: Trash2,
+  /** Change it. */
+  edit: Pencil,
+  /** More actions. */
+  more: Ellipsis,
+  /** Put back what was just done. */
+  undo: Undo2,
+  /** What happened lately (bulk changes). */
+  recent: History,
+  /** A call, and a phone number. */
+  call: Phone,
+  /** An email address. */
+  email: Mail,
+  /** A call's outcome: talked, no answer, left a message. */
+  talked: PhoneCall,
+  noAnswer: PhoneMissed,
+  leftMessage: Voicemail,
+  /** Attach a file. */
+  attach: Paperclip,
+  /** Send it. */
+  send: SendHorizontal,
+  /** Templates (as the sidebar's). */
+  templates: Mail,
+  /** Sent, and delivered (a message's ticks). */
+  sent: Check,
+  delivered: CheckCheck,
+  /** Hidden from you (a contact you may not see in full). */
+  masked: EyeOff,
+  /** Later: a limit that comes back at a time. */
+  later: Clock,
+  /** Do not contact. */
+  doNotContact: Ban,
+  /** A stage of the pipeline (as the sidebar's Pipeline). */
+  stage: Columns3,
+  /** Give it to someone. */
+  assign: UserPlus,
+  /** A tag. */
+  tag: Tag,
+  /** Which columns show. */
+  columns: SlidersHorizontal,
+  /** It didn't work. */
+  failed: CircleAlert,
+  /** Stopped before it finished. */
+  stopped: CircleStop,
+  /** Download it (an export). */
+  download: Download,
+  /** Bring a file in. */
+  upload: Upload,
+  /** The period before. */
+  before: ChevronLeft,
+  /** The period after. */
+  after: ChevronRight,
+  /** Opens it (a row with more inside). */
+  open: ChevronRight,
+  /** Drag to reorder. */
+  drag: GripVertical,
+  /** Put away (archived, not deleted). */
+  archive: Archive,
+  /** A photo. */
+  photo: Camera,
+  /** Pause. */
+  pause: Pause,
+  /** Take someone out of LUME (offboard). */
+  offboard: UserMinus,
+  /** Narrow what shows. */
+  filter: ListFilter,
+  /** The web (a website, web visits). */
+  web: Globe,
+  /** A date, a calendar (as the sidebar's Calendar). */
+  calendar: CalendarDays,
+  /** Put something on the calendar. */
+  schedule: CalendarPlus,
+  /** A video call. */
+  video: Video,
+  /** Settings (as the sidebar's). */
+  settings: Settings,
+  /** Zoom in. */
+  zoomIn: ZoomIn,
+  /** Zoom out. */
+  zoomOut: ZoomOut,
+  /** Open it full screen. */
+  fullScreen: Maximize2,
+  /** A link (as the ready-made flow's). */
+  link: Link,
+  /** Copy it. */
+  copy: Copy,
 } satisfies Record<string, LucideIcon>;
 
 /** The size icons are drawn at beside text of each size; the stroke stays Lucide's 2. */

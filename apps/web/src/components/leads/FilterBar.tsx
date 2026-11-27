@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { scopeOf, type PhoneStatus } from "@lume/core/shared";
 import { Popover } from "@/components/ui/Popover";
@@ -24,11 +25,7 @@ const PHONE_LABEL: Record<PhoneStatus, string> = {
   missing: "No phone",
 };
 
-const Caret = () => (
-  <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden className={s.caret}>
-    <path d="M3 4.5 6 7.5l3-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-  </svg>
-);
+const Caret = () => <UI_ICONS.menu size={ICON_SIZE.sm} aria-hidden className={s.caret} />;
 
 /**
  * Narrowing the list. Every control is labelled; controls that can't apply to this person (owners for
@@ -84,10 +81,7 @@ export function FilterBar({
   return (
     <div className={s.filters} role="search">
       <label className={s.search}>
-        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden>
-          <circle cx="7" cy="7" r="4.6" fill="none" stroke="currentColor" strokeWidth="1.5" />
-          <path d="m10.5 10.5 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
+        <UI_ICONS.search size={ICON_SIZE.md} aria-hidden />
         <input
           ref={search}
           type="search"
@@ -325,6 +319,26 @@ export function FilterBar({
                 ))}
               </select>
             </label>
+            {(catalog.waNumbers ?? []).length > 0 && (
+              <>
+                <p className={s.moreHead}>WhatsApp</p>
+                <label>
+                  Messaged from
+                  <select
+                    aria-label="Messaged from"
+                    value={filters.messagedFrom ?? ""}
+                    onChange={(e) => set({ messagedFrom: e.target.value || undefined })}
+                  >
+                    <option value="">Any number</option>
+                    {(catalog.waNumbers ?? []).map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {`${n.display} · ${n.whose}${n.connected ? "" : " · not connected"}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
             {extra.length > 0 && <p className={s.moreHead}>{"The business's fields"}</p>}
             {extra.map((def) => (
               <CustomFilter
@@ -353,9 +367,7 @@ export function FilterBar({
           onClick={() => set(c.clear)}
         >
           {c.label}
-          <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden>
-            <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
+          <UI_ICONS.remove size={ICON_SIZE.sm} aria-hidden />
         </button>
       ))}
 
@@ -367,9 +379,7 @@ export function FilterBar({
           onClick={() => set({ source: undefined })}
         >
           From {catalog.sources.find((x) => x.id === filters.source)?.name ?? "an import"}
-          <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden>
-            <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
+          <UI_ICONS.remove size={ICON_SIZE.sm} aria-hidden />
         </button>
       )}
       {filters.arrivedAfter && (
@@ -380,9 +390,7 @@ export function FilterBar({
           onClick={() => set({ arrivedAfter: undefined })}
         >
           New since your last visit
-          <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden>
-            <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
+          <UI_ICONS.remove size={ICON_SIZE.sm} aria-hidden />
         </button>
       )}
       {count > 0 && (
@@ -439,6 +447,14 @@ function quietChips(f: ListFilters, cat: Catalog): { label: string; clear: Parti
           {
             label: f.createdDays === 1 ? "Added today" : `Added in the last ${f.createdDays} days`,
             clear: { createdDays: undefined },
+          },
+        ]
+      : []),
+    ...(f.messagedFrom
+      ? [
+          {
+            label: `Messaged from ${(cat.waNumbers ?? []).find((n) => n.id === f.messagedFrom)?.display ?? "a WhatsApp number"}`,
+            clear: { messagedFrom: undefined },
           },
         ]
       : []),

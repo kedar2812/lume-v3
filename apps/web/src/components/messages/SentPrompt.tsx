@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import s from "./messages.module.css";
@@ -78,19 +79,7 @@ export function SentPrompt({
       {!asking && outcome && (
         <motion.div key="done" role="status" {...pill}>
           {!outcome.failed && !outcome.pending && (
-            <svg viewBox="0 0 16 16" width="14" height="14" className={s.tick} aria-hidden data-tick>
-              <motion.path
-                d="M3.5 8.5 6.5 11.5 12.5 4.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                initial={{ pathLength: reduce ? 1 : 0 }}
-                animate={{ pathLength: 1 }}
-                transition={reduce ? { duration: 0 } : toMotion(SPRINGS.default)}
-              />
-            </svg>
+            <UI_ICONS.done size={ICON_SIZE.sm} aria-hidden className={s.tick} />
           )}
           <span className={s.said} data-failed={outcome.failed ? true : undefined}>
             {outcome.failed ? (

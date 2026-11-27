@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { can } from "@lume/core/shared";
@@ -156,18 +157,7 @@ export function RunsDrawer({
             </span>
           )}
           <button type="button" className={s.close} aria-label="Close" onClick={onClose}>
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              aria-hidden
-            >
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
+            <UI_ICONS.close size={ICON_SIZE.md} aria-hidden />
           </button>
         </header>
         {runs === null && failed ? (
@@ -237,58 +227,13 @@ export function RunsDrawer({
                                   />
                                 </svg>
                               ) : r.status === "undone" || r.action.type === "undo" ? (
-                                <svg
-                                  width="19"
-                                  height="19"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  aria-hidden
-                                >
-                                  <path d="M9 14 4 9l5-5" />
-                                  <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
-                                </svg>
+                                <UI_ICONS.undo size={ICON_SIZE.lg} aria-hidden />
                               ) : r.status === "failed" ? (
-                                <svg
-                                  width="19"
-                                  height="19"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.2"
-                                  strokeLinecap="round"
-                                  aria-hidden
-                                >
-                                  <circle cx="12" cy="12" r="9" />
-                                  <path d="M12 8v4.5M12 16h.01" />
-                                </svg>
+                                <UI_ICONS.failed size={ICON_SIZE.lg} aria-hidden />
                               ) : r.status === "cancelled" ? (
-                                <svg
-                                  width="15"
-                                  height="15"
-                                  viewBox="0 0 24 24"
-                                  fill="currentColor"
-                                  aria-hidden
-                                >
-                                  <rect x="6" y="6" width="12" height="12" rx="2" />
-                                </svg>
+                                <UI_ICONS.stopped size={ICON_SIZE.md} aria-hidden />
                               ) : (
-                                <svg
-                                  width="19"
-                                  height="19"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.4"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  aria-hidden
-                                >
-                                  <path d="M20 6 9 17l-5-5" />
-                                </svg>
+                                <UI_ICONS.done size={ICON_SIZE.lg} aria-hidden />
                               )}
                               {live && <b>{Math.round(p * 100)}%</b>}
                             </span>

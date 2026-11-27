@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { NewPill } from "@/components/whats-new/NewPill";
 import type { CallRules } from "@lume/core/shared";
 import { useState } from "react";
@@ -28,18 +29,7 @@ const WEEK = [
   { d: 0, name: "Sunday" },
 ];
 const MINUTES = ["15", "30", "45", "60"] as const;
-const X = (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.2"
-    strokeLinecap="round"
-    aria-hidden
-  >
-    <path d="M7 7l10 10M17 7L7 17" />
-  </svg>
-);
+const X = <UI_ICONS.remove size={ICON_SIZE.md} aria-hidden />;
 
 /**
  * Settings → LUME AI, the calls LUME AI may say yes to (spec 2026-11-02): rows of days and a from–to on the business's
@@ -211,11 +201,7 @@ export function CallTimes({
   );
 }
 
-const TICK = (
-  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-    <path d="M3.5 8.4 6.6 11.3 12.5 4.8" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
+const TICK = <UI_ICONS.done size={ICON_SIZE.md} aria-hidden />;
 
 /**
  * The Meet link card: one switch, and under it the one thing left to do, if anything. The permission is Google's own

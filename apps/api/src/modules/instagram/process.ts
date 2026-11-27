@@ -12,6 +12,10 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { AppDeps } from "../../app";
 import { loadActor } from "../../rbac/actor";
 import { available } from "../ai/service";
+import { sendStopApology } from "../autopilot/engine";
+import { leadWrote, personSent } from "../autopilot/lead-events";
+import { tellPeople } from "../autopilot/ready";
+import { giveToAi } from "./ai-intake";
 import { jobServer, withJobRequest } from "../imports/job-request";
 import { setDoNotContact } from "../leads/dnc";
 import { replyArrived } from "../leads/sending";
@@ -143,6 +147,8 @@ type Notice = {
   body: string;
 };
 type Out = {
+  /** LUME AI's run on this conversation: woken once this commits (or, for a stop, its one apology). */
+  autopilot: { runId: string; leadId: string; stopped: boolean; running: boolean; ready?: true } | null;
   media: string[];
   notice: Notice | null;
   profile: string | null;
@@ -324,25 +330,39 @@ async function messageIn(
         : `${firstName(lead.name) ?? "A lead"} replied on Instagram`,
       body: igGist(e),
     };
-  // Then the flow it's in, or the one it starts (spec 2026-11-22 §2); a stop above has already made the lead
-  // do-not-contact, which stops any run.
-  const took = await flowOnMessage(
-    req,
-    account,
-    {
-      threadId: t.id,
-      leadId,
-      text: e.text,
-      payload: e.quickReply,
-      // Only this message's own ad click: a later plain DM from someone who once came from an ad is a DM.
-      via: ad ? "ad" : e.replyToStory ? "story_reply" : e.storyMention ? "story_mention" : "dm",
-      // Their first message to the account: a conversation a comment flow opened has none before this.
-      first: t.created || !t.last_in_at,
-      adId: e.referral?.adId ?? t.source?.adId ?? null,
-    },
-    at,
-    out.flow,
-  );
+  // Who answers (spec 2026-11-22 §2), each row over the ones below: a person who took the conversation over (nothing
+  // automated); the LUME AI run working this conversation; the flow it's in, or the one it starts (a lead any run holds
+  // starts none); for a DM nothing claims, LUME AI when the account says so; else the team. A stop above has made the
+  // lead do-not-contact, which stops any flow; LUME AI's run hears it as its own stop.
+  const held = t.taken_over_by
+    ? null
+    : await leadWrote(req, leadId, at, e.text ?? "", { channel: "instagram", accountId: account.id });
+  if (held) out.autopilot = { ...held, leadId };
+  const took = held
+    ? null
+    : await flowOnMessage(
+        req,
+        account,
+        {
+          threadId: t.id,
+          leadId,
+          text: e.text,
+          payload: e.quickReply,
+          // Only this message's own ad click: a later plain DM from someone who once came from an ad is a DM.
+          via: ad ? "ad" : e.replyToStory ? "story_reply" : e.storyMention ? "story_mention" : "dm",
+          // Their first message to the account: a conversation a comment flow opened has none before this.
+          first: t.created || !t.last_in_at,
+          adId: e.referral?.adId ?? t.source?.adId ?? null,
+        },
+        at,
+        out.flow,
+      );
+  const given =
+    !held && !took && !stopped && !t.taken_over_by && account.newDms === "ai"
+      ? await giveToAi(req, d, { accountId: account.id, leadId, goal: null })
+      : null;
+  if (given && given !== "held")
+    out.autopilot = { runId: given.runId, leadId, stopped: false, running: true };
   await received(req, {
     id: activityId,
     leadId,
@@ -353,7 +373,8 @@ async function messageIn(
   });
   // What it means, when there are words and LUME AI is on (a stop is settled already; a flow answers its own).
   // A tap on a quick reply is a button's words, never theirs: not read.
-  if (!took && !stopped && !e.quickReply && e.text?.trim() && (await available(req, d)).ok)
+  // A conversation LUME AI answers is its own (as WhatsApp's run leads).
+  if (!took && !held && !given && !stopped && !e.quickReply && e.text?.trim() && (await available(req, d)).ok)
     out.meaning = activityId;
 }
 
@@ -393,6 +414,7 @@ async function echo(
            taken_over_at = coalesce(taken_over_at, now())
      WHERE id = ${t.id}`);
   await stopFlowRuns(req, { threadId: t.id }, FLOW_WORDS.takenOver);
+  await personSent(req, leadId, { channel: "instagram", accountId: account.id });
   await req.db.execute(sql`
     UPDATE leads SET last_message_at = GREATEST(coalesce(last_message_at, ${at}), ${at}),
                      last_activity_at = GREATEST(coalesce(last_activity_at, ${at}), ${at})
@@ -448,6 +470,7 @@ type Row = {
   run_as: string | null;
   source_id: string | null;
   new_dm_creates_lead: boolean | null;
+  new_dms: "team" | "ai" | null;
   username: string | null;
   token_enc: Buffer | null;
   automated_note: string | null;
@@ -468,7 +491,7 @@ export async function processInstagramEvent(
   const pool = d.jobPool ?? d.pool;
   const { rows } = await pool.query<Row>(
     `SELECT e.status, e.event_enc, e.event_key, e.account_ig_id, a.id AS account_id, a.status AS account_status,
-            a.owner_user_id, a.run_as, a.source_id, a.new_dm_creates_lead, a.username, a.token_enc,
+            a.owner_user_id, a.run_as, a.source_id, a.new_dm_creates_lead, a.new_dms, a.username, a.token_enc,
             a.automated_note, a.person_words
        FROM instagram_events e LEFT JOIN instagram_accounts a ON a.ig_user_id = e.account_ig_id
       WHERE e.id = $1`,
@@ -505,6 +528,7 @@ export async function processInstagramEvent(
     ownerUserId: row.owner_user_id,
     sourceId: row.source_id,
     newDmCreatesLead: row.new_dm_creates_lead ?? true,
+    newDms: row.new_dms ?? "team",
     runAs: row.run_as!,
     automatedNote: row.automated_note?.trim() || null,
     personWords: row.person_words ?? [],
@@ -538,6 +562,7 @@ export async function processInstagramEvent(
       );
       if (lock.rows[0]?.status !== "queued") return null;
       const out: Out = {
+        autopilot: null,
         media: [],
         notice: null,
         profile: null,
@@ -660,6 +685,14 @@ export async function processInstagramEvent(
   if (!out) return "gone";
   if (out.later) return "later";
   await afterFlow(o, out.flow);
+  // LUME AI's conversation: answered (woken now), or, for a stop while it was LUME AI's, its one apology.
+  if (out.autopilot) {
+    const a = out.autopilot;
+    if (a.stopped && a.running) await sendStopApology({ app: o.app, d }, a.runId, a.leadId);
+    else if (a.ready)
+      await tellPeople(pool, { runId: a.runId, leadId: a.leadId, kind: "ready", headline: "Replied" });
+    else if (!a.stopped) await d.autopilot?.kick(a.runId).catch(() => undefined);
+  }
   // New people turned away this hour: the admins hear once an hour, with what happens to them.
   if (
     out.flow.held &&

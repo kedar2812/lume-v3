@@ -9,11 +9,24 @@ export type IgAccount = {
   problem: string | null;
   /** New people who write become leads (true) or wait in Not a lead yet (false). */
   newDmCreatesLead: boolean;
+  /** Who answers a DM no flow claims (plan 2026-11-27-instagram-lume-ai): the team, or LUME AI. */
+  newDms: "team" | "ai";
   limits: { newLeadsPerHour: number; mediaMbPerPersonDay: number; mediaMbPerDay: number };
   sourceId: string | null;
   connectedAt: string;
 };
-export type IgAccounts = { accounts: IgAccount[] };
+/** What LUME AI aims for on Instagram: a goal stage, or the business's own words. */
+export type IgAiGoal = { kind: "stage"; stageId: string } | { kind: "brief"; text: string };
+export type IgAccounts = {
+  accounts: IgAccount[];
+  /** Whether LUME AI may answer Instagram here (why not, in words), what it aims for, and the goal stages to pick from. */
+  ai?: {
+    ok: boolean;
+    why?: string;
+    goal: IgAiGoal | { kind: "reply" };
+    stages: { id: string; name: string }[];
+  };
+};
 
 /** One message in a lead's Instagram conversation (API: GET /leads/:id/instagram). */
 export type IgMessage = {
@@ -37,6 +50,8 @@ export type IgMessage = {
   fromPhone: boolean;
   /** Sent with Meta's human agent tag (a person, after 24 hours). */
   humanAgent: boolean;
+  /** Written by LUME AI, as its speaker (sentBy). */
+  ai?: boolean;
   /** The one private reply to a comment. */
   privateReply: boolean;
 };
@@ -53,6 +68,21 @@ export type IgComment = {
   privateReply: "none" | "queued" | "sent" | "failed";
   /** Its one private reply can still go (within 7 days, not sent yet). */
   replyOpen: boolean;
+  /** What Instagram shows now, after a person's actions from LUME (2026-11-27); absent from an older LUME. */
+  hidden?: boolean;
+  deleted?: boolean;
+  publicReply?: string | null;
+  /** That reply's answer never came from Instagram: it may be there; never sent again by itself. */
+  publicReplyUnsure?: boolean;
+  /** A public reply can still go from LUME (none yet, not deleted, not a live's). */
+  canReplyPublicly?: boolean;
+};
+/** A comment as Instagram shows it after an action. */
+export type IgCommentState = {
+  hidden: boolean;
+  deleted: boolean;
+  publicReply: string | null;
+  publicReplyUnsure: boolean;
 };
 export type IgThread = {
   id: string;
@@ -63,6 +93,8 @@ export type IgThread = {
   takenOver: { id: string; name: string } | null;
   /** The flow it's in now. */
   flow: { id: string; name: string; waiting: boolean } | null;
+  /** LUME AI answering it (its run on this account holds the lead), paused or not. */
+  ai?: { runId: string; paused: boolean } | null;
   comments: IgComment[];
   source: Record<string, unknown> | null;
   messages: IgMessage[];

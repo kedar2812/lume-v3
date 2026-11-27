@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MetricId } from "@lume/core/shared";
@@ -421,11 +422,7 @@ export function Analytics({
               aria-label="Export these numbers (CSV)"
               title="Export these numbers (CSV)"
             >
-              <svg viewBox="0 0 24 24" aria-hidden>
-                <path d="M12 3v12" />
-                <path d="m7 10 5 5 5-5" />
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              </svg>
+              <UI_ICONS.download size={ICON_SIZE.md} aria-hidden />
             </a>
           )}
         </div>
@@ -550,6 +547,7 @@ export function Analytics({
             currency={catalog.currency}
             compare={compare}
             rangeWords={r.words}
+            onDrill={(token, title) => setDrill({ token, title })}
           />
         )}
       </div>

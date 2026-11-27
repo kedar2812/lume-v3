@@ -22,6 +22,7 @@ const account = (id: string, username: string, connectedAt: string) => ({
   status: "active" as const,
   problem: null,
   newDmCreatesLead: true,
+  newDms: "team" as const,
   limits: { newLeadsPerHour: 200, mediaMbPerPersonDay: 50, mediaMbPerDay: 2000 },
   sourceId: null,
   connectedAt,

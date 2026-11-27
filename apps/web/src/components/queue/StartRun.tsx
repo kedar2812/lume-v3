@@ -2,11 +2,12 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { TemplateCategory } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
 import { TokenLine } from "@/components/templates/TokenLine";
 import { Popover } from "@/components/ui/Popover";
+import { SendFrom } from "@/components/whatsapp/SendFrom";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { queueChanged, queuesClient, type QueuePlan, type QueueSource } from "@/lib/queues/client";
 import { templatesClient, type TemplateView } from "@/lib/templates/client";
@@ -62,7 +63,18 @@ function StartBody({ source, suggest }: { source: QueueSource; suggest?: Templat
   const [showLeftOut, setShowLeftOut] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The number it sends from (owner 2026-11-26): with two or more, nothing is chosen for the person.
+  const [numberId, setNumberId] = useState<string | null>(null);
+  const picked = useRef<string | null>(null);
   const key = JSON.stringify(source);
+  const pickNumber = async (id: string) => {
+    setNumberId(id);
+    picked.current = id;
+    // How the leads go depends on the number: who wrote to it, and what its account approved. Only the answer for the
+    // number chosen last is shown.
+    const r = await queuesClient.plan(JSON.parse(key) as QueueSource, id);
+    if (r.ok && picked.current === id) setPlan(r.data);
+  };
 
   useEffect(() => {
     let live = true;
@@ -92,14 +104,18 @@ function StartBody({ source, suggest }: { source: QueueSource; suggest?: Templat
     setSure(false);
     if (!r.ok) return setError(r.message);
     queueChanged();
-    const again = await queuesClient.plan(JSON.parse(key) as QueueSource);
+    const again = await queuesClient.plan(JSON.parse(key) as QueueSource, numberId ?? undefined);
     if (again.ok) setPlan(again.data);
   };
 
   const start = async () => {
     setBusy(true);
     setError(null);
-    const r = await queuesClient.start(source, chosen === OWN ? undefined : (chosen ?? undefined));
+    const r = await queuesClient.start(
+      source,
+      chosen === OWN ? undefined : (chosen ?? undefined),
+      numberId ?? undefined,
+    );
     setBusy(false);
     if (!r.ok) return setError(r.message);
     queueChanged();
@@ -125,12 +141,14 @@ function StartBody({ source, suggest }: { source: QueueSource; suggest?: Templat
 
   const left = plan.leftOut.length;
   const room = Math.max(0, plan.today.cap - plan.today.sent);
+  const numbers = plan.lume?.on ? (plan.numbers ?? []) : [];
+  const needsNumber = numbers.length > 1 && !numberId;
   return (
     <form
       className={s.start}
       onSubmit={(e) => {
         e.preventDefault();
-        if (!plan.open && plan.total) void start();
+        if (!plan.open && plan.total && !needsNumber) void start();
       }}
     >
       <div className={s.who}>
@@ -195,6 +213,16 @@ function StartBody({ source, suggest }: { source: QueueSource; suggest?: Templat
         ))}
       </div>
 
+      {plan.total > 0 && numbers.length > 0 && (
+        <SendFrom numbers={numbers} value={numberId} onChange={(n) => void pickNumber(n)} />
+      )}
+      {plan.lume?.on &&
+        plan.total > 0 &&
+        !needsNumber &&
+        (numbers.length < 2 || plan.lume.numberId === numberId) && (
+          <LumeLine plan={plan} chosen={chosen} templates={templates} />
+        )}
+
       {error && (
         <p role="alert" className={s.error}>
           {error}
@@ -231,11 +259,49 @@ function StartBody({ source, suggest }: { source: QueueSource; suggest?: Templat
               </span>
             )}
           </p>
-          <Button type="submit" variant="primary" size="sm" loading={busy} disabled={!plan.total}>
+          <Button
+            type="submit"
+            variant="primary"
+            size="sm"
+            loading={busy}
+            disabled={!plan.total || needsNumber}
+          >
             Start
           </Button>
         </div>
       )}
     </form>
+  );
+}
+
+/**
+ * How the run will go through LUME (2026-11-26), said before Start: how many go through LUME and how many open
+ * WhatsApp. A template WhatsApp hasn't approved goes through LUME only to those who wrote in the last 24 hours.
+ */
+function LumeLine({
+  plan,
+  chosen,
+  templates,
+}: {
+  plan: QueuePlan;
+  chosen: string | null;
+  templates: TemplateView[];
+}) {
+  const lume = plan.lume!;
+  const template = chosen && chosen !== OWN ? templates.find((t) => t.id === chosen) : undefined;
+  const approved = !!template && lume.approvedTemplateIds.includes(template.id);
+  const through = approved ? lume.through : Math.min(lume.inWindow, lume.through);
+  return (
+    <div className={s.lumeLine}>
+      {template && !approved && (
+        <p>
+          {template.name} isn&apos;t approved by WhatsApp yet. Leads who haven&apos;t written in 24 hours will
+          open in WhatsApp instead.
+        </p>
+      )}
+      <p>
+        Sends through LUME: {through} · Opens WhatsApp: {plan.total - through}
+      </p>
+    </div>
   );
 }

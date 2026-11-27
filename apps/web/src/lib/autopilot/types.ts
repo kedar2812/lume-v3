@@ -24,6 +24,20 @@ export type AutopilotSetup = {
   available: Record<AutopilotAction, Available>;
   hours: { line: string };
   number: { display: string; tierLimit: number | "unlimited" | null } | null;
+  /**
+   * The numbers a run may send from (owner 2026-11-26): the business's, the person's own, and each speaker's own (offered
+   * only while LUME AI speaks as them), each with why it can't be used. Absent from an older LUME.
+   */
+  numbers?: {
+    id: string;
+    display: string;
+    whose: string;
+    ownerId: string | null;
+    tierLimit: number | "unlimited" | null;
+    problem: string | null;
+  }[];
+  /** The person starting it. */
+  you?: string;
   canRemember: boolean;
 };
 
@@ -39,6 +53,8 @@ export type RunBody = ({ leadIds: string[] } | { selection: RunSelection }) & {
   dailyCap: number | null;
   name?: string;
   remember?: boolean;
+  /** The number it sends from (owner 2026-11-26): needed with two or more. */
+  numberId?: string;
 };
 
 export type Skipped = { leadId: string; why: string };
@@ -57,7 +73,8 @@ export type RunView = {
   name: string;
   startedBy: string;
   speakerId: string;
-  numberId: string;
+  /** A WhatsApp run's number; null for an Instagram run (2026-11-27). */
+  numberId: string | null;
   goal: RunGoal;
   permissions: Permissions;
   followUpDays: number[];
@@ -105,10 +122,10 @@ export type RunAsk = {
 };
 /** `GET /api/v1/autopilot/runs/:id`. */
 export type RunDetail = {
-  run: RunView & { canControl: boolean; speakerName: string };
+  run: RunView & { canControl: boolean; speakerName: string; number?: string | null };
   counts: Counts;
   leads: RunLead[];
   asks: RunAsk[];
 };
 /** `GET /api/v1/autopilot/runs`. */
-export type RunsList = { runs: (RunView & { counts: Counts })[]; running: number };
+export type RunsList = { runs: (RunView & { counts: Counts; number?: string | null })[]; running: number };

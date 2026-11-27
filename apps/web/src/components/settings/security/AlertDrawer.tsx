@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { BodyPortal } from "@/components/ui/BodyPortal";
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
@@ -175,9 +176,7 @@ export function AlertDrawer({
               </span>
             )}
             <button type="button" className={s.close} aria-label="Close" onClick={onClose}>
-              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-                <path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
+              <UI_ICONS.close size={ICON_SIZE.md} aria-hidden />
             </button>
           </div>
           <div className={s.drawerBody} data-open={d ? "true" : undefined}>
@@ -240,16 +239,7 @@ export function AlertDrawer({
                             onClick={() => void answer("restored")}
                           >
                             <span className={`${s.answerIcon} ${s.iconOk}`} aria-hidden>
-                              <svg viewBox="0 0 16 16" width="16" height="16">
-                                <path
-                                  d="M3.5 8.5 6.5 11.5 12.5 4.5"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="1.8"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
+                              <UI_ICONS.done size={ICON_SIZE.md} aria-hidden />
                             </span>
                             <span>
                               <b>Restore access</b>{" "}
@@ -263,14 +253,7 @@ export function AlertDrawer({
                             onClick={() => void answer("kept_suspended")}
                           >
                             <span className={`${s.answerIcon} ${s.iconBad}`} aria-hidden>
-                              <svg viewBox="0 0 16 16" width="16" height="16">
-                                <path
-                                  d="M6 4v8M10 4v8"
-                                  stroke="currentColor"
-                                  strokeWidth="1.8"
-                                  strokeLinecap="round"
-                                />
-                              </svg>
+                              <UI_ICONS.pause size={ICON_SIZE.md} aria-hidden />
                             </span>
                             <span>
                               <b>Keep {who} paused</b>{" "}
@@ -286,16 +269,7 @@ export function AlertDrawer({
                           onClick={() => void answer("dismissed")}
                         >
                           <span className={`${s.answerIcon} ${s.iconOk}`} aria-hidden>
-                            <svg viewBox="0 0 16 16" width="16" height="16">
-                              <path
-                                d="M3.5 8.5 6.5 11.5 12.5 4.5"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="1.8"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
+                            <UI_ICONS.done size={ICON_SIZE.md} aria-hidden />
                           </span>
                           <span>
                             <b>Dismiss</b>{" "}
@@ -306,23 +280,7 @@ export function AlertDrawer({
                       {canOffboard && (
                         <Link className={s.answer} href={`/settings/people?offboard=${a.user.id}`}>
                           <span className={`${s.answerIcon} ${s.iconBad}`} aria-hidden>
-                            <svg viewBox="0 0 16 16" width="16" height="16">
-                              <circle
-                                cx="8"
-                                cy="5.4"
-                                r="2.6"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="1.6"
-                              />
-                              <path
-                                d="M2.8 13.6c.6-2.5 2.6-3.9 5.2-3.9s4.6 1.4 5.2 3.9"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="1.6"
-                                strokeLinecap="round"
-                              />
-                            </svg>
+                            <UI_ICONS.offboard size={ICON_SIZE.md} aria-hidden />
                           </span>
                           <span>
                             <b>Offboard {who}</b>{" "}
@@ -337,16 +295,7 @@ export function AlertDrawer({
                 )}
                 {done && (
                   <p role="status" className={done === "kept_suspended" ? s.doneBad : s.done}>
-                    <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden>
-                      <path
-                        d="M3.5 8.5 6.5 11.5 12.5 4.5"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    <UI_ICONS.done size={ICON_SIZE.lg} aria-hidden />
                     {doneWords}
                   </p>
                 )}

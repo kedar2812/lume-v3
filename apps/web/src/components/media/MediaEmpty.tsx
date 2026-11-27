@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { motion, useReducedMotion } from "motion/react";
 import { SPRINGS, toMotion } from "@/lib/motion";
 import { mediaSteps } from "./MediaGuide";
@@ -45,16 +46,7 @@ export function MediaEmpty({ canManage, onAdd }: { canManage: boolean; onAdd(): 
       {canManage && (
         <div className={s.emptyAct}>
           <button type="button" className={s.primary} onClick={onAdd}>
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              aria-hidden
-            >
-              <path d="M12 5v14M5 12h14" />
-            </svg>
+            <UI_ICONS.add size={ICON_SIZE.md} aria-hidden />
             Add your first file
           </button>
           <span className={s.orDrag}>or drag files anywhere on this page</span>

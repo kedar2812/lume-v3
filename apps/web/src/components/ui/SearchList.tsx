@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { pressedWithin } from "./Popover";
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
@@ -161,18 +162,7 @@ export function SearchList({
             {item.flag !== undefined && <Flag iso={item.flag} />}
             <span className={s.name}>{item.label}</span>
             {item.detail && <span className={s.detail}>{item.detail}</span>}
-            {item.id === selected && (
-              <svg viewBox="0 0 14 14" width="12" height="12" aria-hidden className={s.tick}>
-                <path
-                  d="M3 7.5 6 10.3 11.5 4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            )}
+            {item.id === selected && <UI_ICONS.done size={ICON_SIZE.sm} aria-hidden className={s.tick} />}
           </li>
         ))}
       </ul>

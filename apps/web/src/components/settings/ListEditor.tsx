@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import {
   useEffect,
   useId,
@@ -246,14 +247,7 @@ export function ListEditor<T extends ListItem>({
                     }}
                     onKeyDown={(e) => move(e, i)}
                   >
-                    <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden>
-                      <path
-                        d="M4 3h.01M8 3h.01M4 6h.01M8 6h.01M4 9h.01M8 9h.01"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      />
-                    </svg>
+                    <UI_ICONS.drag size={ICON_SIZE.sm} aria-hidden />
                   </button>
                 )}
                 {leading?.(item)}
@@ -288,15 +282,7 @@ export function ListEditor<T extends ListItem>({
                     aria-label={`Rename ${item.label}`}
                     onClick={() => setEditing(item.id)}
                   >
-                    <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden>
-                      <path
-                        d="M10.5 2.5 13.5 5.5 6 13H3v-3z"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.4"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    <UI_ICONS.edit size={ICON_SIZE.sm} aria-hidden />
                   </button>
                 )}
                 {(onArchive || askToArchive) && (
@@ -306,15 +292,7 @@ export function ListEditor<T extends ListItem>({
                     aria-label={`${archiveVerb} ${item.label}`}
                     onClick={() => (askToArchive ? askToArchive(item.id) : setAsking(item.id))}
                   >
-                    <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden>
-                      <path
-                        d="M2.5 4h11v2h-11zM3.5 6v7h9V6M6.5 8.5h3"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.3"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    <UI_ICONS.archive size={ICON_SIZE.sm} aria-hidden />
                   </button>
                 )}
               </>

@@ -1,3 +1,4 @@
+import type { IgWindow } from "../instagram/window";
 import { shiftToWorkingHours, type WorkingHours } from "../tasks/time";
 
 /**
@@ -276,4 +277,41 @@ export function offersIn(text: string): boolean {
 /** The amounts a message names that aren't in the business's price list (§11): such a message never goes. */
 export function unbackedAmounts(text: string, prices: number[]): number[] {
   return amountsIn(text).filter((a) => !prices.some((p) => Math.abs(p - a) < 0.005));
+}
+
+/**
+ * What LUME AI does next with an Instagram lead (plan 2026-11-27-instagram-lume-ai): Instagram allows no first message
+ * and nothing after its window, so LUME AI only ever answers. A message waiting for an answer while the window is open:
+ * reply. Waiting once it closed (or nothing to answer at all): a person, and until when a person can still answer
+ * (Instagram's human agent days), or null when that's over too. Otherwise it waits for them to write.
+ */
+export type InstagramMove = { kind: "reply" } | { kind: "handover"; until: Date | null } | { kind: "wait" };
+export function nextMoveInstagram(
+  l: { state: LeadState; lastSentAt: Date | null; lastInboundAt: Date | null },
+  w: IgWindow,
+): InstagramMove {
+  if (l.state === "writing" || !ACTIVE_STATES.includes(l.state)) return { kind: "wait" };
+  // Nothing from them yet: a lead that was answered (a comment flow's hand-off) waits for them to write.
+  if (!l.lastInboundAt)
+    return l.state === "talking" || l.state === "sent" ? { kind: "wait" } : { kind: "handover", until: null };
+  const unanswered = l.state === "replied" || !l.lastSentAt || l.lastInboundAt > l.lastSentAt;
+  if (!unanswered) return { kind: "wait" };
+  if (w.state === "open") return { kind: "reply" };
+  return { kind: "handover", until: w.state === "human" ? w.until : null };
+}
+
+/** Why LUME AI passed an Instagram lead to a person, in words, with the day and time a person can still answer. */
+export function handoverWords(until: Date | null, tz: string): string {
+  if (!until) return "Instagram's time to answer ran out. They can write again.";
+  const day = new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    timeZone: tz,
+  }).format(until);
+  const time = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: tz })
+    .format(until)
+    .replace(/\u202f/g, " ")
+    .toLowerCase();
+  return `Instagram's 24 hours ran out. A person can still answer until ${day}, ${time}.`;
 }

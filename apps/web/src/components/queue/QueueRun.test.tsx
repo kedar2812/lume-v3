@@ -17,6 +17,9 @@ vi.mock("@/lib/queues/client", async (orig) => ({
     resume: vi.fn(),
     cancel: vi.fn(),
     retry: vi.fn(),
+    channel: vi.fn(),
+    sendItem: vi.fn(),
+    handed: vi.fn(),
   },
 }));
 const play = vi.fn();
@@ -76,6 +79,8 @@ beforeEach(() => {
     })),
   };
   vi.mocked(queuesClient.get).mockImplementation(async () => ok(structuredClone(q)));
+  // These are WhatsApp's way (as before 2026-11-26): the in-LUME flow has its own tests (QueueRunLume.test.tsx).
+  vi.mocked(queuesClient.channel).mockImplementation(async () => ok({ via: "whatsapp" as const, why: "" }));
   vi.mocked(queuesClient.text).mockImplementation(async (_id, pos) =>
     ok({ text: `Hi ${NAMES[pos]!.split(" ")[0]}, just checking in.`, missing: [] }),
   );

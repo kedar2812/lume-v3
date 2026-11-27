@@ -49,7 +49,12 @@ type Board = {
     firstAnswerSec: number | null;
   }[];
   accounts: { username: string | null; status: string; conversations: number; leads: number }[];
-  sources: { kind: string; id: string; conversations: number; leads: number }[];
+  sources: { kind: string; id: string; conversations: number; leads: number; drill: string | null }[];
+  drill: Record<
+    "conversations" | "leads" | "inTime" | "ranOut" | "booked" | "won" | "stopped" | "flows" | "team",
+    string
+  > | null;
+  notes: { id: string; title: string; body: string }[];
 };
 const board = async (u: SeededUser, q = Q) => {
   const r = await (await h.signIn(u)).inject({ method: "GET", url: `/api/v1/analytics/instagram?${q}` });
@@ -68,6 +73,8 @@ async function conv(o: {
   lead?: boolean;
   wrote?: number;
   flow?: number;
+  /** LUME AI's answer, so long after they wrote (plan 2026-11-27-instagram-lume-ai). */
+  ai?: number;
   team?: number;
   echo?: number;
   adId?: string;
@@ -107,6 +114,7 @@ async function conv(o: {
     await act("instagram_received", t0 + 30 * S, { text: "Hello?" });
     if (o.flow !== undefined) await act("instagram_confirmed_sent", t0 + o.flow, { via: "flow" });
     if (o.team !== undefined) await act("instagram_confirmed_sent", t0 + o.team, { via: "lume" });
+    if (o.ai !== undefined) await act("instagram_confirmed_sent", t0 + o.ai, { via: "ai" });
     if (o.echo !== undefined) await act("instagram_sent", t0 + o.echo, { via: "echo" });
   }
   return { id, leadId };
@@ -263,6 +271,13 @@ describe("Instagram in Analytics", () => {
     );
     const b = await board(admin);
     expect(b.totals.inTime).toBe(0);
+    const r = await (
+      await h.signIn(admin)
+    ).inject({
+      method: "GET",
+      url: `/api/v1/analytics/drilldown?token=${encodeURIComponent(b.drill!.inTime)}`,
+    });
+    expect((r.json() as { total: number }).total).toBe(0);
   });
 
   it("who answered: a conversation counts for each that answered it, with their own first answer", async () => {
@@ -274,6 +289,25 @@ describe("Instagram in Analytics", () => {
       { id: "flows", conversations: 2, firstAnswerSec: 3 },
       { id: "team", conversations: 2, firstAnswerSec: Math.round((3600 + 1800) / 2) },
     ]);
+  });
+
+  it("who answered: LUME AI's row once it answered, never counted as the team's; its leads open from it", async () => {
+    await conv({ at: day(10), wrote: 0, ai: 20 * S });
+    await conv({ at: day(11), wrote: 0, team: HOUR });
+    const b = await board(admin);
+    expect(b.whoAnswered.map((w) => [w.id, w.conversations, w.firstAnswerSec])).toEqual([
+      ["flows", 0, null],
+      ["ai", 1, 20],
+      ["team", 1, 3600],
+    ]);
+    expect(b.totals.inTime).toBe(2);
+    const r = await (
+      await h.signIn(admin)
+    ).inject({
+      method: "GET",
+      url: `/api/v1/analytics/drilldown?token=${encodeURIComponent((b.drill as unknown as { ai: string }).ai)}`,
+    });
+    expect((r.json() as { total: number }).total).toBe(1);
   });
 
   it("what they led to: a call booked and a win after the conversation started; money only for those who see it", async () => {
@@ -360,7 +394,7 @@ describe("Instagram in Analytics", () => {
     await conv({ at: day(13), start: "dm" });
     const b = await board(admin);
     // The reel started more conversations; the ad brought more leads, and leads come first.
-    expect(b.sources).toEqual([
+    expect(b.sources).toMatchObject([
       { kind: "ad", id: "120200000000001", conversations: 3, leads: 3 },
       { kind: "reels", id: "17980000000000001", conversations: 4, leads: 2 },
     ]);
@@ -447,6 +481,145 @@ describe("Instagram in Analytics", () => {
     });
     expect(r.statusCode).toBe(400);
     expect(r.json().error.code).toBe("RANGE_TOO_LONG_FOR_FILTER");
+  });
+
+  it("every number opens exactly the leads behind it (D6b-2)", async () => {
+    const a = await conv({ at: day(10), wrote: 0, flow: 3 * S }); // in time, by a flow
+    await conv({ at: day(11), wrote: 0, team: 2 * HOUR }); // in time, by a person
+    await conv({ at: day(12), wrote: 0, echo: 25 * HOUR }); // ran out (answered late, from the app)
+    await conv({ at: day(13), wrote: 0 }); // ran out, never answered
+    await conv({ at: day(14), start: "ad", adId: "120200000000001", wrote: 0, team: 3 * DAY }); // ad: 7 days
+    await conv({ at: day(15), lead: false }); // not a lead: counted, nobody to open
+    const old = await conv({ at: day(16), wrote: 0, team: HOUR }); // matched to an older lead
+    await h.queryAll("UPDATE leads SET created_at = $2 WHERE id = $1", [old.leadId, day(1)]);
+    await meeting(a.leadId!, "scheduled", day(20), day(10, 9));
+    await h.queryAll("UPDATE leads SET won_at = $2, value = 9000 WHERE id = $1", [a.leadId, day(22)]);
+    await h.queryAll("UPDATE leads SET dnc_at = $2, dnc_reason = 'Said stop on Instagram' WHERE id = $1", [
+      old.leadId,
+      day(17),
+    ]);
+    // Not these numbers': a conversation before the range, one still inside its 24 hours, a stop said on WhatsApp.
+    await conv({ at: new Date("2026-05-20T06:00:00Z"), wrote: 0 });
+    await conv({ at: new Date(h.clock.now.getTime() - 2 * HOUR), wrote: 0 });
+    // The same ad started one more, matched to a lead LUME already had: the ad's row counts new leads only.
+    const matched = await conv({ at: day(18), start: "ad", adId: "120200000000001" });
+    await h.queryAll("UPDATE leads SET created_at = $2 WHERE id = $1", [matched.leadId, day(1)]);
+    const wa = await h.seedLead({ ownerId: admin.id });
+    await h.queryAll("UPDATE leads SET dnc_at = $2, dnc_reason = 'Said stop on WhatsApp' WHERE id = $1", [
+      wa,
+      day(17),
+    ]);
+    const b = await board(admin);
+    const open = async (token: string) => {
+      const r = await (
+        await h.signIn(admin)
+      ).inject({
+        method: "GET",
+        url: `/api/v1/analytics/drilldown?token=${encodeURIComponent(token)}`,
+      });
+      expect(r.statusCode, r.body).toBe(200);
+      return (r.json() as { total: number }).total;
+    };
+    const d = b.drill!;
+    expect(b.totals).toMatchObject({
+      conversations: 9,
+      leads: 6,
+      inTime: 4,
+      ranOut: 2,
+      booked: 1,
+      won: 1,
+      stopped: 1,
+    });
+    // The conversation not yet a lead is the one the list can't hold.
+    expect(await open(d.conversations)).toBe(8);
+    expect(await open(d.leads)).toBe(b.totals.leads);
+    expect(await open(d.inTime)).toBe(b.totals.inTime);
+    expect(await open(d.ranOut)).toBe(b.totals.ranOut);
+    expect(await open(d.booked)).toBe(b.totals.booked);
+    expect(await open(d.won)).toBe(b.totals.won);
+    expect(await open(d.stopped)).toBe(b.totals.stopped);
+    expect(await open(d.flows)).toBe(b.whoAnswered[0]!.conversations);
+    expect(await open(d.team)).toBe(b.whoAnswered[1]!.conversations);
+    expect(b.sources).toHaveLength(1);
+    expect(await open(b.sources[0]!.drill!)).toBe(b.sources[0]!.leads);
+    // Someone else's list: as if it didn't exist.
+    const r = await (
+      await h.signIn(rep)
+    ).inject({
+      method: "GET",
+      url: `/api/v1/analytics/drilldown?token=${encodeURIComponent(d.leads)}`,
+    });
+    expect(r.statusCode).toBe(404);
+    // Filtered to someone's leads: only theirs open.
+    const theirs = await board(admin, `${Q}&owner=${rep.id}`);
+    expect(await open(theirs.drill!.leads)).toBe(0);
+  });
+
+  it("someone whose analytics reach is their own: their numbers, and lists of only their leads", async () => {
+    const mine = await h.seedUser({
+      grants: [
+        { key: "analytics.view", scope: "own" },
+        { key: "leads.view", scope: "all" },
+      ],
+    });
+    await conv({ at: day(10), owner: mine.id, wrote: 0, team: HOUR });
+    await conv({ at: day(11), wrote: 0, team: HOUR });
+    const b = await board(mine);
+    expect(b.totals).toMatchObject({ conversations: 1, leads: 1 });
+    const r = await (
+      await h.signIn(mine)
+    ).inject({
+      method: "GET",
+      url: `/api/v1/analytics/drilldown?token=${encodeURIComponent(b.drill!.leads)}`,
+    });
+    expect((r.json() as { total: number }).total).toBe(1);
+  });
+
+  it("LUME noticed: what ran out, the source that brings the most, who answers faster; none from too few", async () => {
+    expect((await board(admin)).notes).toEqual([]);
+    for (let i = 0; i < 10; i++) {
+      await conv({ at: day(2 + i), start: "ad", adId: "120200000000001", wrote: 0, flow: 4 * S });
+      await conv({
+        at: day(2 + i),
+        start: "comment",
+        media: { id: "17980000000000001", type: "REELS" },
+        wrote: 0,
+        team: 20 * 60 * S,
+      });
+    }
+    // The reel started five more that aren't leads: fewer leads in every 100 than the ad.
+    for (let i = 0; i < 5; i++)
+      await conv({
+        at: day(2 + i),
+        start: "comment",
+        media: { id: "17980000000000001", type: "REELS" },
+        lead: false,
+      });
+    // One more from the ad that isn't a lead.
+    await conv({ at: day(12), start: "ad", adId: "120200000000001", lead: false });
+    // A post with two conversations, both leads: too few to say it brings the most.
+    for (let i = 0; i < 2; i++)
+      await conv({ at: day(3 + i), start: "comment", media: { id: "17980000000000009", type: "IMAGE" } });
+    await conv({ at: day(20), wrote: 0 });
+    const b = await board(admin);
+    expect(b.notes).toEqual([
+      expect.objectContaining({ id: "ran_out", title: "1 ran out of time" }),
+      expect.objectContaining({
+        id: "best_source",
+        title: "An ad brings the most leads",
+        body: "10 leads from 11 conversations it started: 91 in every 100.",
+      }),
+      expect.objectContaining({ id: "speed", title: "Flows answer in 4 seconds, your team in 20 minutes" }),
+    ]);
+  });
+
+  it("too few to say: no note on a source or on who answers faster", async () => {
+    // Flows answered ten, the team nine: too few of the team's to compare.
+    for (let i = 0; i < 10; i++) await conv({ at: day(2 + i), wrote: 0, flow: 4 * S });
+    for (let i = 0; i < 9; i++) await conv({ at: day(2 + i), wrote: 0, team: 20 * 60 * S });
+    // A source with nine conversations: too few to say it brings the most.
+    for (let i = 0; i < 9; i++) await conv({ at: day(2 + i), start: "ad", adId: "120200000000001" });
+    expect((await board(admin)).notes).toEqual([]);
   });
 
   it("compared with the days before", async () => {

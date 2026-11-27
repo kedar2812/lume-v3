@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { bytesText } from "@lume/core/shared";
 import Link from "next/link";
 import { useEffect, useId, useState, type KeyboardEvent } from "react";
@@ -128,17 +129,7 @@ export function MediaPicker({
     <div className={p.picker} data-wide={wide || undefined}>
       {head}
       <label className={p.search}>
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          aria-hidden
-        >
-          <circle cx="11" cy="11" r="7" />
-          <path d="m20 20-3.5-3.5" />
-        </svg>
+        <UI_ICONS.search size={ICON_SIZE.md} aria-hidden />
         <input
           type="search"
           aria-label="Search Media"
@@ -188,16 +179,7 @@ export function MediaPicker({
                 )}
                 {multiple && (
                   <span className={p.tick} aria-hidden>
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="m6 12.5 4 4 8-9" />
-                    </svg>
+                    <UI_ICONS.done size={ICON_SIZE.md} aria-hidden />
                   </span>
                 )}
               </span>

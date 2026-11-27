@@ -47,6 +47,12 @@ const SEARCH_MS = 250;
  * someone who went through it (newest first, or search by name); their run's steps light up on the canvas, with where
  * it waits and until when. Only leads the viewer may see are listed.
  */
+/** How a run that ended early says why, in words (a run that reached its end says nothing). */
+const ENDED: Record<string, string> = {
+  "went to another flow": "Went on to another flow",
+  "no answer": "No answer came, so it ended",
+};
+
 export function ReplayPanel({
   flowId,
   graph,
@@ -238,7 +244,9 @@ export function ReplayPanel({
                       <i data-end="" />
                       <span className={p.step}>
                         <b>{STATUS[run.status] ?? run.status}</b>
-                        {run.reason && run.reason !== "finished" && <span>{run.reason}</span>}
+                        {run.reason && run.reason !== "finished" && (
+                          <span>{ENDED[run.reason] ?? run.reason}</span>
+                        )}
                       </span>
                     </li>
                   )}

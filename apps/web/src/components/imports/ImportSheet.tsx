@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -201,16 +202,7 @@ export function ImportSheet({
                     <span className={s.srOnly}>{i + 1} </span>
                     <span className={s.circle} aria-hidden>
                       {(i < order && !run) || (run && x.id !== "run") ? (
-                        <svg viewBox="0 0 12 12" width="10" height="10">
-                          <path
-                            d="M2.5 6.2 5 8.5l4.5-5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
+                        <UI_ICONS.done size={ICON_SIZE.sm} aria-hidden />
                       ) : (
                         i + 1
                       )}
@@ -228,9 +220,7 @@ export function ImportSheet({
         <div className={s.pane}>
           <div className={s.close}>
             <IconButton label="Close (Esc)" onClick={close}>
-              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-                <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
+              <UI_ICONS.close size={ICON_SIZE.md} aria-hidden />
             </IconButton>
           </div>
           {step === "file" && (

@@ -1,7 +1,15 @@
 "use client";
 import { api } from "@/lib/api";
 import type { IntegrationsView } from "@/lib/sheets/types";
-import type { IgAccounts, IgInboxMessage, IgInboxPerson, IgMessage, IgThread } from "./types";
+import type {
+  IgAccounts,
+  IgCommentState,
+  IgInboxMessage,
+  IgInboxPerson,
+  IgMessage,
+  IgThread,
+  IgAiGoal,
+} from "./types";
 
 const account = (id: string) => `/api/v1/instagram/accounts/${encodeURIComponent(id)}`;
 const lead = (id: string) => `/api/v1/leads/${encodeURIComponent(id)}/instagram`;
@@ -13,8 +21,17 @@ export const instagramClient = {
   /** The relay's hand-back (`?p=&s=`): single use, so the page calls it once. */
   complete: (b: { p: string; s: string }) => api.post<IgAccounts>("/api/v1/instagram/connect/complete", b),
   accounts: () => api.get<IgAccounts>("/api/v1/instagram/accounts"),
-  setAccount: (id: string, b: { ownerId?: string | null; newDmCreatesLead?: boolean }) =>
-    api.patch<IgAccounts>(account(id), b),
+  setAccount: (
+    id: string,
+    b: { ownerId?: string | null; newDmCreatesLead?: boolean; newDms?: "team" | "ai" },
+  ) => api.patch<IgAccounts>(account(id), b),
+  /** Who replied's "Let LUME AI handle these" for Instagram leads: given to each account's LUME AI, or skipped with why. */
+  handToAi: (leadIds: string[]) =>
+    api.post<{ given: number; skipped: { leadId: string; why: string }[] }>("/api/v1/instagram/ai/handle", {
+      leadIds,
+    }),
+  /** What LUME AI aims for in the Instagram conversations it takes. */
+  setAiGoal: (goal: IgAiGoal) => api.put<{ goal: IgAiGoal }>("/api/v1/instagram/ai-goal", { goal }),
   disconnect: (id: string) => api.del<IgAccounts>(account(id)),
   /** A lead's conversations (D2): each with its account, Meta's window now, who has it, its comments and messages. */
   threads: (leadId: string) => api.get<{ threads: IgThread[] }>(lead(leadId)),
@@ -27,6 +44,15 @@ export const instagramClient = {
       `/api/v1/instagram/comments/${encodeURIComponent(commentId)}/private-reply`,
       b,
     ),
+  /** A person's actions on a comment (2026-11-27): one call to Instagram each. */
+  replyPublicly: (commentId: string, text: string) =>
+    api.post<IgCommentState>(`/api/v1/instagram/comments/${encodeURIComponent(commentId)}/public-reply`, {
+      text,
+    }),
+  hideComment: (commentId: string, hidden: boolean) =>
+    api.post<IgCommentState>(`/api/v1/instagram/comments/${encodeURIComponent(commentId)}/hide`, { hidden }),
+  deleteComment: (commentId: string) =>
+    api.del<IgCommentState>(`/api/v1/instagram/comments/${encodeURIComponent(commentId)}`),
   takeOver: (threadId: string) =>
     api.post<{ takenOver: { id: string; name: string } | null }>(
       `/api/v1/instagram/threads/${encodeURIComponent(threadId)}/take-over`,

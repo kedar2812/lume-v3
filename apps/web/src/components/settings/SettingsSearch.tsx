@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useLoadingSignal } from "@/lib/loading";
@@ -109,10 +110,7 @@ export function SettingsSearch({ areas, onPicked }: { areas: SettingsArea[]; onP
   return (
     <div className={s.search} role="search">
       <div className={s.searchBox}>
-        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
-          <circle cx="7" cy="7" r="4.6" fill="none" stroke="currentColor" strokeWidth="1.5" />
-          <path d="M10.5 10.5 14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
+        <UI_ICONS.search size={ICON_SIZE.sm} aria-hidden />
         <input
           ref={input}
           type="search"

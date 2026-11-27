@@ -8,6 +8,9 @@ import { Kbd } from "@/components/ui/Kbd";
 import { queuesClient, type QueueItem } from "@/lib/queues/client";
 import s from "./run.module.css";
 import { missingIn } from "@/lib/messages/missing";
+import type { LumeChannel } from "@/lib/queues/client";
+import type { WaThreadMessage } from "@/lib/whatsapp/types";
+import { LumeSend, type LumePhase } from "./LumeSend";
 
 /** Where a lead's card is: ready to send, WhatsApp open, asking Sent?, saving the answer, or sent. */
 export type CardPhase = "ready" | "away" | "asking" | "answering" | "sent";
@@ -27,6 +30,9 @@ export function QueueCard({
   onSkip,
   onAnswer,
   onBack,
+  opensWhy = null,
+  waiting = false,
+  lume,
 }: {
   runId: string;
   item: QueueItem;
@@ -40,6 +46,20 @@ export function QueueCard({
   onAnswer: (sent: boolean) => void;
   /** Back from WhatsApp without LUME noticing (a phone, a tab left in the background): ask Sent? now. */
   onBack: () => void;
+  /** How this lead goes isn't known yet: the card waits, and nothing can be sent. */
+  waiting?: boolean;
+  /** This lead goes WhatsApp's way (as before), and why: said under the name. */
+  opensWhy?: string | null;
+  /** This lead is sent from inside LUME (2026-11-26): its conversation and what can go, instead of the hand-off. */
+  lume?: {
+    channel: Extract<LumeChannel, { via: "lume" }>;
+    thread: WaThreadMessage[] | null;
+    phase: LumePhase;
+    problem: string | null;
+    tz: string;
+    onSend(body: { mode: "template" | "message"; text?: string }): void;
+    onRetry(): void;
+  };
 }) {
   const id = useId();
   // Leaving (sliding out as the next comes in): nothing on it can be pressed, typed or found by a key.
@@ -74,121 +94,155 @@ export function QueueCard({
         : null;
   const ready = phase === "ready" && !note;
   const why = note ?? unavailable;
-  return (
-    <form
-      data-queue-form={present ? "" : undefined}
-      inert={!present}
-      aria-hidden={present ? undefined : true}
-      className={s.card}
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!ready) return;
-        // A lead that can't be sent: Enter (and the primary) skips it, with its reason.
-        if (unavailable) return onSkip();
-        if (!text.trim()) return;
-        // Unchanged, the server sends the version the run planned with; changed, these words.
-        onSend(text === original ? undefined : text);
-      }}
-    >
-      <div className={s.who}>
-        <h2 className={s.name}>{item.name}</h2>
-        <p className={s.meta}>
-          {item.stageName && <span className={s.stageChip}>{item.stageName}</span>}
-          <span className={s.from}>
-            From <span>{sourceName}</span>
-          </span>
-        </p>
+  const who = (
+    <div className={s.who}>
+      <h2 className={s.name}>{item.name}</h2>
+      <p className={s.meta}>
+        {item.stageName && <span className={s.stageChip}>{item.stageName}</span>}
+        <span className={s.from}>
+          From <span>{sourceName}</span>
+        </span>
+      </p>
+      {!lume && opensWhy && !unavailable && <p className={s.opens}>Opens WhatsApp: {opensWhy}</p>}
+    </div>
+  );
+  if (waiting)
+    return (
+      <div inert={!present} aria-hidden={present ? undefined : true} className={s.card} aria-busy="true">
+        {who}
+        <p className={s.away}>Getting {item.name.split(" ")[0] || "this lead"} ready…</p>
       </div>
-
-      {!unavailable && (
-        <>
-          <label htmlFor={`${id}-text`} className={s.label}>
-            Message
-          </label>
-          <textarea
-            id={`${id}-text`}
-            className={s.text}
-            rows={6}
-            maxLength={4096}
-            value={text}
-            disabled={!ready}
-            placeholder={original === "" ? `Hi ${item.name.split(" ")[0] ?? ""},` : undefined}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                e.currentTarget.form?.requestSubmit();
-              }
-            }}
-          />
-        </>
-      )}
-
-      {!unavailable && missingIn(text).length > 0 && (
-        // The same warning as a single send: a run must never send "{{…}}" to a customer unnoticed.
-        <p className={s.note}>Missing: {missingIn(text).join(", ")}. Fill it in, or LUME sends it as is.</p>
-      )}
-      {why && (
-        <p role="status" className={s.note}>
-          {why}
-        </p>
-      )}
-      {phase === "away" && (
-        <div className={s.awayRow}>
-          <p role="status" className={s.away}>
-            WhatsApp is open. Come back here once it&apos;s sent.
+    );
+  if (lume)
+    return (
+      <div inert={!present} aria-hidden={present ? undefined : true} className={s.card}>
+        {who}
+        {note && (
+          <p role="status" className={s.note}>
+            {note}
           </p>
-          <Button size="sm" variant="secondary" onClick={onBack}>
-            Back from WhatsApp
-          </Button>
-        </div>
-      )}
-      <SentPrompt
-        asking={phase === "asking"}
-        outcome={said}
-        inline
-        onAnswer={onAnswer}
-        onUndo={() => undefined}
-      />
-
-      {(phase === "ready" || phase === "away") && (
-        <div className={s.actions}>
-          {unavailable ? (
-            <Button type="submit" variant="primary" disabled={!ready}>
-              Skip
-            </Button>
-          ) : (
-            <>
-              <Button type="button" variant="ghost" onClick={onSkip} disabled={phase !== "ready" || !!note}>
-                Skip
-              </Button>
-              <Button type="submit" variant="whatsapp" disabled={!ready || !text.trim()}>
-                <WhatsAppIcon size={18} ring />
-                Send
-              </Button>
-            </>
-          )}
-        </div>
-      )}
-      <p className={s.keys} aria-hidden>
-        {phase === "asking" ? (
+        )}
+        <LumeSend
+          leadName={item.name}
+          tz={lume.tz}
+          channel={lume.channel}
+          messages={lume.thread}
+          phase={note ? "sending" : lume.phase}
+          problem={lume.problem}
+          active={present}
+          onSend={lume.onSend}
+          onSkip={onSkip}
+          onRetry={lume.onRetry}
+        />
+      </div>
+    );
+  // One card root with the name first, whichever way the lead goes: the name stays put as the card learns how.
+  return (
+    <div inert={!present} aria-hidden={present ? undefined : true} className={s.card}>
+      {who}
+      <form
+        data-queue-form={present ? "" : undefined}
+        className={s.body}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!ready) return;
+          // A lead that can't be sent: Enter (and the primary) skips it, with its reason.
+          if (unavailable) return onSkip();
+          if (!text.trim()) return;
+          // Unchanged, the server sends the version the run planned with; changed, these words.
+          onSend(text === original ? undefined : text);
+        }}
+      >
+        {!unavailable && (
           <>
-            <Kbd>Y</Kbd> Yes · <Kbd>N</Kbd> Not sent
-          </>
-        ) : (
-          <>
-            {unavailable ? (
-              <>
-                <Kbd>↵</Kbd> Skip · <Kbd>P</Kbd> Pause · <Kbd>Esc</Kbd> Leave
-              </>
-            ) : (
-              <>
-                <Kbd>↵</Kbd> Send · <Kbd>S</Kbd> Skip · <Kbd>P</Kbd> Pause · <Kbd>Esc</Kbd> Leave
-              </>
-            )}
+            <label htmlFor={`${id}-text`} className={s.label}>
+              Message
+            </label>
+            <textarea
+              id={`${id}-text`}
+              className={s.text}
+              rows={6}
+              maxLength={4096}
+              value={text}
+              disabled={!ready}
+              placeholder={original === "" ? `Hi ${item.name.split(" ")[0] ?? ""},` : undefined}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  e.currentTarget.form?.requestSubmit();
+                }
+              }}
+            />
           </>
         )}
-      </p>
-    </form>
+
+        {!unavailable && missingIn(text).length > 0 && (
+          // The same warning as a single send: a run must never send "{{…}}" to a customer unnoticed.
+          <p className={s.note}>Missing: {missingIn(text).join(", ")}. Fill it in, or LUME sends it as is.</p>
+        )}
+        {why && (
+          <p role="status" className={s.note}>
+            {why}
+          </p>
+        )}
+        {phase === "away" && (
+          <div className={s.awayRow}>
+            <p role="status" className={s.away}>
+              WhatsApp is open. Come back here once it&apos;s sent.
+            </p>
+            <Button size="sm" variant="secondary" onClick={onBack}>
+              Back from WhatsApp
+            </Button>
+          </div>
+        )}
+        <SentPrompt
+          asking={phase === "asking"}
+          outcome={said}
+          inline
+          onAnswer={onAnswer}
+          onUndo={() => undefined}
+        />
+
+        {(phase === "ready" || phase === "away") && (
+          <div className={s.actions}>
+            {unavailable ? (
+              <Button type="submit" variant="primary" disabled={!ready}>
+                Skip
+              </Button>
+            ) : (
+              <>
+                <Button type="button" variant="ghost" onClick={onSkip} disabled={phase !== "ready" || !!note}>
+                  Skip
+                </Button>
+                <Button type="submit" variant="whatsapp" disabled={!ready || !text.trim()}>
+                  <WhatsAppIcon size={18} ring />
+                  Send
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+        <p className={s.keys} aria-hidden>
+          {phase === "asking" ? (
+            <>
+              <Kbd>Y</Kbd> Yes · <Kbd>N</Kbd> Not sent
+            </>
+          ) : (
+            <>
+              {unavailable ? (
+                <>
+                  <Kbd>↵</Kbd> Skip · <Kbd>P</Kbd> Pause · <Kbd>Esc</Kbd> Leave
+                </>
+              ) : (
+                <>
+                  <Kbd>↵</Kbd> Send · <Kbd>S</Kbd> Skip · <Kbd>P</Kbd> Pause · <Kbd>Esc</Kbd> Leave
+                </>
+              )}
+            </>
+          )}
+        </p>
+      </form>
+    </div>
   );
 }

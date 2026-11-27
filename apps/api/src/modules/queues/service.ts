@@ -14,6 +14,7 @@ import { assertVersion, confirmSend, contextFor, type MoveResult } from "../lead
 import type { LeadRow } from "../leads/serialize";
 import { visibleLead } from "../leads/service";
 import { readMessaging } from "../settings/messaging";
+import { numberLabel } from "../whatsapp/send-from";
 import { timezoneOf } from "../tasks/service";
 import { oneTemplate } from "../templates/service";
 import { stale, viewById } from "../views/service";
@@ -32,6 +33,15 @@ export type QueueItemView = {
   status: ItemRow["status"];
   reason: string | null;
 };
+/** How a run will go through LUME, before it starts (the focus run inside LUME). */
+export type LumePlanView = {
+  on: boolean;
+  numberId: string | null;
+  through: number;
+  inWindow: number;
+  approvedTemplateIds: string[];
+};
+
 export type QueueView = {
   id: string;
   status: QueueRow["status"];
@@ -44,6 +54,8 @@ export type QueueView = {
   total: number;
   done: { sent: number; notSent: number; skipped: number };
   today: { sent: number; cap: number };
+  /** The WhatsApp number it sends from (2026-11-26); null: a run from before, or one that opens WhatsApp. */
+  number: { display: string; whose: string } | null;
   items: QueueItemView[];
 };
 /** What LUME did with an item, and where the run goes next (null: nothing left, and it's finished). */
@@ -52,7 +64,7 @@ export type Step = { next: number | null; finished?: true } & Partial<MoveResult
 export type Refused = { refused: HttpError };
 
 // Why a lead can't be in a run, or can't be sent now. Never its number (Review Focus 4).
-const WHY = {
+export const WHY = {
   noNumber: "No WhatsApp number",
   needsCountry: "The number needs a country code",
   notYours: "Not one you may message",
@@ -62,7 +74,7 @@ const WHY = {
 /** A run plans from at most this many of a view's leads, however long the view. */
 const SCAN = 1000;
 
-function whyNot(req: FastifyRequest, lead: LeadRow): string | null {
+export function whyNot(req: FastifyRequest, lead: LeadRow): string | null {
   const a = req.actor!;
   if (!canOnRecord(a, "messages.send", lead.ownerId) || !canOnRecord(a, "messages.send_queue", lead.ownerId))
     return WHY.notYours;
@@ -159,12 +171,21 @@ async function planLeads(req: FastifyRequest, body: Source) {
 export async function planQueue(
   req: FastifyRequest,
   body: Source,
+  /**
+   * How the run will go through LUME (the focus run inside LUME, 2026-11-26), from the leads it would hold, and the
+   * numbers it may send from.
+   */
+  lume?: (
+    leads: LeadRow[],
+  ) => Promise<{ lume: LumePlanView; numbers: { id: string; display: string; whose: string }[] }>,
 ): Promise<{
   total: number;
   leftOut: LeftOut[];
   more: number;
   today: { sent: number; cap: number };
   open: { id: string; status: QueueRow["status"]; sourceName: string; done: number; total: number } | null;
+  lume?: LumePlanView;
+  numbers?: { id: string; display: string; whose: string }[];
 }> {
   const { picked, leftOut, more } = await planLeads(req, body);
   const run = await openRun(req);
@@ -175,6 +196,7 @@ export async function planQueue(
     leftOut,
     more,
     today: { sent: await sentToday(req), cap: dailyCap },
+    ...(lume ? await lume(picked) : {}),
     open: open && {
       id: open.id,
       status: open.status,
@@ -192,10 +214,13 @@ export async function planQueue(
  */
 export async function startQueue(
   req: FastifyRequest,
-  body: Source & { templateId?: string },
+  body: Source & { templateId?: string; numberId?: string },
+  /** The number it sends from (2026-11-26): chosen, their only one, or none (it opens WhatsApp). */
+  numberOf: (chosen: string | undefined) => Promise<{ id: string } | null> = async () => null,
 ): Promise<{ queue: QueueView; leftOut: LeftOut[]; more: number }> {
   await lockPerson(req);
   if (await openRun(req)) throw conflict("QUEUE_OPEN", "Finish or end your current run first");
+  const number = await numberOf(body.numberId);
   let versionId: string | null = null;
   if (body.templateId) {
     const t = await oneTemplate(req, body.templateId);
@@ -212,6 +237,8 @@ export async function startQueue(
     id,
     userId: req.actor!.userId,
     templateVersionId: versionId,
+    numberId: number?.id ?? null,
+    numberAsked: true,
     source,
     sourceName: sourceName.slice(0, 80),
   });
@@ -232,7 +259,7 @@ export async function currentQueue(req: FastifyRequest): Promise<QueueView | nul
   return q ? queueView(req, q.id) : null;
 }
 
-async function queueRow(req: FastifyRequest, id: string, forUpdate = false): Promise<QueueRow> {
+export async function queueRow(req: FastifyRequest, id: string, forUpdate = false): Promise<QueueRow> {
   const [q] = forUpdate
     ? await req.db.select().from(Q).where(eq(Q.id, id)).for("update")
     : await req.db.select().from(Q).where(eq(Q.id, id));
@@ -278,6 +305,7 @@ export async function queueView(req: FastifyRequest, id: string): Promise<QueueV
     total: items.length,
     done: { sent: n("sent"), notSent: n("not_sent"), skipped: n("skipped") },
     today: { sent: await sentToday(req), cap: dailyCap },
+    number: q.numberId ? await numberLabel(req, q.numberId) : null,
     items: items.map((i) => ({
       position: i.position,
       leadId: i.leadId,
@@ -311,18 +339,18 @@ async function sentToday(req: FastifyRequest, alsoOpen = false): Promise<number>
   return row?.n ?? 0;
 }
 /** The daily cap, checked before WhatsApp opens: reached, the run pauses with why. */
-async function capReached(req: FastifyRequest): Promise<HttpError | null> {
+export async function capReached(req: FastifyRequest): Promise<HttpError | null> {
   const { dailyCap } = await readMessaging(req);
   // Sends open in another tab count too, so two tabs can't pass the cap together.
   if ((await sentToday(req, true)) < dailyCap) return null;
   return new HttpError(409, "DAILY_CAP", `You've sent today's ${dailyCap}; the run is paused until tomorrow`);
 }
 
-function assertRunning(q: QueueRow) {
+export function assertRunning(q: QueueRow) {
   if (q.status === "paused") throw conflict("QUEUE_PAUSED", "This run is paused");
   if (q.status !== "active") throw conflict("QUEUE_OVER", "This run is over");
 }
-async function itemAt(req: FastifyRequest, id: string, position: number): Promise<ItemRow> {
+export async function itemAt(req: FastifyRequest, id: string, position: number): Promise<ItemRow> {
   const [it] = await req.db
     .select()
     .from(I)
@@ -339,7 +367,7 @@ async function nextPending(req: FastifyRequest, id: string, after: number): Prom
     .orderBy(asc(I.position));
   return (rest.find((r) => r.position > after) ?? rest[0])?.position ?? null;
 }
-async function settle(
+export async function settle(
   req: FastifyRequest,
   id: string,
   position: number,
@@ -352,7 +380,7 @@ async function settle(
     .where(and(eq(I.queueId, id), eq(I.position, position)));
 }
 /** Where the run goes after an item: the next lead, or finished when none is pending or open. */
-async function step(req: FastifyRequest, id: string, position: number): Promise<Step> {
+export async function step(req: FastifyRequest, id: string, position: number): Promise<Step> {
   const next = await nextPending(req, id, position);
   if (next !== null) return { next };
   const [open] = await req.db
@@ -367,7 +395,7 @@ async function step(req: FastifyRequest, id: string, position: number): Promise<
 
 /** The planned version's words, in this lead's words (4A's render; never a contact). */
 /** Whether the person's role may still use this template version (assertVersion's rule, as a yes or no). */
-async function versionUsable(req: FastifyRequest, versionId: string): Promise<boolean> {
+export async function versionUsable(req: FastifyRequest, versionId: string): Promise<boolean> {
   try {
     await assertVersion(req, versionId);
     return true;
@@ -377,7 +405,7 @@ async function versionUsable(req: FastifyRequest, versionId: string): Promise<bo
   }
 }
 
-async function plannedText(req: FastifyRequest, versionId: string, lead: LeadRow) {
+export async function plannedText(req: FastifyRequest, versionId: string, lead: LeadRow) {
   const [v] = await req.db
     .select({ body: schema.templateVersions.body })
     .from(schema.templateVersions)

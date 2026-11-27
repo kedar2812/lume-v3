@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import {
   useEffect,
   useRef,
@@ -241,8 +242,4 @@ export function PhoneInput({
   );
 }
 
-export const Chevron = () => (
-  <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden className={s.chevron}>
-    <path d="M3 4.5 6 7.5l3-3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-  </svg>
-);
+export const Chevron = () => <UI_ICONS.menu size={ICON_SIZE.sm} aria-hidden className={s.chevron} />;

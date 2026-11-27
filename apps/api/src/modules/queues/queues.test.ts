@@ -218,6 +218,9 @@ describe("planning a run (4C Task 2)", () => {
       more: 0,
       today: { sent: expect.any(Number), cap: 150 },
       open: null,
+      // No WhatsApp number connected to LUME here: the run goes WhatsApp's way, as before.
+      lume: { on: false, numberId: null, through: 0, inWindow: 0, approvedTemplateIds: [] },
+      numbers: [],
     });
     expect((await get(rep, "/api/v1/queues/current")).json()).toBeNull();
     // With a run open, the plan says so, and how far it has got.

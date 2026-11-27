@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { useRef, useState } from "react";
 import { INTAKE_LIMITS } from "@lume/core/shared";
 import { Button } from "@/components/ui/Button";
@@ -138,16 +139,7 @@ export function FileStep({
           />
           {!draft && (
             <span className={s.dropIcon} aria-hidden>
-              <svg viewBox="0 0 20 20" width="18" height="18">
-                <path
-                  d="M10 13V4m0 0L6.5 7.5M10 4l3.5 3.5M4 13.5v1A1.5 1.5 0 0 0 5.5 16h9a1.5 1.5 0 0 0 1.5-1.5v-1"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <UI_ICONS.upload size={ICON_SIZE.lg} aria-hidden />
             </span>
           )}
           <span className={s.dropTitle} aria-live="polite">

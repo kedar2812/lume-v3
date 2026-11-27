@@ -583,8 +583,9 @@ describe("a graph flow at work", () => {
       `/api/v1/instagram/flows/${f.id}/stats?days=30&from=2026-11-01&to=2026-11-02`,
     );
     expect(all3.statusCode).toBe(400);
-    // Today is the business's today. Two zones far either side of UTC: at any hour one of them is on another date
-    // than UTC, so a range ending on the server's (UTC) day can't pass.
+    // Today is the business's today, by LUME's clock (here the test's, which earlier tests moved on). Two zones far
+    // either side of UTC: at any hour one of them is on another date than UTC, so a range ending on the server's
+    // (UTC) day can't pass.
     const was = (await h.queryAll<{ tz: string }>("SELECT timezone AS tz FROM settings WHERE id = 1"))[0]!.tz;
     const day = (tz: string) =>
       new Intl.DateTimeFormat("en-CA", {
@@ -592,7 +593,7 @@ describe("a graph flow at work", () => {
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
-      }).format(new Date());
+      }).format(h.clock.now);
     const seen: string[] = [];
     for (const tz of ["Pacific/Kiritimati", "Pacific/Pago_Pago"]) {
       await h.queryAll("UPDATE settings SET timezone = $1 WHERE id = 1", [tz]);

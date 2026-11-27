@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { bulkRunsClient } from "@/lib/leads/bulk-runs";
+import { instagramClient } from "@/lib/instagram/client";
 import { repliesClient, type ReplyBoard } from "@/lib/replies/client";
 import { RepliesBoard } from "./RepliesBoard";
 
@@ -10,6 +11,7 @@ vi.mock("@/lib/leads/bulk-runs", async (orig) => ({
   bulkRunsClient: { create: vi.fn(), undo: vi.fn(), get: vi.fn() },
 }));
 vi.mock("@/lib/replies/client", () => ({ repliesClient: { board: vi.fn() } }));
+vi.mock("@/lib/instagram/client", () => ({ instagramClient: { handToAi: vi.fn() } }));
 vi.mock("@/components/ZoneProvider", () => ({ useZone: () => "Asia/Kolkata" }));
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -285,7 +287,12 @@ describe("RepliesBoard", () => {
       expect(within(g).queryByRole("combobox")).toBeNull();
     });
 
-    it("Let LUME AI handle these: only a group's WhatsApp leads (Instagram waits for Part E)", async () => {
+    it("Let LUME AI handle these: WhatsApp leads into a run; Instagram leads to each account's LUME AI, skipped ones said", async () => {
+      vi.mocked(instagramClient.handToAi).mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { given: 1, skipped: [{ leadId: "x", why: "Instagram's 24 hours to answer are over." }] },
+      } as never);
       render(
         <RepliesBoard
           initial={board({
@@ -309,10 +316,22 @@ describe("RepliesBoard", () => {
           canAi
         />,
       );
-      // Asked the price holds only Instagram's: nothing LUME AI can do there yet.
-      expect(screen.getAllByRole("button", { name: /^Let LUME AI handle/ })).toHaveLength(1);
+      // Interested has both channels (a button each); Asked the price only Instagram's.
+      expect(screen.getAllByRole("button", { name: /^Let LUME AI handle/ })).toHaveLength(3);
       await userEvent.click(screen.getByRole("button", { name: /^Let LUME AI handle this 1: Interested/ }));
       expect(screen.getByRole("dialog", { name: "Start sheet" })).toHaveTextContent(/^w1Start$/);
+      await userEvent.click(
+        screen.getByRole("button", { name: /^Let LUME AI handle this 1 on Instagram: Asked/ }),
+      );
+      expect(instagramClient.handToAi).toHaveBeenCalledWith(["i2"]);
+      await waitFor(() =>
+        expect(toast).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: "LUME AI is answering 1 conversation on Instagram",
+            detail: "Skipped 1: Instagram's 24 hours to answer are over.",
+          }),
+        ),
+      );
     });
 
     it("the channel filter: shown when both are on the board; each reads its own; empty says which", async () => {

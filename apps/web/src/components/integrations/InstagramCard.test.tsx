@@ -13,6 +13,7 @@ vi.mock("@/lib/instagram/client", () => ({
     setAccount: vi.fn(),
     disconnect: vi.fn(),
     people: vi.fn(),
+    setAiGoal: vi.fn(),
   },
 }));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
@@ -25,6 +26,7 @@ const account = (over: Partial<IgAccount> = {}): IgAccount => ({
   status: "active",
   problem: null,
   newDmCreatesLead: true,
+  newDms: "team",
   limits: { newLeadsPerHour: 200, mediaMbPerPersonDay: 50, mediaMbPerDay: 2000 },
   sourceId: "s1",
   connectedAt: "2026-11-22T10:00:00.000Z",
@@ -253,16 +255,77 @@ describe("the Instagram card (plan 2026-11-25-instagram-screens D1; canvas board
         .map((li) => li.querySelector("b")?.textContent),
     ).toEqual([
       "Your team, once someone steps in",
+      "LUME AI, in a conversation it has",
       "A flow, for what it was made for",
+      "LUME AI, on an account set to it",
       "Your team, for everything else",
     ]);
   });
 
-  it("LUME AI isn't offered for Instagram until it can answer there (no over-promising)", async () => {
+  const aiOn = {
+    ok: true,
+    goal: { kind: "brief" as const, text: "Answer their questions" },
+    stages: [{ id: "st1", name: "Call booked" }],
+  };
+
+  it("Who answers new DMs: LUME AI chosen, sent, and what it aims for can be set", async () => {
+    vi.mocked(instagramClient.accounts).mockResolvedValue(ok({ accounts: [account()], ai: aiOn }));
+    vi.mocked(instagramClient.setAccount).mockResolvedValue(
+      ok({ accounts: [account({ newDms: "ai" })], ai: aiOn }),
+    );
+    vi.mocked(instagramClient.setAiGoal).mockResolvedValue(ok({ goal: { kind: "stage", stageId: "st1" } }));
+    render(<InstagramCard ig={on} onView={vi.fn()} />);
+    expect(await screen.findByText("Your team answers DMs no flow claims.")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: "What LUME AI aims for on Instagram" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: "LUME AI" }));
+    expect(instagramClient.setAccount).toHaveBeenCalledWith("a1", { newDms: "ai" });
+    expect(
+      await screen.findByText(/LUME AI answers DMs no flow claims, within Instagram’s 24 hours/),
+    ).toBeInTheDocument();
+    const goal = screen.getByRole("combobox", { name: "What LUME AI aims for on Instagram" });
+    expect(goal).toHaveValue("words");
+    expect(screen.getByRole("textbox", { name: "LUME AI's goal, in your words" })).toHaveValue(
+      "Answer their questions",
+    );
+    await userEvent.selectOptions(goal, "st1");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(instagramClient.setAiGoal).toHaveBeenCalledWith({ kind: "stage", stageId: "st1" });
+    expect(await screen.findByText("Saved.")).toBeInTheDocument();
+  });
+
+  it("LUME AI can't answer here: the choice is off, with why; one chosen before says the team answers meanwhile", async () => {
+    const off = {
+      ok: false,
+      why: "LUME AI is switched off. An admin can switch it on in Settings → Integrations.",
+      goal: aiOn.goal,
+      stages: [],
+    };
+    vi.mocked(instagramClient.accounts).mockResolvedValue(ok({ accounts: [account()], ai: off }));
+    const { unmount } = render(<InstagramCard ig={on} onView={vi.fn()} />);
+    expect(await screen.findByText(off.why)).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "LUME AI" })).toBeDisabled();
+    unmount();
+    vi.mocked(instagramClient.accounts).mockResolvedValue(
+      ok({ accounts: [account({ newDms: "ai" })], ai: off }),
+    );
+    render(<InstagramCard ig={on} onView={vi.fn()} />);
+    expect(
+      await screen.findByText(`LUME AI can’t answer now, so your team does. ${off.why}`),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Your team" })).not.toBeDisabled();
+    expect(
+      screen.queryByRole("combobox", { name: "What LUME AI aims for on Instagram" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("LUME AI is never offered unless the server says it can answer there (no over-promising)", async () => {
     vi.mocked(instagramClient.accounts).mockResolvedValue(ok({ accounts: [account()] }));
     render(<InstagramCard ig={on} onView={vi.fn()} />);
     await screen.findByRole("list", { name: "Connected accounts" });
-    expect(screen.queryByText(/LUME AI/)).toBeNull();
+    expect(screen.getByRole("radio", { name: "LUME AI" })).toBeDisabled();
+    expect(screen.getByText("LUME AI can’t answer Instagram here yet.")).toBeInTheDocument();
   });
 
   it("a long handle keeps its whole name for the pointer (Instagram allows 30 characters, names 150)", async () => {

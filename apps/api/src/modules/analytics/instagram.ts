@@ -1,5 +1,7 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
+import type { AppDeps } from "../../app";
+import { drillFor, type IgDrill } from "./drill";
 import { liveFilter, ownerCond, sourceCond } from "./filters";
 import { guardLive } from "./live";
 import { assertLeadAccess, businessTz, narrow, rangeOf, seesRevenue, type AnalyticsQuery } from "./service";
@@ -88,13 +90,15 @@ function conversations(q: AnalyticsQuery, span: { from: Date; to: Date }, now: D
     answers AS (
       SELECT a.tid,
              min(a.at) FILTER (WHERE a.type = 'instagram_confirmed_sent' AND a.via = 'flow') AS flow_at,
+             min(a.at) FILTER (WHERE a.type = 'instagram_confirmed_sent' AND a.via = 'ai') AS ai_at,
              min(a.at) FILTER (WHERE a.type = 'instagram_sent'
-                                  OR (a.type = 'instagram_confirmed_sent' AND a.via IS DISTINCT FROM 'flow')) AS team_at
+                                  OR (a.type = 'instagram_confirmed_sent'
+                                      AND coalesce(a.via, '') NOT IN ('flow', 'ai'))) AS team_at
         FROM acts a JOIN firsts fi ON fi.tid = a.tid AND a.at >= fi.in_at
        WHERE a.type <> 'instagram_received'
        GROUP BY a.tid),
     f AS (
-      SELECT c.*, fi.in_at, an.flow_at, an.team_at, least(an.flow_at, an.team_at) AS answer_at,
+      SELECT c.*, fi.in_at, an.flow_at, an.ai_at, an.team_at, least(an.flow_at, an.ai_at, an.team_at) AS answer_at,
              CASE WHEN c.start = 'ad' THEN ${AD_WINDOW_S}::int ELSE ${WINDOW_S}::int END AS window_s
         FROM conv c
         LEFT JOIN firsts fi ON fi.tid = c.id
@@ -114,7 +118,7 @@ function conversations(q: AnalyticsQuery, span: { from: Date; to: Date }, now: D
 const median = (col: SQL) => sql`percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM ${col}))`;
 
 type WhoRow = {
-  who: "flows" | "team";
+  who: "flows" | "ai" | "team";
   conversations: number;
   booked: number;
   won: number;
@@ -151,10 +155,10 @@ async function totals(
     who: WhoRow[] | null;
   }>(sql`
     WITH ${conversations(q, span, now)},
-    -- Who answered: a conversation counts for each that answered it. LUME AI's row waits for LUME AI on Instagram.
+    -- Who answered: a conversation counts for each that answered it (flows, LUME AI, your team).
     ans AS (
       SELECT w.who, w.at AS who_at, x.* FROM x
-       CROSS JOIN LATERAL (VALUES ('flows', x.flow_at), ('team', x.team_at)) AS w(who, at)
+       CROSS JOIN LATERAL (VALUES ('flows', x.flow_at), ('ai', x.ai_at), ('team', x.team_at)) AS w(who, at)
        WHERE w.at IS NOT NULL)
     SELECT count(*)::int AS conversations, count(DISTINCT lead_id) FILTER (WHERE new_lead)::int AS leads,
            count(*) FILTER (WHERE in_time OR ran_out)::int AS measured,
@@ -228,7 +232,12 @@ function omitWho(t: Totals & { who: WhoRow[] }): Totals {
   return rest;
 }
 
-export async function instagramBoard(req: FastifyRequest, raw: AnalyticsQuery, now: Date) {
+export async function instagramBoard(
+  req: FastifyRequest,
+  raw: AnalyticsQuery,
+  now: Date,
+  d?: Pick<AppDeps, "keyring">,
+) {
   const q = narrow(req, raw);
   assertLeadAccess(
     req,
@@ -252,7 +261,7 @@ export async function instagramBoard(req: FastifyRequest, raw: AnalyticsQuery, n
     ...Object.fromEntries(IG_STARTS.map((k) => [k, per.get(`${day}|${k}`) ?? 0])),
   })) as ({ day: string } & Record<IgStart, number>)[];
 
-  const answered = (k: "flows" | "team") => {
+  const answered = (k: "flows" | "ai" | "team") => {
     const r = who.find((x) => x.who === k);
     return {
       id: k,
@@ -302,6 +311,37 @@ export async function instagramBoard(req: FastifyRequest, raw: AnalyticsQuery, n
      LIMIT 10`);
 
   const rate = (a: number, b: number) => (b > 0 ? a / b : null);
+  // Each number opens the leads behind it (a conversation not yet a lead has nobody to open).
+  const mint = (m: IgDrill["m"], src?: IgDrill["src"]) =>
+    d
+      ? drillFor(
+          d,
+          req,
+          range,
+          q,
+          tz,
+          "ig",
+          { ig: { m, now: now.toISOString(), ...(src ? { src } : {}) } },
+          now,
+        )
+      : undefined;
+  const drill = d
+    ? {
+        conversations: mint("conversations")!,
+        leads: mint("leads")!,
+        inTime: mint("in_time")!,
+        ranOut: mint("ran_out")!,
+        booked: mint("booked")!,
+        won: mint("won")!,
+        stopped: mint("stopped")!,
+        flows: mint("who_flows")!,
+        team: mint("who_team")!,
+        ai: mint("who_ai")!,
+      }
+    : null;
+  // LUME AI's row once it has answered something in the range (a business not using it sees flows and the team).
+  const ai = answered("ai");
+  const whoAnswered = [answered("flows"), ...(ai.conversations ? [ai] : []), answered("team")];
   return {
     range: { from: range.days[0]!, to: range.days.at(-1)!, label: range.label },
     totals: cur,
@@ -319,10 +359,68 @@ export async function instagramBoard(req: FastifyRequest, raw: AnalyticsQuery, n
       { id: "booked", n: cur.bookedNew },
       { id: "won", n: cur.wonNew },
     ],
-    whoAnswered: [answered("flows"), answered("team")],
+    whoAnswered,
     accounts: accounts.rows,
-    sources: sources.rows,
+    sources: sources.rows.map((x) => ({
+      ...x,
+      drill: mint("source", { kind: x.kind === "ad" ? "ad" : "post", id: x.id }) ?? null,
+    })),
+    drill,
+    notes: igNotes(cur, whoAnswered, sources.rows),
   };
+}
+
+const TOO_FEW = 10;
+const per100 = (part: number, whole: number) => Math.round((part * 100) / whole);
+const KIND_WORD: Record<string, string> = { ad: "An ad", reels: "A reel", reel: "A reel", video: "A video" };
+/** A wait in words, for a note ("3 seconds", "18 minutes", "2 hours"). */
+function waitWords(sec: number): string {
+  const unit = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+  if (sec < 90) return unit(Math.round(sec), "second");
+  if (sec < 90 * 60) return unit(Math.round(sec / 60), "minute");
+  if (sec < 36 * 3600) return unit(Math.round(sec / 3600), "hour");
+  return unit(Math.round(sec / 86400), "day");
+}
+
+/**
+ * LUME noticed (board Analytics): at most three things the numbers show, each with its own counts, and none when
+ * there are too few to say. Never a guess at why.
+ */
+export function igNotes(
+  t: Totals,
+  who: { id: "flows" | "ai" | "team"; conversations: number; firstAnswerSec: number | null }[],
+  sources: { kind: string; id: string; conversations: number; leads: number }[],
+): { id: string; title: string; body: string }[] {
+  const notes: { id: string; title: string; body: string }[] = [];
+  if (t.ranOut > 0)
+    notes.push({
+      id: "ran_out",
+      title: `${t.ranOut.toLocaleString("en-US")} ran out of time`,
+      body: `${t.ranOut === 1 ? "Someone wrote" : "They wrote"} and nobody answered inside Instagram's window (24 hours, 7 days after an ad click). Who replied lists anyone still waiting.`,
+    });
+  const best = sources
+    .filter((x) => x.conversations >= TOO_FEW)
+    .sort((a, b) => b.leads / b.conversations - a.leads / a.conversations || b.leads - a.leads)[0];
+  if (best && best.leads > 0)
+    notes.push({
+      id: "best_source",
+      title: `${KIND_WORD[best.kind] ?? "A post"} brings the most leads`,
+      body: `${best.leads.toLocaleString("en-US")} leads from ${best.conversations.toLocaleString("en-US")} conversations it started: ${per100(best.leads, best.conversations)} in every 100.`,
+    });
+  const flows = who.find((w) => w.id === "flows");
+  const team = who.find((w) => w.id === "team");
+  if (
+    flows?.firstAnswerSec != null &&
+    team?.firstAnswerSec != null &&
+    flows.conversations >= TOO_FEW &&
+    team.conversations >= TOO_FEW
+  )
+    notes.push({
+      id: "speed",
+      title: `Flows answer in ${waitWords(flows.firstAnswerSec)}, your team in ${waitWords(team.firstAnswerSec)}`,
+      body: "The median first answer of each, over the conversations it answered.",
+    });
+  return notes;
 }
 
 /** Whether the business has an Instagram account (connected now or before): Analytics shows its board then. */

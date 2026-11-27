@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { scopeOf } from "@lume/core/shared";
 import { Popover } from "@/components/ui/Popover";
 import { personName } from "@/lib/leads/format";
@@ -38,15 +39,7 @@ export function AssignMenu({
       trigger={
         <>
           <span className={s.srOnly}>Owner:</span> {name}
-          <svg viewBox="0 0 12 12" width="9" height="9" aria-hidden>
-            <path
-              d="M3 4.5 6 7.5l3-3"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-            />
-          </svg>
+          <UI_ICONS.menu size={ICON_SIZE.sm} aria-hidden />
         </>
       }
     >

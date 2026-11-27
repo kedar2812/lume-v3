@@ -25,6 +25,71 @@ describe("FilterBar", () => {
     expect(onChange).toHaveBeenCalledWith(expect.not.objectContaining({ source: src }));
   });
 
+  it("Messaged from (owner 2026-11-26): each number, whose it is; chosen, its chip names it and takes it off", async () => {
+    const onChange = vi.fn();
+    const waNumbers = [
+      {
+        id: "0190e0c0-0000-7000-8000-0000000000a1",
+        display: "+91 90000 00001",
+        whose: "the business's",
+        connected: true,
+      },
+      {
+        id: "0190e0c0-0000-7000-8000-0000000000a2",
+        display: "+91 90000 00002",
+        whose: "Riya Sharma's",
+        connected: false,
+      },
+    ];
+    const { rerender } = render(
+      <FilterBar
+        session={session}
+        catalog={{ ...testCatalog(), waNumbers }}
+        filters={EMPTY_FILTERS}
+        onChange={onChange}
+        contactsVisible
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /More filters/ }));
+    const menu = screen.getByRole("combobox", { name: "Messaged from" });
+    expect([...(menu as HTMLSelectElement).options].map((o) => o.text)).toEqual([
+      "Any number",
+      "+91 90000 00001 · the business's",
+      "+91 90000 00002 · Riya Sharma's · not connected",
+    ]);
+    await userEvent.selectOptions(menu, "+91 90000 00002 · Riya Sharma's · not connected");
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ messagedFrom: waNumbers[1]!.id }));
+    rerender(
+      <FilterBar
+        session={session}
+        catalog={{ ...testCatalog(), waNumbers }}
+        filters={{ ...EMPTY_FILTERS, messagedFrom: waNumbers[0]!.id }}
+        onChange={onChange}
+        contactsVisible
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Remove filter: Messaged from +91 90000 00001" }),
+    );
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ messagedFrom: waNumbers[0]!.id }),
+    );
+  });
+
+  it("no WhatsApp number ever connected: no Messaged from", async () => {
+    render(
+      <FilterBar
+        session={session}
+        catalog={testCatalog()}
+        filters={EMPTY_FILTERS}
+        onChange={vi.fn()}
+        contactsVisible
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /More filters/ }));
+    expect(screen.queryByRole("combobox", { name: "Messaged from" })).toBeNull();
+  });
+
   it("on a phone, one Filters button opens the menus and says how many filters are on", async () => {
     render(
       <FilterBar

@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { AVATAR_COLORS, type AvatarColor } from "@lume/core/shared";
@@ -70,19 +71,7 @@ export function ProfilePhoto({ session }: { session: Session }) {
       >
         <Avatar name={user.name} size={72} {...shown} />
         <span className={s.camera} aria-hidden>
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M4 8h3l2-3h6l2 3h3v11H4z" />
-            <circle cx="12" cy="13" r="3.5" />
-          </svg>
+          <UI_ICONS.photo size={ICON_SIZE.sm} aria-hidden />
         </span>
       </button>
       <div className={s.lookSide}>

@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useState } from "react";
 import type { LicenceForPerson } from "@/lib/licence/client";
@@ -109,19 +110,7 @@ export function LicenceCard() {
                 animate={{ scale: 1, opacity: 1 }}
                 transition={toMotion(SPRINGS.bounce)}
               >
-                <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
-                  <motion.path
-                    d="M3.5 8.5l3 3 6-7"
-                    fill="none"
-                    stroke="#fff"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    initial={reduce ? false : { pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 0.45, delay: 0.15 }}
-                  />
-                </svg>
+                <UI_ICONS.done size={ICON_SIZE.md} aria-hidden />
               </motion.span>
             )}
           </AnimatePresence>

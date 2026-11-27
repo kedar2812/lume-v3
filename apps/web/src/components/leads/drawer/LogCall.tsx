@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS, type Icon } from "@/components/ui/icons";
 import { useEffect, useState } from "react";
 import { useToast } from "@/components/feedback/ToastProvider";
 import b from "@/components/ui/Button.module.css";
@@ -11,24 +12,24 @@ import s from "./logcall.module.css";
 import { roving } from "@/lib/roving";
 
 type Outcome = "talked" | "no_answer" | "left_message";
-const OUTCOMES: { id: Outcome; label: string; key: string; icon: string }[] = [
+const OUTCOMES: { id: Outcome; label: string; key: string; icon: Icon }[] = [
   {
     id: "talked",
     label: "Talked",
     key: "1",
-    icon: "M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-5.1A8 8 0 1 1 21 12Z",
+    icon: UI_ICONS.talked,
   },
   {
     id: "no_answer",
     label: "No answer",
     key: "2",
-    icon: "M15.5 3.5l5 5M20.5 3.5l-5 5M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z",
+    icon: UI_ICONS.noAnswer,
   },
   {
     id: "left_message",
     label: "Left a message",
     key: "3",
-    icon: "M12 7v5l3 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z",
+    icon: UI_ICONS.leftMessage,
   },
 ];
 /** What the follow-up is called, from how the call went. */
@@ -123,9 +124,7 @@ export function LogCall({
         align="end"
         trigger={
           <>
-            <svg className={s.ico} viewBox="0 0 24 24" aria-hidden>
-              <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z" />
-            </svg>
+            <UI_ICONS.call size={ICON_SIZE.md} aria-hidden className={s.ico} />
             Log a call
             <kbd className={s.kbd} aria-hidden>
               C
@@ -219,9 +218,7 @@ function Panel(p: {
             onClick={() => p.choose(o.id)}
           >
             <span className={s.ocIco} aria-hidden>
-              <svg viewBox="0 0 24 24">
-                <path d={o.icon} />
-              </svg>
+              <o.icon size={ICON_SIZE.sm} />
             </span>
             <b>{o.label}</b>
             <span className={s.press}>Press {o.key}</span>

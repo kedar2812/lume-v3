@@ -10,6 +10,7 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { useZone } from "@/components/ZoneProvider";
 import { Button } from "@/components/ui/Button";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { instagramClient } from "@/lib/instagram/client";
 import { bulkRunsClient, runLine, type RunView } from "@/lib/leads/bulk-runs";
 import { relativeTime } from "@/lib/leads/format";
 import type { BulkAction } from "@/lib/leads/types";
@@ -96,6 +97,7 @@ export function RepliesBoard({
   // Each read is numbered: an answer for a channel left behind never replaces a newer one.
   const asked = useRef(0);
   const [busy, setBusy] = useState<ReplyBoardGroup | null>(null);
+  const [igBusy, setIgBusy] = useState<ReplyBoardGroup | null>(null);
   const [handing, setHanding] = useState<string[] | null>(null);
   const router = useRouter();
   const filled = board.groups.filter((g) => g.count > 0);
@@ -140,6 +142,26 @@ export function RepliesBoard({
             void reload();
           }),
       },
+    });
+    void reload();
+  };
+
+  // Instagram leads to each account's LUME AI: how many it took, and how many it skipped and why.
+  const handIg = async (group: ReplyBoardGroup, leadIds: string[]) => {
+    setIgBusy(group);
+    const r = await instagramClient.handToAi(leadIds);
+    setIgBusy(null);
+    if (!r.ok) return toast({ tone: "warn", title: "LUME AI couldn't take these", detail: r.message });
+    const { given, skipped } = r.data;
+    const whys = [...new Set(skipped.map((x) => x.why))];
+    toast({
+      tone: given ? "ok" : "warn",
+      title: given
+        ? `LUME AI is answering ${given === 1 ? "1 conversation" : `${given.toLocaleString("en-US")} conversations`} on Instagram`
+        : "LUME AI couldn't take any of these",
+      ...(skipped.length
+        ? { detail: `Skipped ${skipped.length.toLocaleString("en-US")}: ${whys.join(" ")}` }
+        : {}),
     });
     void reload();
   };
@@ -228,7 +250,28 @@ export function RepliesBoard({
               })}
             </ul>
             {(() => {
-              // LUME AI answers WhatsApp only until Part E: a group's Instagram leads aren't handed to it.
+              // A group's Instagram leads go to each account's LUME AI (its standing run), not a new run.
+              const ig = g.leads.filter((l) => l.channel === "instagram");
+              if (!canAi || !AI_GROUPS.includes(g.group) || !ig.length) return null;
+              return (
+                <Button
+                  size="sm"
+                  className={s.ai}
+                  loading={igBusy === g.group}
+                  onClick={() =>
+                    void handIg(
+                      g.group,
+                      ig.map((l) => l.leadId),
+                    )
+                  }
+                  aria-label={`Let LUME AI handle ${ig.length === 1 ? "this 1" : `these ${ig.length}`} on Instagram: ${GROUP_WORDS[g.group]}`}
+                >
+                  <AiGlyph size={14} />
+                  Let LUME AI handle {ig.length === 1 ? "this" : "these"} on Instagram
+                </Button>
+              );
+            })()}
+            {(() => {
               const wa = g.leads.filter((l) => l.channel === "whatsapp");
               if (!canAi || !AI_GROUPS.includes(g.group) || !wa.length) return null;
               return (

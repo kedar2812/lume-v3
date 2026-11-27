@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { motion, useReducedMotion } from "motion/react";
 import { useRef } from "react";
 import { SPRINGS, toMotion } from "@/lib/motion";
@@ -57,11 +58,7 @@ export function SheetProgress({
         />
       </div>
       <p className={s.progressWords}>
-        {phase === "live" && (
-          <svg className={s.tick} viewBox="0 0 16 16" aria-hidden>
-            <path d="M3.5 8.4 6.6 11.3 12.5 4.9" />
-          </svg>
-        )}
+        {phase === "live" && <UI_ICONS.done size={ICON_SIZE.md} aria-hidden className={s.tick} />}
         {words}
       </p>
     </div>

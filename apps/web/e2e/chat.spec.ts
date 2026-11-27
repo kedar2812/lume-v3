@@ -136,8 +136,15 @@ test("the team talks about a lead on the lead itself, and a message is deleted o
     await del.click();
     await expect(page.getByText(words)).toBeVisible();
     const sure = mine.getByRole("button", { name: "Delete for everyone?" });
-    // Asked again on the same button, in the same place: the second tap lands where the first one did.
-    expect(await sure.boundingBox()).toEqual(at);
+    // Asked again on the same button, in the same place: the second tap lands where the first one did. Its words
+    // change, so its width may round a pixel either way; where it sits doesn't move.
+    const again = (await sure.boundingBox())!;
+    expect({ x: again.x, y: again.y, height: again.height }).toEqual({
+      x: at!.x,
+      y: at!.y,
+      height: at!.height,
+    });
+    expect(Math.abs(again.width - at!.width)).toBeLessThanOrEqual(1);
     await sure.click();
     await expect(page.getByText(words)).toHaveCount(0);
   }

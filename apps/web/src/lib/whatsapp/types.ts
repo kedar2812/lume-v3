@@ -53,6 +53,8 @@ export type WaThreadMessage = {
   lumeAi: { runId: string } | null;
   /** A lead's reply as LUME AI read it (W2): its group, line and suggestion; failed; or not read (null / absent). */
   meaning?: WaMeaning | { failed: true } | null;
+  /** The business's number it went from or came to (2026-11-26): only when the business has had more than one. */
+  number?: string;
 };
 export type WaMeaning = {
   readId: string;

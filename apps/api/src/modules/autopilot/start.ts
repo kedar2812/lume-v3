@@ -69,6 +69,8 @@ export const runBody = z
     followUpDays: z.array(z.number()),
     dailyCap: z.number().nullable(),
     name: z.string().trim().min(1).max(120).optional(),
+    /** The number it sends from (2026-11-26): needed when the person may send from two or more. */
+    numberId: z.uuid().optional(),
     remember: z.boolean().default(false),
   })
   .strict()
@@ -79,7 +81,8 @@ export type RunBody = z.infer<typeof runBody>;
 
 type Checked = {
   speaker: { id: string; name: string };
-  number: { id: string; display: string; quality: string | null };
+  /** Null only for an estimate made before a number was chosen. */
+  number: { id: string; display: string; quality: string | null } | null;
   goal: RunGoal;
   goalName: string;
   permissions: Record<AutopilotAction, Allow>;
@@ -100,7 +103,13 @@ type Checked = {
  * replying from LUME on, a speaker who may send messages, a connected number WhatsApp hasn't rated yellow or red, the
  * business's own goal, valid choices; and each lead it may work, the rest skipped with why.
  */
-async function check(req: FastifyRequest, d: AppDeps, b: RunBody): Promise<Checked> {
+async function check(
+  req: FastifyRequest,
+  d: AppDeps,
+  b: RunBody,
+  /** An estimate is shown while the person is still choosing the number; a start never goes without one. */
+  o: { estimate?: boolean } = {},
+): Promise<Checked> {
   if (!can(req.actor!, "messages.send")) throw forbidden();
   const problem = profileProblem({
     standing: { permissions: b.permissions, followUpDays: b.followUpDays, dailyCap: b.dailyCap },
@@ -117,9 +126,10 @@ async function check(req: FastifyRequest, d: AppDeps, b: RunBody): Promise<Check
   const speaker = (await speakers(req)).find((p) => p.id === speakerId);
   if (!speaker) throw badRequest("SPEAKER", "LUME AI can only speak as someone who may send messages.");
 
-  const ready = await readiness(req, d, speakerId);
+  const ready = await readiness(req, d, speakerId, b.numberId);
   if (!ready.ok) throw conflict(ready.code, ready.message);
   const number = ready.number;
+  if (!number && !o.estimate) throw badRequest("NUMBER_REQUIRED", "Choose the number LUME AI sends from.");
   const ai = await aiStatus(req, d);
 
   let goal: RunGoal = b.goal;
@@ -192,7 +202,7 @@ async function inRuns(req: FastifyRequest, ids: string[]): Promise<Set<string>> 
  * (2026-11-12): how many of this month's are left, each lead started taking one at most (one counted already doesn't).
  */
 export async function estimateRun(req: FastifyRequest, d: AppDeps, b: RunBody) {
-  const c = await check(req, d, b);
+  const c = await check(req, d, b, { estimate: true });
   const busy = await inRuns(
     req,
     c.eligible.map((l) => l.id),
@@ -252,7 +262,7 @@ export async function startRun(
       name: b.name ?? `${c.goalName} · ${c.total} ${c.total === 1 ? "lead" : "leads"}`,
       startedBy: req.actor!.userId,
       speakerId: c.speaker.id,
-      numberId: c.number.id,
+      numberId: c.number!.id,
       goal: c.goal,
       permissions: c.permissions,
       followUpDays: b.followUpDays,

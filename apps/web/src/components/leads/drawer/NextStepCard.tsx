@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import type { NextStep } from "@lume/core/shared";
 import { useEffect, useId, useRef, useState } from "react";
 import { AiGlyph } from "@/components/ai/AiGlyph";
@@ -229,11 +230,7 @@ export function NextStepCard({
           return (
             <section aria-labelledby={titleId} className={s.done} data-tone={w.done ? "ok" : "quiet"}>
               <h3 id={titleId} ref={heading} tabIndex={-1} className={s.doneTitle}>
-                {w.done && (
-                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
-                    <path d="M5 12.5 10 17l9-10" />
-                  </svg>
-                )}
+                {w.done && <UI_ICONS.done size={ICON_SIZE.md} aria-hidden />}
                 {w.done ? "Done" : "Nothing was changed"}
               </h3>
               {w.done && <p className={s.doneText}>{w.done}</p>}
@@ -253,10 +250,7 @@ export function NextStepCard({
 
       {state.is === "limit" && (
         <p role="status" className={s.note}>
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 7v5l3 2" />
-          </svg>
+          <UI_ICONS.later size={ICON_SIZE.lg} aria-hidden />
           {pausedWords(state.pause, tz)}
         </p>
       )}

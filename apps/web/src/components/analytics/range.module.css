@@ -32,7 +32,6 @@
   height: 15px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
   color: var(--text-2);
@@ -40,7 +39,6 @@
 .button .chev {
   width: 12px;
   height: 12px;
-  stroke-width: 2.2;
 }
 .vs {
   color: var(--text-3);

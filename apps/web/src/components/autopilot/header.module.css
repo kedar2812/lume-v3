@@ -92,3 +92,13 @@
   gap: 8px;
   margin-top: 6px;
 }
+
+/* The number the run sends from (owner 2026-11-26). */
+.from {
+  margin: 0;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}

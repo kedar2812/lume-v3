@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import {
   useEffect,
   useLayoutEffect,
@@ -168,34 +169,10 @@ export function DayFull({
           </div>
           <div className={s.days}>
             <IconButton label="Previous day" disabled={day <= min} onClick={() => setDay(addDays(day, -1))}>
-              <svg
-                viewBox="0 0 16 16"
-                width="14"
-                height="14"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="M10 3 5 8l5 5" />
-              </svg>
+              <UI_ICONS.before size={ICON_SIZE.sm} aria-hidden />
             </IconButton>
             <IconButton label="Next day" disabled={day >= max} onClick={() => setDay(addDays(day, 1))}>
-              <svg
-                viewBox="0 0 16 16"
-                width="14"
-                height="14"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="m6 3 5 5-5 5" />
-              </svg>
+              <UI_ICONS.after size={ICON_SIZE.sm} aria-hidden />
             </IconButton>
             {day !== today && (
               <Button size="sm" onClick={() => setDay(today)}>
@@ -227,35 +204,13 @@ export function DayFull({
             {view === "timeline" && (
               <div className={s.zoom}>
                 <IconButton label="Zoom out" disabled={!fit || eff <= fit} onClick={() => zoom(1 / STEP)}>
-                  <svg
-                    viewBox="0 0 16 16"
-                    width="14"
-                    height="14"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    aria-hidden
-                  >
-                    <path d="M3.5 8h9" />
-                  </svg>
+                  <UI_ICONS.zoomOut size={ICON_SIZE.sm} aria-hidden />
                 </IconButton>
                 <output className={s.zoomLevel} data-testid="zoom-level" aria-live="polite">
                   {fit ? `${Math.round((eff / fit) * 100)}%` : "100%"}
                 </output>
                 <IconButton label="Zoom in" disabled={!fit} onClick={() => zoom(STEP)}>
-                  <svg
-                    viewBox="0 0 16 16"
-                    width="14"
-                    height="14"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    aria-hidden
-                  >
-                    <path d="M3.5 8h9M8 3.5v9" />
-                  </svg>
+                  <UI_ICONS.zoomIn size={ICON_SIZE.sm} aria-hidden />
                 </IconButton>
                 <Button size="sm" variant="ghost" onClick={() => set({ pph: 0 })}>
                   Fit day
@@ -264,18 +219,7 @@ export function DayFull({
             )}
           </div>
           <IconButton label="Close" className={s.close} onClick={close}>
-            <svg
-              viewBox="0 0 14 14"
-              width="14"
-              height="14"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              aria-hidden
-            >
-              <path d="M3 3l8 8M11 3l-8 8" />
-            </svg>
+            <UI_ICONS.close size={ICON_SIZE.sm} aria-hidden />
           </IconButton>
         </header>
         <div className={s.fullBody} data-stale={data.stale || undefined} aria-busy={data.state === "loading"}>

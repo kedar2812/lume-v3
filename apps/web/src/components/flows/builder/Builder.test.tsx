@@ -588,7 +588,11 @@ describe("the flow builder", () => {
 
   it("Numbers: each step's last 30 days on its card and each line's count on it; Build puts the steps back", async () => {
     vi.mocked(flowsClient.stats).mockResolvedValue(
-      ok({ byStep: { hi: { entered: 1200, people: 950, sent: 1190 } }, byLine: { "hi>bye": 410 } }),
+      ok({
+        total: { triggered: 0, leads: 0, handed: 0, booked: 0, won: 0 },
+        byStep: { hi: { entered: 1200, people: 950, sent: 1190 } },
+        byLine: { "hi>bye": 410 },
+      }),
     );
     render(<Builder initial={view()} catalog={testCatalog()} flows={[]} businessName="Harbour Studio" />);
     await userEvent.click(screen.getByRole("radio", { name: "Numbers" }));
@@ -1115,7 +1119,9 @@ describe("LUME AI builds the flow (plan 2026-11-23-flow-builder, Task C2)", () =
   });
 
   it("Build it waits for words, and the bar is in Build only", async () => {
-    vi.mocked(flowsClient.stats).mockResolvedValue(ok({ byStep: {}, byLine: {} }));
+    vi.mocked(flowsClient.stats).mockResolvedValue(
+      ok({ total: { triggered: 0, leads: 0, handed: 0, booked: 0, won: 0 }, byStep: {}, byLine: {} }),
+    );
     open();
     expect(screen.getByRole("button", { name: "Build it" })).toBeDisabled();
     await userEvent.type(

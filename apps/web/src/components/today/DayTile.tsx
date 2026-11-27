@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import Link from "next/link";
 import {
   useEffect,
@@ -130,19 +131,7 @@ export function DayTile({
             : "Nothing planned yet"}
         </span>
         <IconButton label="Open Your day full screen" className={s.expand} onClick={onOpenFull}>
-          <svg
-            viewBox="0 0 16 16"
-            width="14"
-            height="14"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
-          >
-            <path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9" />
-          </svg>
+          <UI_ICONS.fullScreen size={ICON_SIZE.sm} aria-hidden />
         </IconButton>
       </div>
       {/* Where now and each dot sit follows the hour: screenshots hide it (dots can sit past either end). */}
@@ -190,30 +179,9 @@ export function DayTile({
                 {...f.bind(key)}
               >
                 {c.done ? (
-                  <svg
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    <path d="M3.5 8.5 6.5 11.5 12.5 4.5" />
-                  </svg>
+                  <UI_ICONS.done size={ICON_SIZE.md} aria-hidden />
                 ) : (
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    <path d="m16 13 5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 11" />
-                    <rect x="2" y="6" width="14" height="12" rx="2" />
-                  </svg>
+                  <UI_ICONS.video size={ICON_SIZE.md} aria-hidden />
                 )}
                 {first(c.m.lead?.name ?? c.m.title)} {timeOf(new Date(c.m.startsAt), tz)}
               </GoLink>
@@ -301,17 +269,7 @@ export function DayTile({
       )}
       <div className={s.nextrow} data-next-call>
         <span className={s.vi} aria-hidden>
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="m16 13 5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 11" />
-            <rect x="2" y="6" width="14" height="12" rx="2" />
-          </svg>
+          <UI_ICONS.video size={ICON_SIZE.md} aria-hidden />
         </span>
         {next ? (
           <>

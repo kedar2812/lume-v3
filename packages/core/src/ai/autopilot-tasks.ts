@@ -38,6 +38,8 @@ export const AUTOPILOT_ACTION_TITLES: Record<AutopilotAction, string> = {
 /** Everything a run's read is given: the business's own words and lists, and the lead's thread. Never a phone or an
  * email: LUME AI writes to the lead through LUME, it never needs their address. */
 export type AutopilotCtx = {
+  /** Where LUME AI writes: WhatsApp (the default) or Instagram (plan 2026-11-27-instagram-lume-ai). */
+  channel?: "whatsapp" | "instagram";
   business: string;
   speaker: string;
   goal: { kind: "stage"; stage: string } | { kind: "reply" } | { kind: "brief"; text: string };
@@ -150,7 +152,7 @@ export function autopilotInstructions(task: AutopilotTask, c: AutopilotCtx): str
       : p.voice.signOff
         ? ` Sign off as "${p.voice.signOff}".`
         : ""
-  } Keep messages short, like a WhatsApp message.`;
+  } Keep messages short, like ${c.channel === "instagram" ? "an Instagram" : "a WhatsApp"} message.`;
   const rules = `Rules that always hold:
 - Use only the facts given. Never invent a price, discount, date, time, offer or promise that isn't given.
 - Never repeat an amount the lead names (their budget, or a price they offer): the only amounts in your message are \
@@ -193,13 +195,13 @@ for want of a calendar. Never say a call or visit is booked: a person confirms i
   const what =
     task === "autopilot_first"
       ? "Choose the one approved template that best fits this lead and the goal. Answer with its templateId and why, in one line of at most 200 characters."
-      : `Write the next WhatsApp message to the lead toward the goal (${goalWords(c.goal)}). Answer with kind reply and \
+      : `Write the next ${appOf(c)} message to the lead toward the goal (${goalWords(c.goal)}). Answer with kind reply and \
 the message, or another kind as the rules say. You may attach up to three of the files given by id; set stageId to one \
 of the stages given by id when the conversation has moved the lead there; when the lead has said no, the lost stage with \
 a lostReasonId from the lost reasons given; fill only the empty fields given, as key and value pairs, from what the lead said (a choice \
 by one of its options, a number as digits, a date as YYYY-MM-DD); and suggest a follow-up, its time as "YYYY-MM-DDTHH:mm" on the business's clock. Keep the message at most \
-1,000 characters, the reason at most 200 characters and the evidence at most 300 characters.`;
-  return `You are LUME AI, messaging a business's lead on WhatsApp. The goal: ${goalWords(c.goal)}.
+${c.channel === "instagram" ? "1,000 bytes (Instagram's limit: about 1,000 English letters, fewer in other scripts)" : "1,000 characters"}, the reason at most 200 characters and the evidence at most 300 characters.`;
+  return `You are LUME AI, messaging a business's lead on ${appOf(c)}. The goal: ${goalWords(c.goal)}.
 ${voice}
 
 ${knows}
@@ -208,6 +210,9 @@ ${rules}
 
 ${what}`;
 }
+
+/** The app LUME AI writes in, by name. */
+const appOf = (c: AutopilotCtx) => (c.channel === "instagram" ? "Instagram" : "WhatsApp");
 
 /** What the provider reads: the lead, the thread and the business's lists, as compact JSON. */
 export function autopilotInput(task: AutopilotTask, c: AutopilotCtx): string {

@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { ProgressRing } from "@/components/ui/ProgressRing";
@@ -179,16 +180,7 @@ export function MediaScreen({
             </div>
             {canManage && (
               <button type="button" className={`${s.primary} ${s.addTop}`} onClick={choose}>
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  aria-hidden
-                >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
+                <UI_ICONS.add size={ICON_SIZE.md} aria-hidden />
                 Add media
               </button>
             )}
@@ -223,17 +215,7 @@ export function MediaScreen({
               ))}
             </div>
             <label className={s.search}>
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                aria-hidden
-              >
-                <circle cx="11" cy="11" r="7" />
-                <path d="m20 20-3.5-3.5" />
-              </svg>
+              <UI_ICONS.search size={ICON_SIZE.md} aria-hidden />
               <input
                 type="search"
                 aria-label="Search media"
@@ -284,16 +266,7 @@ export function MediaScreen({
           {canManage && (
             <div className={s.phoneAdd}>
               <button type="button" className={s.primary} onClick={choose}>
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  aria-hidden
-                >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
+                <UI_ICONS.add size={ICON_SIZE.md} aria-hidden />
                 Add from this phone
               </button>
             </div>
@@ -312,16 +285,7 @@ export function MediaScreen({
             transition={toMotion(SPRINGS.default)}
           >
             <span className={s.dropIcon}>
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12 15V4m0 0-4 4m4-4 4 4M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" />
-              </svg>
+              <UI_ICONS.upload size={ICON_SIZE.md} aria-hidden />
             </span>
             <b>{dragging > 1 ? `Drop to add ${dragging} files to Media` : "Drop to add it to Media"}</b>
             <span>Photos, videos and documents. Each one is kept once and sent as the real file.</span>

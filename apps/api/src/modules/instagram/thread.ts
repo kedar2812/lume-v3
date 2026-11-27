@@ -30,6 +30,8 @@ type Msg = {
   fromPhone: boolean;
   /** Sent with Meta's human agent tag (a person, after 24 hours). */
   humanAgent: boolean;
+  /** Written by LUME AI (as its speaker): "LUME AI for {speaker}" (plan 2026-11-27-instagram-lume-ai). */
+  ai?: boolean;
   /** The one private reply to a comment (it shows in the person's inbox with a link to the post). */
   privateReply: boolean;
 };
@@ -98,9 +100,11 @@ export async function leadInstagram(req: FastifyRequest, leadId: string, now: Da
     buttons: unknown;
     kind: string;
     flow_name: string | null;
+    ai: boolean;
   }>(sql`
     SELECT o.id, o.thread_id, o.mid, o.user_id, u.name AS user_name, o.text, o.status, o.problem, o.reaction,
-           o.tag, o.created_at, o.quick_replies, o.buttons, o.kind, f.name AS flow_name
+           o.tag, o.created_at, o.quick_replies, o.buttons, o.kind, f.name AS flow_name,
+           o.autopilot_run_id IS NOT NULL AS ai
       FROM instagram_outbox o JOIN users u ON u.id = o.user_id
       LEFT JOIN instagram_flow_runs r ON r.id = o.flow_run_id
       LEFT JOIN instagram_flows f ON f.id = r.flow_id
@@ -113,9 +117,17 @@ export async function leadInstagram(req: FastifyRequest, leadId: string, now: Da
     media_type: string | null;
     at: Date | string;
     private_reply: "none" | "queued" | "sent" | "failed";
+    hidden: boolean;
+    deleted_at: Date | string | null;
+    public_reply: string | null;
+    public_reply_at: Date | string | null;
+    public_reply_unsure: boolean;
+    live: boolean;
   }>(sql`
-    SELECT id, thread_id, text, media_type, at, private_reply FROM (
-      SELECT id, thread_id, text, media_type, at, private_reply,
+    SELECT id, thread_id, text, media_type, at, private_reply, hidden, deleted_at, public_reply, public_reply_at,
+           public_reply_unsure, live FROM (
+      SELECT id, thread_id, text, media_type, at, private_reply, hidden, deleted_at, public_reply, public_reply_at,
+             public_reply_unsure, live,
              row_number() OVER (PARTITION BY thread_id ORDER BY at DESC, id DESC) AS n
         FROM instagram_comments WHERE thread_id = ANY(${idList}::uuid[])) c
      WHERE n <= ${COMMENTS_MAX}
@@ -127,6 +139,14 @@ export async function leadInstagram(req: FastifyRequest, leadId: string, now: Da
      WHERE r.thread_id = ANY(${idList}::uuid[]) AND r.status IN ('running', 'waiting')
      ORDER BY r.thread_id, r.created_at DESC`);
   const flowOf = new Map(runs.rows.map((r) => [r.thread_id, r]));
+  // LUME AI answering on an account (its run there holds the lead and is working it): one run per lead.
+  const ai = (
+    await req.db.execute<{ account_id: string; run_id: string; state: string; status: string }>(sql`
+      SELECT r.instagram_account_id AS account_id, r.id AS run_id, l.state, r.status
+        FROM autopilot_leads l JOIN autopilot_runs r ON r.id = l.run_id
+       WHERE l.lead_id = ${leadId} AND l.active AND r.channel = 'instagram'
+         AND l.state IN ('up_next', 'writing', 'sent', 'replied', 'talking')`)
+  ).rows[0];
   const unsent = new Set(
     acts.rows.filter((a) => a.type === "instagram_unsent").map((a) => String(a.payload.mid ?? "")),
   );
@@ -186,6 +206,7 @@ export async function leadInstagram(req: FastifyRequest, leadId: string, now: Da
       flow: o.flow_name,
       fromPhone: false,
       humanAgent: o.tag === "human_agent",
+      ai: o.ai,
       privateReply: o.kind === "private_reply",
     });
   return {
@@ -206,6 +227,10 @@ export async function leadInstagram(req: FastifyRequest, leadId: string, now: Da
             ? { state: w.state, since: w.since?.toISOString() ?? null }
             : { state: w.state, until: w.until.toISOString() },
         takenOver: t.taken_over_by ? { id: t.taken_over_by, name: t.taken_name ?? "" } : null,
+        ai:
+          ai && ai.account_id === t.account_id && !t.taken_over_by
+            ? { runId: ai.run_id, paused: ai.status !== "running" }
+            : null,
         flow: (() => {
           const r = flowOf.get(t.id);
           return r ? { id: r.flow_id, name: r.name, waiting: r.status === "waiting" } : null;
@@ -218,7 +243,15 @@ export async function leadInstagram(req: FastifyRequest, leadId: string, now: Da
             text: c.text,
             mediaType: c.media_type,
             privateReply: c.private_reply,
-            replyOpen: privateReplyOpen({ at: new Date(c.at), privateReply: c.private_reply }, now),
+            replyOpen:
+              c.deleted_at === null &&
+              privateReplyOpen({ at: new Date(c.at), privateReply: c.private_reply }, now),
+            // A person's actions from LUME (2026-11-27): what Instagram shows now.
+            hidden: c.hidden,
+            deleted: c.deleted_at !== null,
+            publicReply: c.public_reply,
+            publicReplyUnsure: c.public_reply_unsure,
+            canReplyPublicly: c.deleted_at === null && c.public_reply_at === null && !c.live,
           })),
         source: seesSource ? t.source : null,
         messages,

@@ -50,6 +50,16 @@ export type InstagramFake = {
   failPaths: Set<string>;
   sent: IgFakeSent[];
   publicReplies: { commentId: string; message: string }[];
+  /** Comments hidden, and deleted, on Instagram (a person's actions from LUME, 2026-11-27). */
+  hidden: Set<string>;
+  deleted: Set<string>;
+  /**
+   * The next comment actions (public reply, hide, delete) answer with these: a status of 500 or more (Meta busy), or a
+   * Meta error code (100: the comment no longer exists; 190: the token refused).
+   */
+  commentFail: (number | "lose")[];
+  /** Comments no longer on Instagram (deleted in the app): acting on one, or reading it, answers code 100. */
+  missing: Set<string>;
   /** The next sends answer with these Meta error codes (or "lose": taken, then the answer lost), one each. */
   failNext: (number | "lose" | { code: number; subcode: number })[];
   /** Profiles by IGSID; one missing answers "User consent is required". */
@@ -92,6 +102,10 @@ export async function startInstagramFake(o: { version?: string } = {}): Promise<
     failPaths: new Set<string>(),
     sent: [] as IgFakeSent[],
     publicReplies: [] as { commentId: string; message: string }[],
+    hidden: new Set<string>(),
+    deleted: new Set<string>(),
+    commentFail: [] as InstagramFake["commentFail"],
+    missing: new Set<string>(),
     failNext: [] as InstagramFake["failNext"],
     profiles: new Map<
       string,
@@ -226,10 +240,46 @@ export async function startInstagramFake(o: { version?: string } = {}): Promise<
         const r = b.recipient as { id?: string } | undefined;
         return send(res, 200, { recipient_id: r?.id ?? "6512000000000001", message_id: mid });
       }
+      // A comment's own actions: Meta busy, or one of its errors, when a test says so.
+      const commentAct =
+        (edge === "replies" && req.method === "POST") ||
+        (!edge && req.method === "POST" && query.hide !== undefined) ||
+        (!edge && req.method === "DELETE");
+      if (commentAct && state.missing.has(node!))
+        return send(res, 400, oauthError(100, "Unsupported request: object does not exist", 33));
+      // "lose": Instagram did it, and its answer never came back.
+      const fail = commentAct ? state.commentFail.shift() : undefined;
+      if (typeof fail === "number") {
+        if (fail >= 500) return send(res, fail, {});
+        return send(res, 400, oauthError(fail, "Meta refused"));
+      }
+      const lost = fail === "lose";
+      const done = (body: Record<string, unknown>) => {
+        if (lost) {
+          res.writeHead(502);
+          return res.end();
+        }
+        return send(res, 200, body);
+      };
+      if (!edge && req.method === "POST" && query.hide !== undefined) {
+        if (query.hide === "true") state.hidden.add(node!);
+        else state.hidden.delete(node!);
+        return done({ success: true });
+      }
+      if (!edge && req.method === "DELETE") {
+        state.deleted.add(node!);
+        return done({ success: true });
+      }
       if (edge === "replies" && req.method === "POST") {
         const msg = query.message ?? ((body ?? {}) as { message?: string }).message ?? "";
         state.publicReplies.push({ commentId: node!, message: msg });
-        return send(res, 200, { id: `reply-${++n}` });
+        return done({ id: `reply-${++n}` });
+      }
+      // A comment read on its own: there, or gone.
+      if (!edge && req.method === "GET" && /^C/.test(node!)) {
+        if (state.missing.has(node!) || state.deleted.has(node!))
+          return send(res, 400, oauthError(100, "Unsupported get request: object does not exist", 33));
+        return send(res, 200, { id: node });
       }
       if (edge === "conversations" && req.method === "GET") {
         const list = state.conversations.get(acct.userId) ?? [];

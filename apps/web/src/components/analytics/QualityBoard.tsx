@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { Quality, Templates } from "@/lib/analytics/client";
@@ -203,10 +204,7 @@ export function QualityBoard({
                 data-tone={quality.sourcesNeedingLook.length ? "amber" : "green"}
                 aria-hidden
               >
-                <svg viewBox="0 0 24 24">
-                  <path d="M12 3 2 20h20L12 3Z" />
-                  <path d="M12 10v4M12 17h.01" />
-                </svg>
+                <UI_ICONS.warning size={ICON_SIZE.md} aria-hidden />
               </span>
               <span className={s.tLabel}>Sources needing a look</span>
               <b className={s.tNum}>{count(quality.sourcesNeedingLook.length)}</b>

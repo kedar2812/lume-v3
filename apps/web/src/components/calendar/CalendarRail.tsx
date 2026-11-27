@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { useMemo, useState } from "react";
 import { addDays, dayKey, dayStart, meetingState } from "@/lib/calendar/agenda";
 import type { Meeting } from "@/lib/calendar/types";
@@ -89,14 +90,10 @@ export function CalendarRail({
             {MONTHS[mo - 1]} {y}
           </h2>
           <button type="button" className={s.ibtn} aria-label="Previous month" onClick={() => shift(-1)}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-              <path d="M15 6l-6 6 6 6" />
-            </svg>
+            <UI_ICONS.before size={ICON_SIZE.md} aria-hidden />
           </button>
           <button type="button" className={s.ibtn} aria-label="Next month" onClick={() => shift(1)}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-              <path d="M9 6l6 6-6 6" />
-            </svg>
+            <UI_ICONS.after size={ICON_SIZE.md} aria-hidden />
           </button>
         </div>
         <div className={s.miniGrid} role="group" aria-label={`${MONTHS[mo - 1]} ${y}`}>

@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { bytesText } from "@lume/core/shared";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Play } from "lucide-react";
@@ -209,37 +210,8 @@ function SendStatus({
   const one = m.status === "sent";
   return (
     <span className={s.status} data-status={m.status}>
-      {two && (
-        <svg
-          aria-hidden="true"
-          width="16"
-          height="10"
-          viewBox="0 0 16 10"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M1 5.5 3.8 8.2 9.5 1.8" />
-          <path d="M6.5 8.2 12.5 1.8" />
-        </svg>
-      )}
-      {one && (
-        <svg
-          aria-hidden="true"
-          width="12"
-          height="10"
-          viewBox="0 0 12 10"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M1.5 5.5 4.3 8.2 10.5 1.8" />
-        </svg>
-      )}
+      {two && <UI_ICONS.delivered size={ICON_SIZE.md} aria-hidden />}
+      {one && <UI_ICONS.sent size={ICON_SIZE.sm} aria-hidden />}
       {STATUS_WORDS[m.status]}
     </span>
   );
@@ -348,6 +320,8 @@ export function WhatsAppThread({
                       ? `LUME AI for ${r.m.sentBy.name}`
                       : (r.m.sentBy?.name ?? "From the phone")}
                   , {timeOf(new Date(r.m.at), tz)}
+                  {/* Which of the business's numbers (2026-11-26): only when it has had more than one. */}
+                  {r.m.number && ` · ${r.m.direction === "in" ? "to" : "from"} ${r.m.number}`}
                   <span className={s.srOnly}>: </span>
                 </span>
                 <div className={s.bubble}>

@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { SCHEDULE_MINUTES } from "@lume/core/shared";
 import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -18,22 +19,7 @@ import s from "./schedule.module.css";
 type Lead = { id: string; name: string };
 const first = (name: string) => name.trim().split(/\s+/)[0] || "your lead";
 
-const CalendarPlus = () => (
-  <svg
-    viewBox="0 0 24 24"
-    width="16"
-    height="16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden
-  >
-    <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
-    <path d="M8 3v4M16 3v4M3.5 10h17M12 13v5M9.5 15.5h5" />
-  </svg>
-);
+const CalendarPlus = () => <UI_ICONS.schedule size={ICON_SIZE.md} aria-hidden />;
 const MeetMark = () => (
   <svg
     viewBox="0 0 24 24"
@@ -467,16 +453,7 @@ function ScheduledView({ done, lead, onClose }: { done: Scheduled; lead: Lead; o
   return (
     <div className={s.done}>
       <span className={s.tick} aria-hidden>
-        <svg viewBox="0 0 16 16" width="18" height="18">
-          <path
-            d="M3.5 8.5l3 3 6-7"
-            fill="none"
-            stroke="#fff"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <UI_ICONS.done size={ICON_SIZE.lg} aria-hidden />
       </span>
       <h2 className={s.title}>Meeting scheduled</h2>
       <p className={s.lede}>

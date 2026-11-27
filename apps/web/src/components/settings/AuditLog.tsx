@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -123,11 +124,7 @@ export function AuditLog({
         {/* The log as a spreadsheet, with these filters, every entry (owner 2026-11-14). */}
         {canExport && (
           <button type="button" className={s.auditExport} onClick={() => setDownloading(true)}>
-            <svg viewBox="0 0 24 24" aria-hidden>
-              <path d="M12 3v12" />
-              <path d="m7 10 5 5 5-5" />
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            </svg>
+            <UI_ICONS.download size={ICON_SIZE.md} aria-hidden />
             Download CSV
           </button>
         )}

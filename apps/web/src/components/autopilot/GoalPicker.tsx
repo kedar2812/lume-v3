@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useId, useRef, type KeyboardEvent } from "react";
@@ -95,11 +96,7 @@ export function GoalPicker({
               onChange(o.pick);
             }}
           >
-            {o.key === "brief" && (
-              <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden>
-                <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-              </svg>
-            )}
+            {o.key === "brief" && <UI_ICONS.add size={ICON_SIZE.sm} aria-hidden />}
             {o.label}
           </button>
         ))}
@@ -175,10 +172,7 @@ export function GoalPicker({
             exit={{ opacity: 0 }}
             transition={toMotion(SPRINGS.default)}
           >
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden className={s.lock}>
-              <rect x="5" y="11" width="14" height="9" rx="2.5" fill="currentColor" />
-              <path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" strokeWidth="2" />
-            </svg>
+            <UI_ICONS.private size={ICON_SIZE.lg} aria-hidden className={s.lock} />
             <div className={s.lockedWords}>
               <b>Your goal is locked in. LUME AI writes from this.</b>
               <p>{brief.text}</p>

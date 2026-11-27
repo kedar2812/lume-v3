@@ -1,0 +1,92 @@
+/* Which WhatsApp number a run sends from (owner 2026-11-26): the Start screens' own option rows. */
+.one {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.line,
+.title {
+  margin: 0;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.title {
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  padding: 0 10px 2px;
+}
+.group {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.option {
+  position: relative;
+  display: block;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    transform 0.1s ease-out;
+}
+.option:hover {
+  background: var(--hover);
+}
+.option:active {
+  transform: scale(0.985);
+}
+.option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.option:has(input:checked) {
+  background: var(--accent-soft);
+}
+.option:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+.option[data-off] {
+  cursor: default;
+  opacity: 0.62;
+}
+.option[data-off]:hover {
+  background: none;
+}
+.option[data-off]:active {
+  transform: none;
+}
+.text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.number {
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-sm);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.option:has(input:checked) .number {
+  color: var(--accent-ink);
+}
+.whose,
+.problem,
+.ask {
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-xs);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.problem {
+  color: var(--warn-ink);
+}
+.ask {
+  margin: 0;
+  padding: 2px 10px 0;
+}

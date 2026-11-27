@@ -2,9 +2,7 @@
 .ico {
   width: 15px;
   height: 15px;
-  fill: none;
   stroke: currentColor;
-  stroke-width: 1.8;
   stroke-linejoin: round;
 }
 .kbd {
@@ -77,15 +75,6 @@
 .oc[aria-checked="true"] .ocIco {
   color: #fff;
   background: var(--accent);
-}
-.ocIco svg {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 .oc b {
   font-size: 13px;

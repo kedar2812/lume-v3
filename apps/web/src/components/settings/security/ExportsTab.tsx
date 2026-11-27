@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useId, useRef, useState, type DragEvent } from "react";
@@ -106,16 +107,7 @@ export function ExportsTab({
               {phase.kind === "idle" && (
                 <>
                   <span className={s.dropIcon} aria-hidden>
-                    <svg viewBox="0 0 24 24" width="22" height="22">
-                      <path
-                        d="M12 15V4m0 0-4 4m4-4 4 4M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    <UI_ICONS.upload size={ICON_SIZE.lg} aria-hidden />
                   </span>
                   <b>Drop a CSV or Excel file here</b>
                   <span className={s.cap}>LUME reads it and forgets it. Nothing is kept.</span>

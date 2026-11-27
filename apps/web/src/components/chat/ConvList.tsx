@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { unreadSum } from "@lume/core/shared";
 import { Avatar } from "@/components/ui/Avatar";
 import { lookOf } from "@/lib/avatar/look";
@@ -94,19 +95,12 @@ export function ConvList({
                   aria-expanded={!shut}
                   onClick={() => onFold(key, !shut)}
                 >
-                  <svg
+                  <UI_ICONS.open
+                    size={ICON_SIZE.md}
+                    aria-hidden
                     className={s.chev}
                     data-open={!shut || undefined}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    <path d="m9 6 6 6-6 6" />
-                  </svg>
+                  />
                   <span className={s.ctl}>{title}</span>
                   {shut && sum && (
                     <span className={s.un} aria-label={`${sum} unread in ${title}`}>

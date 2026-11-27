@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { useState } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
@@ -440,19 +441,7 @@ function InviteForm({
         <p className={s.muted}>They get an email with a link to set their password. It works for 3 days.</p>
         {places?.full && (
           <p role="alert" className={s.planFull}>
-            <svg
-              aria-hidden
-              viewBox="0 0 16 16"
-              width="15"
-              height="15"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-            >
-              <circle cx="8" cy="8" r="6.2" />
-              <path d="M8 4.8v3.6M8 11v.01" />
-            </svg>
+            <UI_ICONS.warning size={ICON_SIZE.md} aria-hidden />
             <span>{places.full}</span>
           </p>
         )}

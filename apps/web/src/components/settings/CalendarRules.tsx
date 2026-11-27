@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { matchEvent, type CalendarRules as Rules } from "@lume/core/shared";
 import { useState } from "react";
 import { Switch } from "@/components/ui/Switch";
@@ -240,18 +241,7 @@ export function CalendarRules({
         </div>
 
         <p className={s.never}>
-          <svg
-            viewBox="0 0 24 24"
-            width="12"
-            height="12"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            aria-hidden
-          >
-            <rect x="5" y="11" width="14" height="9" rx="2" />
-            <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-          </svg>
+          <UI_ICONS.private size={ICON_SIZE.sm} aria-hidden />
           Never counted: people who sign in to LUME, and each person&apos;s own address.
         </p>
 

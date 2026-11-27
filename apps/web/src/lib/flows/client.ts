@@ -72,6 +72,7 @@ export type FlowRun = {
 };
 
 export type FlowStats = {
+  total: { triggered: number; leads: number; handed: number; booked: number; won: number };
   byStep: Record<string, { entered: number; people: number; sent: number }>;
   byLine: Record<string, number>;
 };
@@ -93,12 +94,39 @@ export type FlowListItem = {
   active: number;
 };
 /** Every flow's numbers over the business's last days (GET /api/v1/instagram/flows/summary). */
-export type FlowCounts = { triggered: number; leads: number; handed: number; booked: number; won: number };
+export type FlowCounts = {
+  triggered: number;
+  /** Got to the end. */
+  finished: number;
+  leads: number;
+  handed: number;
+  /** Each lead once. */
+  booked: number;
+  won: number;
+  /** Only for someone who sees money (analytics.revenue). */
+  revenue: number | null;
+};
+export type FlowStart = "comment" | "dm" | "ad" | "story";
+export type FlowSource = { kind: string; id: string; conversations: number; leads: number };
 export type FlowsSummary = {
   from: string;
   to: string;
-  total: FlowCounts;
+  /** Across the flows; a flow another started isn't a new conversation here. */
+  total: FlowCounts & {
+    /** Of the leads the flows made. */
+    bookedNew: number;
+    wonNew: number;
+    firstAnswerSec: number | null;
+    teamAnswerSec: number | null;
+    /** Passed to the team, and nobody answered within Instagram's window (24 hours, 7 days after an ad). */
+    ranOut: number;
+    stopped: number;
+  };
   flows: (FlowCounts & { id: string })[];
+  series: ({ day: string } & Record<FlowStart, number>)[];
+  sources: FlowSource[];
+  sourcesByFlow: (FlowSource & { flowId: string })[];
+  notes: { id: string; title: string; body: string; flowId?: string }[];
 };
 
 const flow = (id: string) => `/api/v1/instagram/flows/${encodeURIComponent(id)}`;

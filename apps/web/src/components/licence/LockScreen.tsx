@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { licenceClient } from "@/lib/licence/client";
@@ -47,23 +48,7 @@ export function LockScreen() {
             transition={reduce ? { duration: 0.15 } : { ...toMotion(SPRINGS.default), delay: 0.08 }}
           >
             <span className={s.padlock} aria-hidden>
-              <svg
-                viewBox="0 0 30 30"
-                width="30"
-                height="30"
-                fill="none"
-                stroke="#fff"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-              >
-                <motion.path
-                  d="M10 13V9.5a5 5 0 0110 0V13"
-                  initial={reduce ? false : { y: -7 }}
-                  animate={{ y: 0 }}
-                  transition={{ duration: 0.7, delay: 0.45, ease: [0.5, 0, 0.2, 1] }}
-                />
-                <rect x="6.5" y="13" width="17" height="12" rx="3" />
-              </svg>
+              <UI_ICONS.private size={ICON_SIZE.lg} aria-hidden />
             </span>
             <h2 id="lume-paused-title" className={s.lockTitle}>
               LUME is paused

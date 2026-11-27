@@ -224,6 +224,8 @@ describe("Analytics (8C)", () => {
         whoAnswered: [],
         accounts: [],
         sources: [],
+        drill: null,
+        notes: [],
       }),
     );
     params = new URLSearchParams("m=instagram");

@@ -59,64 +59,248 @@ async function statsRange(
   // The business's days: from midnight of `from` to the end of `to`, in its own time zone.
   const start = sql`(${q.from}::date)::timestamp AT TIME ZONE ${zone}`;
   const end = sql`((${q.to}::date + 1))::timestamp AT TIME ZONE ${zone}`;
-  return { q, start, end };
+  return { q, start, end, zone };
 }
 
+/** What started a conversation a flow answered (the Flows board's chart): a flow started by another isn't a new one. */
+export const FLOW_STARTS = ["comment", "dm", "ad", "story"] as const;
+type FlowStart = (typeof FLOW_STARTS)[number];
+
+type FlowRow = {
+  id: string;
+  triggered: number;
+  finished: number;
+  leads: number;
+  handed: number;
+  booked: number;
+  won: number;
+  revenue: string;
+};
+type Board = {
+  flows: FlowRow[];
+  total: {
+    triggered: number;
+    finished: number;
+    leads: number;
+    handed: number;
+    booked: number;
+    won: number;
+    booked_new: number;
+    won_new: number;
+    revenue: string;
+    first_s: number | null;
+    team_s: number | null;
+    ran_out: number;
+    stopped: number;
+  };
+  series: { day: string; start: FlowStart; n: number }[];
+  sources: { kind: string; id: string; conversations: number; leads: number }[];
+  byFlow: { flowId: string; kind: string; id: string; conversations: number; leads: number }[];
+};
+
 /**
- * Every flow's totals over one range, in one answer (plan 2026-11-25-instagram-screens D3): what the Flows page lists.
- * Each flow reads only its own slice of the (flow, kind, at) index, as one flow's numbers do.
+ * Every flow's numbers over one range, in one answer (plan 2026-11-25-instagram-screens D3; the Flows board, D6b-2):
+ * what each flow did, and across them: conversations started by what started them (a flow another started isn't a new
+ * conversation), how many finished, became leads, booked and won (money only for someone who sees it), the first
+ * answer's median (the run's start to the flow's first send), those passed to the team and how long the team took,
+ * those passed on whom nobody answered within Instagram's 24 hours, those who asked to stop, the posts and ads that
+ * started them, and what LUME noticed. Counts for the whole business, read from each flow's slice of the
+ * (flow, kind, at) index, in one statement.
  */
 export async function flowsSummary(
   req: FastifyRequest,
   ask: { from?: string; to?: string; days?: number },
   now: Date = new Date(),
+  money = false,
 ) {
-  const { q, start, end } = await statsRange(req, ask, now);
+  const { q, start, end, zone } = await statsRange(req, ask, now);
   const r = await withAllScope(req, () =>
-    req.db.execute<{
-      id: string;
-      triggered: number;
-      leads: number;
-      handed: number;
-      booked: number;
-      won: number;
-    }>(sql`
-      SELECT f.id, n.triggered, n.leads, n.handed, n.booked, n.won
-        FROM instagram_flows f
-        CROSS JOIN LATERAL (
-          WITH ev AS (
-            SELECT kind, run_id, lead_id, at FROM instagram_flow_events e
-             WHERE e.flow_id = f.id AND e.kind IN ('triggered', 'lead_created', 'handed')
-               AND e.at >= ${start} AND e.at < ${end}),
-          runs AS (
-            SELECT DISTINCT ON (run_id) lead_id, at FROM ev WHERE kind = 'triggered' ORDER BY run_id, at)
-          SELECT count(*) FILTER (WHERE kind = 'triggered')::int AS triggered,
-                 count(*) FILTER (WHERE kind = 'lead_created')::int AS leads,
-                 count(*) FILTER (WHERE kind = 'handed')::int AS handed,
-                 (SELECT count(*) FROM runs r WHERE EXISTS (
-                    SELECT 1 FROM meetings m WHERE m.lead_id = r.lead_id AND m.created_at >= r.at
-                       AND m.status <> 'cancelled'))::int AS booked,
-                 (SELECT count(*) FROM runs r WHERE EXISTS (
-                    SELECT 1 FROM lead_stage_history h JOIN stages s ON s.id = h.to_stage_id
-                     WHERE h.lead_id = r.lead_id AND h.changed_at >= r.at AND s.kind = 'won'))::int AS won
-            FROM ev) n
-       WHERE f.status <> 'archived'
-       ORDER BY f.priority DESC, f.created_at`),
+    req.db.execute<{ j: Board }>(sql`
+      WITH runs AS MATERIALIZED (
+        SELECT r.id, r.flow_id, r.thread_id, r.lead_id, r.status, r.reason, r.started_by, e.at
+          FROM instagram_flows f
+          CROSS JOIN LATERAL (
+            SELECT e.run_id, e.at FROM instagram_flow_events e
+             WHERE e.flow_id = f.id AND e.kind = 'triggered' AND e.at >= ${start} AND e.at < ${end}) e
+          JOIN instagram_flow_runs r ON r.id = e.run_id
+         WHERE f.status <> 'archived'),
+      ev AS MATERIALIZED (
+        SELECT e.run_id, e.kind, min(e.at) AS at
+          FROM (SELECT DISTINCT flow_id FROM runs) fl
+          CROSS JOIN LATERAL (
+            SELECT run_id, kind, at FROM instagram_flow_events e
+             WHERE e.flow_id = fl.flow_id AND e.kind IN ('dm_sent', 'private_reply', 'lead_created', 'handed')
+               AND e.at >= ${start} AND e.at < (${end}) + interval '30 days') e
+         WHERE e.run_id IN (SELECT id FROM runs)
+         GROUP BY 1, 2),
+      x AS MATERIALIZED (
+        SELECT r.*,
+               (SELECT min(v.at) FROM ev v WHERE v.run_id = r.id AND v.kind IN ('dm_sent', 'private_reply')) AS sent_at,
+               EXISTS (SELECT 1 FROM ev v WHERE v.run_id = r.id AND v.kind = 'lead_created') AS lead,
+               h.at AS handed_at, tm.at AS team_at,
+               r.status = 'done' AND r.reason IS NULL AS done,
+               l.id IS NOT NULL AND EXISTS (SELECT 1 FROM meetings m WHERE m.lead_id = l.id AND m.created_at >= r.at
+                         AND m.status <> 'cancelled') AS booked,
+               l.won_at IS NOT NULL AND l.won_at >= r.at AS won, l.value,
+               coalesce(l.dnc_reason = 'Said stop on Instagram' AND l.dnc_at >= r.at, false) AS stopped,
+               t.source ->> 'adId' AS ad_id,
+               -- Instagram's window for an answer: 7 days after an ad click started it, else 24 hours.
+               CASE WHEN r.started_by = 'ad' THEN interval '7 days' ELSE interval '24 hours' END AS win,
+               CASE r.started_by WHEN 'comment' THEN 'comment' WHEN 'ad' THEN 'ad'
+                    WHEN 'story_reply' THEN 'story' WHEN 'story_mention' THEN 'story'
+                    WHEN 'goto' THEN NULL ELSE 'dm' END AS start
+          FROM runs r
+          LEFT JOIN leads l ON l.id = r.lead_id AND l.deleted_at IS NULL
+          LEFT JOIN instagram_threads t ON t.id = r.thread_id
+          LEFT JOIN ev h ON h.run_id = r.id AND h.kind = 'handed'
+          LEFT JOIN LATERAL (
+            SELECT min(a.occurred_at) AS at FROM activities a
+             WHERE a.lead_id = r.lead_id AND a.occurred_at >= h.at AND a.payload ->> 'threadId' = r.thread_id::text
+               AND (a.type = 'instagram_sent'
+                    OR (a.type = 'instagram_confirmed_sent' AND a.payload ->> 'via' IS DISTINCT FROM 'flow'))
+          ) tm ON h.at IS NOT NULL),
+      -- The conversations the flows answered: a run another flow started is the same conversation, counted once.
+      c AS (SELECT * FROM x WHERE start IS NOT NULL),
+      src AS (
+        SELECT x.flow_id, x.lead, s.kind, s.id FROM c x
+         CROSS JOIN LATERAL (
+           SELECT CASE WHEN x.ad_id IS NOT NULL THEN 'ad' ELSE lower(coalesce(k.media_type, 'post')) END AS kind,
+                  coalesce(x.ad_id, k.media_id) AS id
+             FROM (SELECT 1) one
+             LEFT JOIN LATERAL (
+               SELECT media_id, media_type FROM instagram_comments
+                WHERE thread_id = x.thread_id AND media_id IS NOT NULL ORDER BY at LIMIT 1) k ON x.ad_id IS NULL) s
+         WHERE s.id IS NOT NULL)
+      SELECT json_build_object(
+        'flows', (SELECT coalesce(json_agg(row_to_json(f)), '[]'::json) FROM (
+          SELECT fl.id, count(x.id)::int AS triggered, count(x.id) FILTER (WHERE x.done)::int AS finished,
+                 count(x.id) FILTER (WHERE x.lead)::int AS leads,
+                 count(x.id) FILTER (WHERE x.handed_at IS NOT NULL)::int AS handed,
+                 count(DISTINCT x.lead_id) FILTER (WHERE x.booked)::int AS booked,
+                 count(DISTINCT x.lead_id) FILTER (WHERE x.won)::int AS won,
+                 (SELECT coalesce(sum(w.value), 0) FROM (SELECT DISTINCT ON (y.lead_id) y.value FROM x y
+                   WHERE y.flow_id = fl.id AND y.won) w)::text AS revenue
+            FROM instagram_flows fl LEFT JOIN x ON x.flow_id = fl.id
+           WHERE fl.status <> 'archived'
+           GROUP BY fl.id, fl.priority, fl.created_at
+           ORDER BY fl.priority DESC, fl.created_at) f),
+        'total', (SELECT row_to_json(t) FROM (
+          SELECT count(*)::int AS triggered,
+                 count(*) FILTER (WHERE done)::int AS finished, count(*) FILTER (WHERE lead)::int AS leads,
+                 count(*) FILTER (WHERE handed_at IS NOT NULL)::int AS handed,
+                 count(DISTINCT lead_id) FILTER (WHERE booked)::int AS booked,
+                 count(DISTINCT lead_id) FILTER (WHERE won)::int AS won,
+                 count(DISTINCT lead_id) FILTER (WHERE booked AND lead)::int AS booked_new,
+                 count(DISTINCT lead_id) FILTER (WHERE won AND lead)::int AS won_new,
+                 (SELECT coalesce(sum(w.value), 0) FROM (SELECT DISTINCT ON (lead_id) value FROM c WHERE won) w)::text
+                   AS revenue,
+                 (percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM sent_at - at))
+                    FILTER (WHERE sent_at IS NOT NULL))::float8 AS first_s,
+                 (percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM team_at - handed_at))
+                    FILTER (WHERE team_at IS NOT NULL))::float8 AS team_s,
+                 count(*) FILTER (WHERE handed_at IS NOT NULL AND handed_at + win <= ${now}::timestamptz
+                   AND (team_at IS NULL OR team_at > handed_at + win))::int AS ran_out,
+                 count(DISTINCT lead_id) FILTER (WHERE stopped)::int AS stopped
+            FROM c) t),
+        'series', (SELECT coalesce(json_agg(row_to_json(d)), '[]'::json) FROM (
+          SELECT to_char((at AT TIME ZONE ${zone})::date, 'YYYY-MM-DD') AS day, start, count(*)::int AS n
+            FROM c GROUP BY 1, 2) d),
+        'sources', (SELECT coalesce(json_agg(row_to_json(s)), '[]'::json) FROM (
+          SELECT kind, id, count(*)::int AS conversations, count(*) FILTER (WHERE lead)::int AS leads
+            FROM src GROUP BY kind, id ORDER BY count(*) FILTER (WHERE lead) DESC, count(*) DESC, id LIMIT 10) s),
+        'byFlow', (SELECT coalesce(json_agg(row_to_json(s)), '[]'::json) FROM (
+          SELECT "flowId", kind, id, conversations, leads FROM (
+            SELECT flow_id AS "flowId", kind, id, count(*)::int AS conversations,
+                   count(*) FILTER (WHERE lead)::int AS leads,
+                   row_number() OVER (PARTITION BY flow_id
+                                      ORDER BY count(*) FILTER (WHERE lead) DESC, count(*) DESC, id) AS n
+              FROM src GROUP BY flow_id, kind, id) ranked
+           WHERE n <= 5) s)) AS j`),
   );
-  const sum = (k: "triggered" | "leads" | "handed" | "booked" | "won") =>
-    r.rows.reduce((n, x) => n + x[k], 0);
+  const b = r.rows[0]!.j;
+  const t = b.total;
+  // The business's days, each with zeros where nothing started.
+  const days: string[] = [];
+  for (let d = Date.parse(q.from); d <= Date.parse(q.to); d += 86_400_000)
+    days.push(new Date(d).toISOString().slice(0, 10));
+  const per = new Map(b.series.map((x) => [`${x.day}|${x.start}`, x.n]));
+  const total = {
+    triggered: t.triggered,
+    finished: t.finished,
+    leads: t.leads,
+    handed: t.handed,
+    booked: t.booked,
+    won: t.won,
+    bookedNew: t.booked_new,
+    wonNew: t.won_new,
+    revenue: money ? Number(t.revenue) : null,
+    firstAnswerSec: t.first_s === null ? null : Math.round(t.first_s),
+    teamAnswerSec: t.team_s === null ? null : Math.round(t.team_s),
+    ranOut: t.ran_out,
+    stopped: t.stopped,
+  };
+  const flows = b.flows.map((f) => ({ ...f, revenue: money ? Number(f.revenue) : null }));
   return {
     from: q.from,
     to: q.to,
-    total: {
-      triggered: sum("triggered"),
-      leads: sum("leads"),
-      handed: sum("handed"),
-      booked: sum("booked"),
-      won: sum("won"),
-    },
-    flows: r.rows,
+    total,
+    flows,
+    series: days.map((day) => ({
+      day,
+      ...Object.fromEntries(FLOW_STARTS.map((k) => [k, per.get(`${day}|${k}`) ?? 0])),
+    })) as ({ day: string } & Record<FlowStart, number>)[],
+    sources: b.sources,
+    sourcesByFlow: b.byFlow,
+    notes: flowNotes(total, flows, b.sources),
   };
+}
+
+const TOO_FEW = 10;
+const SOURCE_WORD: Record<string, string> = {
+  ad: "An ad",
+  reels: "A reel",
+  reel: "A reel",
+  video: "A video",
+};
+
+/**
+ * LUME noticed on the Flows page: at most three things the numbers show, each with its counts, none from too few.
+ */
+export function flowNotes(
+  t: { ranOut: number; handed: number },
+  flows: { id: string; triggered: number; finished: number }[],
+  sources: { kind: string; conversations: number; leads: number }[],
+): { id: string; title: string; body: string; flowId?: string }[] {
+  const notes: { id: string; title: string; body: string; flowId?: string }[] = [];
+  if (t.ranOut > 0)
+    notes.push({
+      id: "ran_out",
+      title: `${t.ranOut.toLocaleString("en-US")} passed to your team waited too long`,
+      body: `A flow asked for a person and nobody answered within Instagram's window (24 hours, 7 days after an ad click). ${t.handed.toLocaleString("en-US")} were passed on in all.`,
+    });
+  const best = sources
+    .filter((x) => x.conversations >= TOO_FEW)
+    .sort((a, b) => b.leads / b.conversations - a.leads / a.conversations || b.leads - a.leads)[0];
+  if (best && best.leads > 0)
+    notes.push({
+      id: "best_source",
+      title: `${SOURCE_WORD[best.kind] ?? "A post"} brings the most leads`,
+      body: `${best.leads.toLocaleString("en-US")} leads from ${best.conversations.toLocaleString("en-US")} people its flows answered: ${Math.round((best.leads * 100) / best.conversations)} in every 100.`,
+    });
+  const enough = flows
+    .filter((f) => f.triggered >= TOO_FEW)
+    .sort((a, b) => a.finished / a.triggered - b.finished / b.triggered);
+  const lowest = enough[0];
+  const highest = enough.at(-1);
+  // One flow alone, or every flow alike: nothing to say about which loses the most.
+  if (lowest && highest && lowest.finished / lowest.triggered < highest.finished / highest.triggered)
+    notes.push({
+      id: "finish",
+      flowId: lowest.id,
+      title: "One flow loses the most people",
+      body: `${Math.round((lowest.finished * 100) / lowest.triggered)} in every 100 who start it get to its end. Pick it above to see the step where they stop.`,
+    });
+  return notes;
 }
 
 export async function flowStats(

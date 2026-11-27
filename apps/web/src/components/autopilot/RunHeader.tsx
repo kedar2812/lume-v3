@@ -50,11 +50,13 @@ export function RunHeader({
             {runs.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name} · {STATUS_WORDS[r.status] ?? r.status}
+                {r.number ? ` · ${r.number}` : ""}
               </option>
             ))}
           </select>
         )}
         <h2 className={h.name}>{run.name}</h2>
+        {run.number && <p className={h.from}>From {run.number}</p>}
         <p className={h.line} aria-live="polite">
           <AiGlyph size={15} {...(line.working ? { draw: "pen" as const } : {})} />
           <span>{line.text}</span>

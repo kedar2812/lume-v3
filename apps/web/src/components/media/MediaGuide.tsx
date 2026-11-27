@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { motion, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
 import { SPRINGS, toMotion } from "@/lib/motion";
@@ -32,19 +33,7 @@ export const OpenIcon = () => (
     <circle cx="12" cy="12" r="3" />
   </svg>
 );
-export const LinkIcon = () => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    aria-hidden
-  >
-    <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
-    <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
-  </svg>
-);
+export const LinkIcon = () => <UI_ICONS.link size={ICON_SIZE.md} aria-hidden />;
 export const WhatsAppMark = () => <img src="/brand/whatsapp-app.png" alt="" width={20} height={20} />;
 
 export type Step = { tone: "accent" | "wa" | "warn"; icon: ReactNode; title: string; body: string };

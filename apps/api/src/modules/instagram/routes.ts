@@ -1,4 +1,5 @@
-import type { FastifyInstance } from "fastify";
+import { handToAi, setInstagramAiGoal } from "./ai-on";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { INSTAGRAM_INTAKE } from "@lume/core";
 import { z } from "zod";
@@ -7,6 +8,16 @@ import { igIgnore, igInboxPerson, igInboxView, igMakeLead } from "./inbox";
 import { leadInstagram } from "./thread";
 import { sendLeadPhoto } from "./photo-route";
 import { privateReply, sendInstagram, setTakeover } from "./send";
+import { COMMENT_MAX, deleteComment, hideComment, replyPublicly, type Refused } from "./comment-actions";
+
+/** A refusal that keeps what it did (a public reply that may be there): answered, so it commits. */
+function answered<T extends object>(reply: FastifyReply, out: T | Refused) {
+  if ("refused" in out) {
+    const e = out.refused;
+    return reply.code(e.status).send({ error: { code: e.code, message: e.message } });
+  }
+  return out;
+}
 import { sendLimiter } from "../whatsapp/send";
 import {
   accountsView,
@@ -37,7 +48,34 @@ export async function instagramRoutes(app: FastifyInstance, d: AppDeps): Promise
     },
     (req) => connectComplete(req, d, req.body),
   );
-  r.get("/api/v1/instagram/accounts", manage, (req) => accountsView(req));
+  r.get("/api/v1/instagram/accounts", manage, (req) => accountsView(req, d));
+  // Who replied's "Let LUME AI handle these" for Instagram leads (as starting a LUME AI run: messages.send_queue).
+  r.post(
+    "/api/v1/instagram/ai/handle",
+    {
+      config: { permission: "messages.send_queue" },
+      schema: { body: z.object({ leadIds: z.array(z.uuid()).min(1).max(500) }).strict() },
+    },
+    (req) => handToAi(req, d, req.body.leadIds),
+  );
+  // What LUME AI aims for in the Instagram conversations it takes (plan 2026-11-27-instagram-lume-ai, Task 4).
+  r.put(
+    "/api/v1/instagram/ai-goal",
+    {
+      ...manage,
+      schema: {
+        body: z
+          .object({
+            goal: z.discriminatedUnion("kind", [
+              z.object({ kind: z.literal("stage"), stageId: z.uuid() }).strict(),
+              z.object({ kind: z.literal("brief"), text: z.string().max(300) }).strict(),
+            ]),
+          })
+          .strict(),
+      },
+    },
+    (req) => setInstagramAiGoal(req, req.body.goal),
+  );
   r.patch(
     "/api/v1/instagram/accounts/:id",
     {
@@ -48,6 +86,7 @@ export async function instagramRoutes(app: FastifyInstance, d: AppDeps): Promise
           .object({
             ownerId: z.uuid().nullable().optional(),
             newDmCreatesLead: z.boolean().optional(),
+            newDms: z.enum(["team", "ai"]).optional(),
             limits: z
               .object(
                 Object.fromEntries(
@@ -65,12 +104,13 @@ export async function instagramRoutes(app: FastifyInstance, d: AppDeps): Promise
             (b) =>
               b.ownerId !== undefined ||
               b.newDmCreatesLead !== undefined ||
+              b.newDms !== undefined ||
               (b.limits !== undefined && Object.values(b.limits).some((v) => v !== undefined)),
             "Nothing to change.",
           ),
       },
     },
-    (req) => setAccount(req, req.params.id, req.body),
+    (req) => setAccount(req, d, req.params.id, req.body),
   );
   r.delete("/api/v1/instagram/accounts/:id", { ...manage, schema: { params: id } }, (req) =>
     disconnect(req, d, req.params.id),
@@ -126,15 +166,37 @@ export async function instagramRoutes(app: FastifyInstance, d: AppDeps): Promise
     },
     async (req, reply) => reply.code(202).send(await privateReply(req, d, limiter, req.params.id, req.body)),
   );
+  // A person's actions on a comment (2026-11-27): reply publicly, hide or unhide, delete. One call to Instagram each.
+  r.post(
+    "/api/v1/instagram/comments/:id/public-reply",
+    {
+      config: { permission: "messages.send" },
+      schema: { params: id, body: z.object({ text: z.string().max(COMMENT_MAX * 4) }).strict() },
+    },
+    async (req, reply) => answered(reply, await replyPublicly(req, d, req.params.id, req.body.text)),
+  );
+  r.post(
+    "/api/v1/instagram/comments/:id/hide",
+    {
+      config: { permission: "messages.send" },
+      schema: { params: id, body: z.object({ hidden: z.boolean() }).strict() },
+    },
+    async (req, reply) => answered(reply, await hideComment(req, d, req.params.id, req.body.hidden)),
+  );
+  r.delete(
+    "/api/v1/instagram/comments/:id",
+    { config: { permission: "messages.send" }, schema: { params: id } },
+    (req) => deleteComment(req, d, req.params.id),
+  );
   r.post(
     "/api/v1/instagram/threads/:id/take-over",
     { config: { permission: "messages.send" }, schema: { params: id } },
-    (req) => setTakeover(req, req.params.id, true),
+    (req) => setTakeover(req, req.params.id, true, d),
   );
   r.post(
     "/api/v1/instagram/threads/:id/hand-back",
     { config: { permission: "messages.send" }, schema: { params: id } },
-    (req) => setTakeover(req, req.params.id, false),
+    (req) => setTakeover(req, req.params.id, false, d),
   );
   // Not a lead yet (§4.3): the account's owner and whoever sees every lead (row-level security decides).
   const thread = z.object({ threadId: z.uuid() });

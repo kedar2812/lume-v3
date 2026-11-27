@@ -51,6 +51,13 @@ export function igGraph(g: IgGraphConfig, token: string) {
     /** A public reply under a comment. */
     publicReply: (commentId: string, message: string) =>
       call(at(`${commentId}/replies`), { method: "POST", token, body: JSON.stringify({ message }) }),
+    /** Hide or show a comment on the account's own media: Instagram's only update to a comment. */
+    hideComment: (commentId: string, hide: boolean) =>
+      call(at(commentId, { hide: String(hide) }), { method: "POST", token }),
+    /** One comment, to know whether it's still on Instagram. */
+    comment: (commentId: string) => call(at(commentId, { fields: "id" }), { token }),
+    /** Delete a comment on the account's own media. */
+    deleteComment: (commentId: string) => call(at(commentId), { method: "DELETE", token }),
     /** Name and username: allowed once the person has messaged the account. */
     profile: (igsid: string) =>
       call(at(igsid, { fields: "name,username,is_user_follow_business" }), { token }),

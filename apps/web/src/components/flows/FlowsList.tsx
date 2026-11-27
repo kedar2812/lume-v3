@@ -15,6 +15,8 @@ import {
   type FlowTrigger,
   type FlowsSummary,
 } from "@/lib/flows/client";
+import { money } from "@/lib/analytics/words";
+import { FlowsBoard } from "./FlowsBoard";
 import { NewFlowSheet } from "./NewFlowSheet";
 import s from "./flows.module.css";
 
@@ -24,14 +26,16 @@ const RANGES = [
   { value: "90", label: "90 days" },
 ] as const;
 type Range = (typeof RANGES)[number]["value"];
-type SortKey = "name" | "active" | "triggered" | "leads" | "rate" | "won";
+type SortKey = "name" | "active" | "triggered" | "finished" | "leads" | "rate" | "won" | "revenue";
 const HEADS: { key: SortKey; label: string }[] = [
   { key: "name", label: "Flow" },
   { key: "active", label: "In it now" },
   { key: "triggered", label: "Started" },
+  { key: "finished", label: "Finished" },
   { key: "leads", label: "Leads" },
   { key: "rate", label: "Lead rate" },
   { key: "won", label: "Won" },
+  { key: "revenue", label: "Revenue" },
 ];
 const DASH = "—";
 const n = (v: number) => v.toLocaleString("en-IN");
@@ -68,7 +72,7 @@ function startsWith(f: FlowListItem): { kind: FlowTrigger["kind"] | null; words:
  * last days, and every flow with what starts it, whether it's on, who is in it now and what it brought. The board's
  * chart, funnel, posts and notes come with Analytics (D6).
  */
-export function FlowsList() {
+export function FlowsList({ currency = null }: { currency?: string | null }) {
   const [flows, setFlows] = useState<FlowListItem[] | null>(null);
   const [off, setOff] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -112,7 +116,8 @@ export function FlowsList() {
       if (sort.key === "active") return x.f.active;
       if (!x.c) return -1;
       if (sort.key === "rate") return x.c.triggered ? x.c.leads / x.c.triggered : -1;
-      return x.c[sort.key];
+      if (sort.key === "finished") return x.c.triggered ? x.c.finished / x.c.triggered : -1;
+      return x.c[sort.key] ?? -1;
     };
     return [...list].sort((a, b) => {
       const va = val(a);
@@ -164,25 +169,9 @@ export function FlowsList() {
     : t.triggered > 0
       ? `Flows answered ${n(t.triggered)} ${t.triggered === 1 ? "conversation" : "conversations"}. ${n(t.leads)} became ${t.leads === 1 ? "a lead" : "leads"}.`
       : "No one started a flow in these days.";
-  const tiles = [
-    { label: "Conversations started", v: t ? n(t.triggered) : DASH, note: "People a flow answered" },
-    {
-      label: "Became leads",
-      v: t ? n(t.leads) : DASH,
-      note: t && t.triggered ? `${pct(t.leads, t.triggered)} who started` : "Of the people who started",
-    },
-    {
-      label: "Calls booked",
-      v: t ? n(t.booked) : DASH,
-      note: t && t.leads ? `${pct(t.booked, t.leads)} of those leads` : "After a flow",
-    },
-    {
-      label: "Won",
-      v: t ? n(t.won) : DASH,
-      note: t && t.leads ? `${pct(t.won, t.leads)} of those leads` : "After a flow",
-    },
-    { label: "Passed to your team", v: t ? n(t.handed) : DASH, note: "A flow asked for a person" },
-  ];
+  // Money only for someone who sees it: the API leaves it out otherwise.
+  const seesMoney = sum ? sum.total.revenue !== null && !!currency : false;
+  const heads = HEADS.filter((h) => h.key !== "revenue" || seesMoney);
 
   return (
     <section className={s.page} aria-labelledby="fl-title">
@@ -238,21 +227,13 @@ export function FlowsList() {
               reload.
             </p>
           )}
-          <ul className={s.tiles} aria-label="What the flows did">
-            {tiles.map((x) => (
-              <li key={x.label} className={s.tile}>
-                <span className={s.tileLabel}>{x.label}</span>
-                <b className={s.tileValue}>{x.v}</b>
-                <span className={s.tileNote}>{x.note}</span>
-              </li>
-            ))}
-          </ul>
+          {sum && <FlowsBoard sum={sum} flows={flows} days={Number(range)} currency={currency} />}
 
           <div className={s.tableWrap} role="region" aria-label="Flows, scrolls sideways" tabIndex={0}>
             <table className={s.table} aria-label="Every flow">
               <thead>
                 <tr>
-                  {HEADS.map((h) => (
+                  {heads.map((h) => (
                     <th
                       key={h.key}
                       scope="col"
@@ -299,9 +280,17 @@ export function FlowsList() {
                       </th>
                       <td className={s.numCol}>{f.status === "draft" ? DASH : n(f.active)}</td>
                       <td className={s.numCol}>{c && c.triggered ? n(c.triggered) : DASH}</td>
+                      <td className={s.numCol}>{c ? pct(c.finished, c.triggered) : DASH}</td>
                       <td className={s.numCol}>{c && c.triggered ? n(c.leads) : DASH}</td>
                       <td className={s.numCol}>{c ? pct(c.leads, c.triggered) : DASH}</td>
                       <td className={s.numCol}>{c && c.triggered ? n(c.won) : DASH}</td>
+                      {seesMoney && (
+                        <td className={s.numCol}>
+                          {c && c.triggered && c.revenue !== null && currency
+                            ? money(c.revenue, currency)
+                            : DASH}
+                        </td>
+                      )}
                       <td className={s.onCol}>
                         {f.status === "draft" ? (
                           <Link href={`/instagram/flows/${f.id}`} className={s.open}>

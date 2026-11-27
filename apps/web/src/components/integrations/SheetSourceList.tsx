@@ -1,3 +1,4 @@
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import Link from "next/link";
 import { ago } from "@/lib/sheets/format";
 import type { SheetSourceView, SheetStatus } from "@/lib/sheets/types";
@@ -39,16 +40,7 @@ export function SheetSourceList({ sources }: { sources: SheetSourceView[] }) {
             <span className={s.pill} data-status={v.failing ? "failing" : v.status}>
               {STATUS[v.status]}
             </span>
-            <svg className={s.chev} viewBox="0 0 12 12" width="12" height="12" aria-hidden>
-              <path
-                d="M4.5 2.5 8 6l-3.5 3.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <UI_ICONS.open size={ICON_SIZE.sm} aria-hidden className={s.chev} />
           </Link>
         </li>
       ))}

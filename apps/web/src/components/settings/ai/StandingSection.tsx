@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import type { AiProfile, AutopilotAction } from "@lume/core/shared";
 import { useState } from "react";
 import { PermissionRows } from "@/components/autopilot/PermissionRows";
@@ -119,16 +120,7 @@ export function StandingSection({
                     disabled={v.followUpDays.length === 1}
                     onClick={() => set({ followUpDays: v.followUpDays.filter((x) => x !== d) })}
                   >
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                      aria-hidden
-                    >
-                      <path d="M7 7l10 10M17 7L7 17" />
-                    </svg>
+                    <UI_ICONS.remove size={ICON_SIZE.md} aria-hidden />
                   </button>
                 </span>
               ))}

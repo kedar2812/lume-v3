@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { importsClient } from "@/lib/imports/client";
@@ -157,16 +158,7 @@ export function ProgressStep({ initial, onClose }: { initial: ImportView; onClos
           <>
             {view.status === "done" && c.created + c.merged > 0 && (
               <span className={s.doneMark} aria-hidden>
-                <svg viewBox="0 0 24 24" width="22" height="22">
-                  <path
-                    d="M6 12.5 10 16.5 18 8"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <UI_ICONS.done size={ICON_SIZE.lg} aria-hidden />
               </span>
             )}
             <h3 id="import-run-title" className={s.stepTitle}>

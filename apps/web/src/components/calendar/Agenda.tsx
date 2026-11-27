@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { AiGlyph } from "@/components/ai/AiGlyph";
 import { Avatar } from "@/components/ui/Avatar";
 import { meetingState, type AgendaDay } from "@/lib/calendar/agenda";
@@ -158,10 +159,7 @@ export function Agenda({
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                        <rect x="3" y="6" width="13" height="12" rx="2" />
-                        <path d="M16 10l5-3v10l-5-3" />
-                      </svg>
+                      <UI_ICONS.video size={ICON_SIZE.md} aria-hidden />
                       Join
                     </a>
                   )}

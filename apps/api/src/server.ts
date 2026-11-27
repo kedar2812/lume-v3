@@ -23,6 +23,17 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     trustProxy: true,
     bodyLimit: 1_048_576,
   });
+  // LUME's own time on every answer (the connection notice, 2026-11-26): the browser takes it from the whole wait, so
+  // only the trip to the person's device can ever read as their connection being slow.
+  const started = new WeakMap<object, number>();
+  app.addHook("onRequest", async (req) => {
+    started.set(req.raw, performance.now());
+  });
+  app.addHook("onSend", async (req, reply, payload) => {
+    const at = started.get(req.raw);
+    if (at !== undefined) reply.header("server-timing", `app;dur=${(performance.now() - at).toFixed(1)}`);
+    return payload;
+  });
   deps.configure?.(app);
   const assertDeclared = trackRouteDeclarations(app);
   app.setErrorHandler(errorHandler);

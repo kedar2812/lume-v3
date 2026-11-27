@@ -91,6 +91,20 @@ const reply = (o: Partial<ReturnType<typeof autopilotReplyOutput.parse>> = {}) =
   });
 
 describe("what LUME AI is asked", () => {
+  it("on Instagram it's told so, and 1,000 bytes; on WhatsApp the words are exactly as before (Part E)", () => {
+    for (const task of ["autopilot_first", "autopilot_reply"] as const)
+      expect(autopilotInstructions(task, ctx({ channel: "whatsapp" }))).toBe(
+        autopilotInstructions(task, ctx()),
+      );
+    const wa = autopilotInstructions("autopilot_reply", ctx());
+    expect(wa).toContain("on WhatsApp");
+    const igSays = autopilotInstructions("autopilot_reply", ctx({ channel: "instagram" }));
+    expect(igSays).toContain("messaging a business's lead on Instagram");
+    expect(igSays).toContain("Keep messages short, like an Instagram message.");
+    expect(igSays).toMatch(/message at most\s+1,000 bytes/);
+    expect(igSays).not.toContain("WhatsApp");
+  });
+
   it("the instructions name each answer's length limit, the message's included (eval 2026-10-31)", () => {
     expect(autopilotInstructions("autopilot_first", ctx())).toMatch(/why.*at most 200 characters/);
     const say = autopilotInstructions("autopilot_reply", ctx());

@@ -18,7 +18,7 @@ import type { Session } from "./session";
  * (403) is simply empty; the screens then leave that control out.
  */
 export async function loadCatalog(): Promise<Catalog> {
-  const [pipelines, fields, people, tags, reasons, products, settings, sources] = await Promise.all([
+  const [pipelines, fields, people, tags, reasons, products, settings, sources, wa] = await Promise.all([
     apiGet<{ pipelines: Pipeline[] }>("/api/v1/pipelines"),
     apiGet<{ fields: FieldDefView[] }>("/api/v1/fields"),
     apiGet<{ people: Person[] }>("/api/v1/people"),
@@ -27,6 +27,7 @@ export async function loadCatalog(): Promise<Catalog> {
     apiGet<{ products: Product[] }>("/api/v1/products"),
     apiGet<{ currency: string; defaultCountry: string | null }>("/api/v1/settings"),
     apiGet<{ sources: Catalog["sources"] }>("/api/v1/sources"),
+    apiGet<{ numbers: NonNullable<Catalog["waNumbers"]> }>("/api/v1/wa-numbers"),
   ]);
   return {
     pipelines: pipelines.data?.pipelines ?? [],
@@ -38,6 +39,7 @@ export async function loadCatalog(): Promise<Catalog> {
     currency: settings.data?.currency ?? "AED",
     country: settings.data?.defaultCountry ?? null,
     sources: sources.data?.sources ?? [],
+    waNumbers: wa.data?.numbers ?? [],
   };
 }
 

@@ -4,7 +4,7 @@ import { trend, type Trend } from "@lume/core/shared";
 import type { IgStart, IgTotals, InstagramBoard as Data } from "@/lib/analytics/client";
 import { band, niceTicks, toPts } from "@/lib/analytics/chart";
 import { count, minutes, money, pct } from "@/lib/analytics/words";
-import { Card, Chip, Skeleton } from "./parts";
+import { Card, Chip, Ico, Skeleton } from "./parts";
 import s from "./analytics.module.css";
 import ig from "./instagram.module.css";
 
@@ -37,6 +37,9 @@ type TileDef = {
   hero?: boolean;
   alarm?: boolean;
   tooFew?: boolean;
+  /** Opens the leads behind it, when there are any. */
+  drill?: string | null;
+  n?: number;
 };
 
 /**
@@ -49,11 +52,14 @@ export function InstagramBoard({
   currency,
   compare,
   rangeWords,
+  onDrill,
 }: {
   data: Data | null;
   currency: string;
   compare: boolean;
   rangeWords: string;
+  /** Open the leads behind a number (Analytics' drill-down sheet). */
+  onDrill?: (token: string, title: string) => void;
 }) {
   if (!data)
     return (
@@ -78,11 +84,14 @@ export function InstagramBoard({
     const b = p[k];
     return typeof a === "number" && typeof b === "number" ? trend(a, b, { good }) : null;
   };
+  const dr = data.drill;
   const inTime = data.rates.inTime;
   const prevInTime = p && p.measured > 0 ? p.inTime / p.measured : null;
   const tiles: TileDef[] = [
     {
       key: "conversations",
+      drill: dr?.conversations,
+      n: c.conversations,
       label: "Conversations",
       v: { v: count(c.conversations) },
       trend: t("conversations"),
@@ -90,6 +99,8 @@ export function InstagramBoard({
     },
     {
       key: "leads",
+      drill: dr?.leads,
+      n: c.leads,
       label: "New leads from Instagram",
       v: { v: count(c.leads) },
       trend: t("leads"),
@@ -100,6 +111,8 @@ export function InstagramBoard({
     },
     {
       key: "inTime",
+      drill: dr?.inTime,
+      n: c.inTime,
       label: "Answered in time",
       v: { v: inTime === null ? "—" : pct(inTime) },
       trend: inTime !== null && prevInTime !== null ? trend(inTime, prevInTime, { kind: "pts" }) : null,
@@ -125,6 +138,8 @@ export function InstagramBoard({
     },
     {
       key: "booked",
+      drill: dr?.booked,
+      n: c.booked,
       label: "Calls booked",
       v: { v: count(c.booked) },
       trend: t("booked"),
@@ -134,6 +149,8 @@ export function InstagramBoard({
       ? [
           {
             key: "revenue",
+            drill: dr?.won,
+            n: c.won,
             label: "Revenue won",
             v: { v: money(c.revenue, currency) },
             trend: t("revenue"),
@@ -144,6 +161,8 @@ export function InstagramBoard({
       : []),
     {
       key: "won",
+      drill: dr?.won,
+      n: c.won,
       label: "Won",
       v: { v: count(c.won) },
       trend: t("won"),
@@ -165,6 +184,8 @@ export function InstagramBoard({
     },
     {
       key: "ranOut",
+      drill: dr?.ranOut,
+      n: c.ranOut,
       label: "Time to answer ran out",
       v: { v: count(c.ranOut) },
       trend: t("ranOut", "down"),
@@ -172,6 +193,8 @@ export function InstagramBoard({
     },
     {
       key: "stopped",
+      drill: dr?.stopped,
+      n: c.stopped,
       label: "Asked to stop",
       v: { v: count(c.stopped) },
       trend: t("stopped", "down"),
@@ -198,29 +221,47 @@ export function InstagramBoard({
       </div>
 
       <div className={s.tiles}>
-        {tiles.map((x, i) => (
-          <div
-            key={x.key}
-            className={`${s.tile} ${x.hero ? s.hero : ""} ${x.alarm ? s.alarm : ""}`}
-            style={{ "--i": i } as CSSProperties}
-            data-alarm={x.alarm || undefined}
-            role="group"
-            aria-label={`${x.label}: ${x.v.v}${x.v.unit ? ` ${x.v.unit}` : ""}${x.trend ? `, ${x.trend.text}` : ""}`}
-          >
-            <div className={s.tileLabel}>{x.label}</div>
-            <div className={s.tileValue}>
-              {x.v.v}
-              {x.v.unit && <small>{x.v.unit}</small>}
+        {tiles.map((x, i) => {
+          const words = `${x.label}: ${x.v.v}${x.v.unit ? ` ${x.v.unit}` : ""}${x.trend ? `, ${x.trend.text}` : ""}`;
+          const open = x.drill && onDrill && (x.n ?? 0) > 0 ? x.drill : null;
+          const body = (
+            <>
+              {open && <span className={s.go}>{Ico.go}</span>}
+              <div className={s.tileLabel}>{x.label}</div>
+              <div className={s.tileValue}>
+                {x.v.v}
+                {x.v.unit && <small>{x.v.unit}</small>}
+              </div>
+              {x.tooFew ? <span className={s.thin}>Too few to say yet</span> : <Chip trend={x.trend} />}
+              <span className={s.tileNote}>{x.note}</span>
+            </>
+          );
+          const props = {
+            className: `${s.tile} ${x.hero ? s.hero : ""} ${x.alarm ? s.alarm : ""}`,
+            style: { "--i": i } as CSSProperties,
+            "data-alarm": x.alarm || undefined,
+          };
+          return open ? (
+            <button
+              key={x.key}
+              type="button"
+              {...props}
+              aria-label={`${words}. See the leads.`}
+              onClick={() => onDrill!(open, x.label)}
+            >
+              {body}
+            </button>
+          ) : (
+            <div key={x.key} {...props} role="group" aria-label={words}>
+              {body}
             </div>
-            {x.tooFew ? <span className={s.thin}>Too few to say yet</span> : <Chip trend={x.trend} />}
-            <span className={s.tileNote}>{x.note}</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className={s.row2}>
         <Card title="Conversations started, by what started them" sub="Per day" i={12}>
-          <StartsChart data={data} />
+          <StartsChart series={data.series} />
         </Card>
         <Card title="Where people stop" sub={`Of the conversations that started ${rangeWords}`} i={13}>
           <Steps data={data} />
@@ -233,23 +274,30 @@ export function InstagramBoard({
           sub={`Flows and your team, ${rangeWords}. A conversation counts for each one that answered it.`}
           i={14}
         >
-          <Who data={data} currency={currency} />
+          <Who data={data} currency={currency} onDrill={onDrill} />
         </Card>
         <Card title="Each account" sub="Where the conversations arrived" i={15}>
           <Accounts data={data} />
         </Card>
         <Card title="The posts and ads that started them" sub="By the leads they brought" i={16}>
-          <Sources data={data} />
+          <Sources data={data} onDrill={onDrill} />
+        </Card>
+      </div>
+
+      <div className={s.row2}>
+        <Card title="LUME noticed" sub={`From these numbers, ${rangeWords}`} i={17}>
+          <Noticed data={data} />
         </Card>
       </div>
     </>
   );
 }
 
-function StartsChart({ data }: { data: Data }) {
+/** Conversations started per day, stacked by what started them; each can be hidden (board Analytics and Flows). */
+export function StartsChart({ series }: { series: ({ day: string } & Record<IgStart, number>)[] }) {
   const [hidden, setHidden] = useState<Partial<Record<IgStart, boolean>>>({});
   const [hi, setHi] = useState<number | null>(null);
-  const days = data.series;
+  const days = series;
   const n = days.length;
   const shownStarts = STARTS.filter((x) => !hidden[x.id]);
   const totals = days.map((d) => shownStarts.reduce((a, x) => a + d[x.id], 0));
@@ -401,7 +449,42 @@ function Steps({ data }: { data: Data }) {
   );
 }
 
-function Who({ data, currency }: { data: Data; currency: string }) {
+/** A row's name: it opens the leads behind the row when there are any. */
+function RowName({
+  name,
+  sub,
+  token,
+  onDrill,
+}: {
+  name: string;
+  sub?: string;
+  token: string | null | undefined;
+  onDrill: ((token: string, title: string) => void) | undefined;
+}) {
+  const inner = (
+    <>
+      {name}
+      {sub && <small title={sub}>{sub}</small>}
+    </>
+  );
+  return token && onDrill ? (
+    <button type="button" className={`${ig.name} ${ig.open}`} onClick={() => onDrill(token, name)}>
+      {inner}
+    </button>
+  ) : (
+    <span className={ig.name}>{inner}</span>
+  );
+}
+
+function Who({
+  data,
+  currency,
+  onDrill,
+}: {
+  data: Data;
+  currency: string;
+  onDrill: ((token: string, title: string) => void) | undefined;
+}) {
   const rows = data.whoAnswered;
   if (rows.every((r) => !r.conversations))
     return <p className={s.empty}>Nobody has answered a conversation in this range yet.</p>;
@@ -411,7 +494,11 @@ function Who({ data, currency }: { data: Data; currency: string }) {
         const time = answerTime(r.firstAnswerSec);
         return (
           <li key={r.id}>
-            <span className={ig.name}>{r.id === "flows" ? "Flows" : "Your team"}</span>
+            <RowName
+              name={r.id === "flows" ? "Flows" : r.id === "ai" ? "LUME AI" : "Your team"}
+              token={r.conversations > 0 ? data.drill?.[r.id] : null}
+              onDrill={onDrill}
+            />
             <span className={ig.nums}>
               <span>
                 <b>{count(r.conversations)}</b> {r.conversations === 1 ? "conversation" : "conversations"}
@@ -477,17 +564,25 @@ const KIND_WORDS: Record<string, string> = {
   post: "Post",
 };
 
-function Sources({ data }: { data: Data }) {
+function Sources({
+  data,
+  onDrill,
+}: {
+  data: Data;
+  onDrill: ((token: string, title: string) => void) | undefined;
+}) {
   if (!data.sources.length)
     return <p className={s.empty}>No post or ad started a conversation in this range yet.</p>;
   return (
     <ul className={ig.rows}>
       {data.sources.map((x) => (
         <li key={`${x.kind}:${x.id}`}>
-          <span className={ig.name}>
-            {KIND_WORDS[x.kind] ?? "Post"}
-            <small title={x.id}>{x.id}</small>
-          </span>
+          <RowName
+            name={KIND_WORDS[x.kind] ?? "Post"}
+            sub={x.id}
+            token={x.leads > 0 ? x.drill : null}
+            onDrill={onDrill}
+          />
           <span className={ig.nums}>
             <span>
               <b>{count(x.conversations)}</b> wrote in
@@ -496,6 +591,20 @@ function Sources({ data }: { data: Data }) {
               <b>{count(x.leads)}</b> {x.leads === 1 ? "lead" : "leads"}
             </span>
           </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Noticed({ data }: { data: Data }) {
+  if (!data.notes.length) return <p className={s.empty}>Nothing stands out yet in these numbers.</p>;
+  return (
+    <ul className={ig.notes}>
+      {data.notes.map((n) => (
+        <li key={n.id}>
+          <b>{n.title}</b>
+          <span>{n.body}</span>
         </li>
       ))}
     </ul>

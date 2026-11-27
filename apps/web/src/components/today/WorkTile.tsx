@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { plural } from "@lume/core/shared";
 import Link from "next/link";
 import { useState, type CSSProperties } from "react";
@@ -244,17 +245,7 @@ export function WorkTile({
                     disabled={ticking.has(x.t.id)}
                     onClick={() => onDone(x.t)}
                   >
-                    <svg
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden
-                    >
-                      <path d="M3.5 8.5 6.5 11.5 12.5 4.5" />
-                    </svg>
+                    <UI_ICONS.done size={ICON_SIZE.md} aria-hidden />
                   </button>
                   <span className={s.av} style={{ background: avatarColor(x.t.leadName) }} aria-hidden>
                     {initials(x.t.leadName)}
@@ -318,17 +309,7 @@ export function WorkTile({
               ) : (
                 <li key={x.m.id} className={s.row} style={{ "--i": i } as CSSProperties}>
                   <span className={s.callIc} aria-hidden>
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="m16 13 5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 11" />
-                      <rect x="2" y="6" width="14" height="12" rx="2" />
-                    </svg>
+                    <UI_ICONS.video size={ICON_SIZE.md} aria-hidden />
                   </span>
                   <span
                     className={s.av}

@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { lookOf } from "@/lib/avatar/look";
 import { Avatar } from "@/components/ui/Avatar";
 import { tokenColor } from "@/lib/leads/colors";
@@ -37,12 +38,7 @@ export function ContactCell({ value }: { value: ContactView | null | undefined }
   return (
     <span className={s.contact} title={value.masked ? "Masked for your role" : undefined}>
       {value.display}
-      {value.masked && (
-        <svg viewBox="0 0 12 12" width="11" height="11" aria-label="masked" role="img" className={s.lock}>
-          <rect x="2.5" y="5.5" width="7" height="5" rx="1.2" fill="currentColor" />
-          <path d="M4 5.5V4a2 2 0 0 1 4 0v1.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
-        </svg>
-      )}
+      {value.masked && <UI_ICONS.masked size={ICON_SIZE.sm} aria-hidden className={s.lock} />}
     </span>
   );
 }

@@ -66,6 +66,8 @@ const listQuery = z.object({
     .transform((v) => v === "true")
     .optional(),
   createdDays: z.coerce.number().int().min(1).max(365).optional(),
+  // Messaged from (owner 2026-11-26): a WhatsApp number's id.
+  messagedFrom: z.uuid().optional(),
   // 8D: the leads behind a number on Analytics (a drill token, 15 minutes). Never stored in a saved view.
   drill: z.string().min(16).max(4000).optional(),
 });

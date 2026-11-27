@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { bytesText } from "@lume/core/shared";
 import { SPRINGS, toMotion } from "@/lib/motion";
@@ -13,24 +14,13 @@ function Mark({ u }: { u: Upload }) {
   if (u.state === "refused")
     return (
       <span className={s.mark} data-state="refused" aria-hidden>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-          <path d="M8 8l8 8M16 8l-8 8" />
-        </svg>
+        <UI_ICONS.failed size={ICON_SIZE.md} aria-hidden />
       </span>
     );
   if (u.state === "added")
     return (
       <span className={s.mark} data-state="added" aria-hidden>
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path className={s.tick} d="m6 12.5 4 4 8-9" />
-        </svg>
+        <UI_ICONS.done size={ICON_SIZE.md} aria-hidden />
       </span>
     );
   return (
@@ -138,16 +128,7 @@ export function UploadTray({
                       aria-label={`Dismiss ${u.name}`}
                       onClick={() => onDismiss(u.key)}
                     >
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        aria-hidden
-                      >
-                        <path d="M7 7l10 10M17 7 7 17" />
-                      </svg>
+                      <UI_ICONS.remove size={ICON_SIZE.md} aria-hidden />
                     </button>
                   )}
                 </motion.li>

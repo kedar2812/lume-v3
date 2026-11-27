@@ -6,7 +6,15 @@ import type { IgMessage, IgThread } from "@/lib/instagram/types";
 import { InstagramTab } from "./InstagramTab";
 
 vi.mock("@/lib/instagram/client", () => ({
-  instagramClient: { send: vi.fn(), privateReply: vi.fn(), takeOver: vi.fn(), handBack: vi.fn() },
+  instagramClient: {
+    send: vi.fn(),
+    privateReply: vi.fn(),
+    takeOver: vi.fn(),
+    handBack: vi.fn(),
+    replyPublicly: vi.fn(),
+    hideComment: vi.fn(),
+    deleteComment: vi.fn(),
+  },
 }));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
 const NOW = new Date("2026-11-25T10:00:00.000Z");
@@ -93,6 +101,56 @@ describe("the lead's Instagram tab (plan 2026-11-25-instagram-screens D2; boards
     await userEvent.click(screen.getByRole("button", { name: "Take over" }));
     expect(instagramClient.takeOver).toHaveBeenCalledWith("t1");
     expect(p.onChanged).toHaveBeenCalled();
+  });
+
+  it("who has it: LUME AI, over a flow, with Take over; its messages say whose they are", async () => {
+    vi.mocked(instagramClient.takeOver).mockResolvedValue(
+      ok({ takenOver: { id: "u-me", name: "Maya Kapoor" } }),
+    );
+    const p = props({
+      threads: [
+        thread({
+          ai: { runId: "r1", paused: false },
+          flow: { id: "f1", name: "Lunch box guide", waiting: false },
+          messages: [
+            msg(),
+            msg({
+              direction: "out",
+              text: "Yes, it does.",
+              ai: true,
+              sentBy: { id: "u2", name: "Rhea Rao" },
+              status: "sent",
+            }),
+          ],
+        }),
+      ],
+    });
+    render(<InstagramTab {...p} />);
+    expect(screen.getByText("LUME AI", { selector: "span" })).toHaveAttribute("data-who", "ai");
+    expect(screen.queryByText("Flow: Lunch box guide")).toBeNull();
+    expect(screen.getByText("LUME AI is answering, within Instagram’s 24 hours.")).toBeInTheDocument();
+    expect(screen.getByText(/LUME AI for Rhea Rao/)).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toHaveAttribute("placeholder", "Type to take over from LUME AI…");
+    await userEvent.click(screen.getByRole("button", { name: "Take over" }));
+    expect(instagramClient.takeOver).toHaveBeenCalledWith("t1");
+  });
+
+  it("LUME AI's run paused: the chip says so; a person who took over comes first", () => {
+    const { rerender } = render(
+      <InstagramTab {...props({ threads: [thread({ ai: { runId: "r1", paused: true } })] })} />,
+    );
+    expect(screen.getByText(/LUME AI’s run is paused/)).toBeInTheDocument();
+    rerender(
+      <InstagramTab
+        {...props({
+          threads: [
+            thread({ ai: { runId: "r1", paused: false }, takenOver: { id: "u-me", name: "Maya Kapoor" } }),
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("You")).toBeInTheDocument();
+    expect(screen.queryByText("LUME AI", { selector: "span" })).toBeNull();
   });
 
   it("who has it: you, with Hand back; someone else, by name", async () => {
@@ -368,6 +426,136 @@ describe("the lead's Instagram tab (plan 2026-11-25-instagram-screens D2; boards
       expect.objectContaining({ text: "Sent it!", clientKey: expect.stringMatching(/^[0-9a-f-]{36}$/) }),
     );
     expect(p.onChanged).toHaveBeenCalled();
+  });
+
+  it("a comment's own actions (2026-11-27): reply publicly, hide or unhide, delete asked twice", async () => {
+    const state = { hidden: false, deleted: false, publicReply: null, publicReplyUnsure: false };
+    vi.mocked(instagramClient.replyPublicly).mockResolvedValue(
+      ok({ ...state, publicReply: "Prices in your DMs" }),
+    );
+    vi.mocked(instagramClient.hideComment).mockResolvedValue(ok({ ...state, hidden: true }));
+    vi.mocked(instagramClient.deleteComment).mockResolvedValue(ok({ ...state, deleted: true }));
+    const base = {
+      at: later(-H),
+      mediaType: "REELS",
+      privateReply: "sent" as const,
+      replyOpen: false,
+      hidden: false,
+      deleted: false,
+      publicReply: null,
+      canReplyPublicly: true,
+    };
+    const p = props({
+      threads: [
+        thread({
+          comments: [
+            { ...base, id: "c1", text: "PRICE" },
+            {
+              ...base,
+              id: "c2",
+              text: "hidden one",
+              hidden: true,
+              canReplyPublicly: false,
+              publicReply: "Thanks!",
+            },
+            { ...base, id: "c3", text: "gone", deleted: true, canReplyPublicly: false },
+          ],
+        }),
+      ],
+    });
+    render(<InstagramTab {...p} />);
+    const [one, two, three] = within(screen.getByRole("list", { name: "Comments" })).getAllByRole("listitem");
+    expect(two).toHaveTextContent("Hidden on Instagram");
+    expect(two).toHaveTextContent("Replied publicly: Thanks!");
+    expect(within(two!).getByRole("button", { name: "Unhide" })).toBeInTheDocument();
+    expect(within(two!).queryByRole("button", { name: "Reply publicly" })).toBeNull();
+    expect(three).toHaveTextContent("Deleted from Instagram");
+    expect(within(three!).queryByRole("button")).toBeNull();
+
+    await userEvent.click(within(one!).getByRole("button", { name: "Reply publicly" }));
+    await userEvent.type(
+      within(one!).getByRole("textbox", { name: "Public reply to this comment" }),
+      "Prices in your DMs",
+    );
+    await userEvent.click(within(one!).getByRole("button", { name: "Reply publicly" }));
+    expect(instagramClient.replyPublicly).toHaveBeenCalledWith("c1", "Prices in your DMs");
+    await userEvent.click(within(one!).getByRole("button", { name: "Hide" }));
+    expect(instagramClient.hideComment).toHaveBeenCalledWith("c1", true);
+    await userEvent.click(within(two!).getByRole("button", { name: "Unhide" }));
+    expect(instagramClient.hideComment).toHaveBeenLastCalledWith("c2", false);
+    await userEvent.click(within(one!).getByRole("button", { name: "Delete" }));
+    expect(instagramClient.deleteComment).not.toHaveBeenCalled();
+    await userEvent.click(within(one!).getByRole("button", { name: "Delete from Instagram?" }));
+    expect(instagramClient.deleteComment).toHaveBeenCalledWith("c1");
+    expect(p.onChanged).toHaveBeenCalledTimes(4);
+  });
+
+  it("Instagram refusing a comment action: said in its words, nothing claimed", async () => {
+    vi.mocked(instagramClient.hideComment).mockResolvedValue({
+      ok: false,
+      status: 502,
+      code: "INSTAGRAM_REFUSED",
+      message: "Instagram didn't take that. Try again.",
+    });
+    const p = props({
+      threads: [
+        thread({
+          comments: [
+            {
+              id: "c1",
+              at: later(-H),
+              text: "PRICE",
+              mediaType: "REELS",
+              privateReply: "sent",
+              replyOpen: false,
+              hidden: false,
+              deleted: false,
+              publicReply: null,
+              canReplyPublicly: true,
+            },
+          ],
+        }),
+      ],
+    });
+    render(<InstagramTab {...p} />);
+    await userEvent.click(screen.getByRole("button", { name: "Hide" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Instagram didn't take that. Try again.");
+    expect(p.onChanged).not.toHaveBeenCalled();
+  });
+
+  it("Delete asked, then Escape: back to Delete, nothing deleted; a reply that may be there says to check", async () => {
+    const p = props({
+      threads: [
+        thread({
+          comments: [
+            {
+              id: "c1",
+              at: later(-H),
+              text: "PRICE",
+              mediaType: "REELS",
+              privateReply: "sent",
+              replyOpen: false,
+              hidden: false,
+              deleted: false,
+              publicReply: "Sent you the prices",
+              publicReplyUnsure: true,
+              canReplyPublicly: false,
+            },
+          ],
+        }),
+      ],
+    });
+    render(<InstagramTab {...p} />);
+    expect(
+      screen.getByText(
+        "Replied publicly, though Instagram didn’t answer: Sent you the prices. Check Instagram.",
+      ),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(screen.getByRole("button", { name: "Delete from Instagram?" })).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+    expect(instagramClient.deleteComment).not.toHaveBeenCalled();
   });
 
   it("several accounts: one conversation at a time, picked by account", async () => {

@@ -1,3 +1,4 @@
+import { aiOnInstagram } from "./ai-on";
 import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import {
@@ -148,12 +149,14 @@ export async function gotoTargets(req: FastifyRequest, self: string): Promise<Se
  * and `issues` on the graph (each with its step, warnings too) for the builder, whichever form the draft is in.
  */
 async function problemsOf(req: FastifyRequest, id: string, draft: FlowStep[] | FlowGraph) {
+  // Hand to LUME AI only where LUME AI answers Instagram (plan 2026-11-27-instagram-lume-ai, Task 4).
+  const ai = (await aiOnInstagram(req)).ok;
   const issues: FlowProblem[] = validateGraph(toGraph(draft), {
-    ai: false,
+    ai,
     flows: await gotoTargets(req, id),
     self: id,
   });
-  const problems = isGraph(draft) ? blocking(issues).map((p) => p.words) : validateFlow(draft);
+  const problems = isGraph(draft) ? blocking(issues).map((p) => p.words) : validateFlow(draft, { ai });
   return { problems, issues };
 }
 

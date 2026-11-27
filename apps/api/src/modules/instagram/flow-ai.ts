@@ -1,3 +1,4 @@
+import { aiOnInstagram } from "./ai-on";
 import {
   AI_OUTPUT_TOKENS,
   buildFromAnswer,
@@ -87,8 +88,8 @@ export async function aiBuildFlow(
           isFieldVisible({ actor: req.actor!, fields: registry }, x.key),
       )
       .map((x) => ({ key: x.key, label: x.label })),
-    // The checks' own answer (problemsOf): LUME AI doesn't answer Instagram conversations yet.
-    ai: false,
+    // The checks' own answer (problemsOf): Hand to LUME AI only where LUME AI answers Instagram.
+    ai: (await aiOnInstagram(req)).ok,
     flows: await gotoTargets(req, id),
     self: id,
     newId,
