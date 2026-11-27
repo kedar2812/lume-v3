@@ -1,6 +1,5 @@
 "use client";
 import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
-import { AiGlyph } from "@/components/ai/AiGlyph";
 import { BodyPortal } from "@/components/ui/BodyPortal";
 import Link from "next/link";
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
@@ -10,6 +9,7 @@ import type { Meeting } from "@/lib/calendar/types";
 import { longDate, nearDay, timeOf } from "@/lib/dates";
 import { releaseVelocity, rubberband, sheetDismisses } from "@/lib/motion";
 import s from "./phone.module.css";
+import { SourceMark } from "./SourceMark";
 
 const MIN = 60_000;
 const OUTCOME: Partial<Record<Meeting["status"], string>> = {
@@ -65,8 +65,6 @@ export function PhoneCalendar({
   const tag = (m: Meeting) => {
     if (OUTCOME[m.status]) return OUTCOME[m.status];
     if (meetingState(m, now) === "needsOutcome") return "Log outcome";
-    if (m.matchedBy === "calendly") return "Calendly";
-    if (m.matchedBy === "lume_ai") return "LUME AI";
     if (m.ownerId !== me) return people.find((p) => p.id === m.ownerId)?.name.split(" ")[0];
     return undefined;
   };
@@ -119,9 +117,12 @@ export function PhoneCalendar({
                       <i className={s.bar} aria-hidden />
                       <span className={s.rowBody}>
                         <b>{who(m)}</b>
-                        <span>
-                          {m.title}
-                          {t ? ` · ${t}` : ""}
+                        <span className={s.rowLine}>
+                          <SourceMark m={m} />
+                          <span>
+                            {m.title}
+                            {t ? ` · ${t}` : ""}
+                          </span>
                         </span>
                       </span>
                       <UI_ICONS.open size={ICON_SIZE.sm} aria-hidden />
@@ -170,17 +171,7 @@ function Hero({
       </p>
       <b className={s.heroName}>{who(m)}</b>
       <p className={s.heroLine}>
-        {m.matchedBy === "lume_ai" ? (
-          <span className={s.gtile}>
-            <AiGlyph size={11} />
-          </span>
-        ) : m.matchedBy === "calendly" ? (
-          <img src="/brand/calendly.svg" alt="" width={15} height={15} />
-        ) : (
-          <span className={s.gtile}>
-            <img src="/brand/google-calendar.png" alt="" width={11} height={11} />
-          </span>
-        )}
+        <SourceMark m={m} />
         {m.title}, {timeRange(start, new Date(m.endsAt), tz)}
       </p>
       {soon && m.link ? (

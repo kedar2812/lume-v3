@@ -15,6 +15,11 @@ vi.mock("@/lib/calendar/client", () => ({
     patchCalendly: vi.fn(),
     disconnectCalendly: vi.fn(),
     setEnabled: vi.fn(),
+    calendlyLinks: vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      data: { every: true, bookWith: null, links: [] },
+    })),
   },
 }));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });

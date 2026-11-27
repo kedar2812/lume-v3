@@ -251,18 +251,185 @@ describe("the calendar sync (5A Task 5)", () => {
     expect(mv[1]!.starts_at.toISOString()).toBe(at(30));
   });
 
-  it("the admin's rules: a title word keeps an unlinked meeting; switched off, it goes at the next full read", async () => {
-    h.fake!.putEvent(ME, { id: "tw-demo", title: "Product demo", start: at(8), end: at(9), attendees: [ME] });
-    await setRules({ attendeeIsLead: true, titleWords: ["demo"], calendarIds: [] });
-    await sync(mayaConn); // incremental: the event is new since the last read
-    expect((await meetings(maya.id)).find((x) => x.external_id === "tw-demo")).toMatchObject({
-      lead_id: null,
-      matched_by: "title",
+  // Only leads' calls (owner 2026-11-27: "lume has to fetch data relevant to leads only, nothing else related to
+  // current clients or personal details").
+  it("a title word or a calendar never brings in an event without a lead: nothing of it is kept", async () => {
+    h.fake!.putEvent(ME, {
+      id: "tw-demo",
+      title: "Product demo with Private-Person",
+      start: at(8),
+      end: at(9),
+      attendees: [ME, "someone@personal.test"],
     });
-    await setRules({ attendeeIsLead: true, titleWords: [], calendarIds: [] });
-    h.clock.advance(25 * HOUR); // a day on: the next read is a full one
+    await setRules({ attendeeIsLead: true, titleWords: ["demo"], calendarIds: [ME] });
     await sync(mayaConn);
     expect((await meetings(maya.id)).find((x) => x.external_id === "tw-demo")).toBeUndefined();
+    expect(await su("SELECT 1 FROM meetings WHERE title ~* 'private-person'")).toEqual([]);
+    await setRules({ attendeeIsLead: true, titleWords: [], calendarIds: [] });
+  });
+
+  it("title words narrow the leads' events: one without any of them stays out", async () => {
+    const lead = await h.seedLead({ ownerId: maya.id, email: "narrow@leads.test" });
+    await setRules({ attendeeIsLead: true, titleWords: ["discovery"], calendarIds: [] });
+    h.fake!.putEvent(ME, {
+      id: "nw-in",
+      title: "Discovery call",
+      start: at(4),
+      end: at(5),
+      attendees: ["narrow@leads.test"],
+    });
+    h.fake!.putEvent(ME, {
+      id: "nw-out",
+      title: "Weekly session",
+      start: at(6),
+      end: at(7),
+      attendees: ["narrow@leads.test"],
+    });
+    await sync(mayaConn);
+    const m = (await meetings(maya.id)).filter((x) => x.external_id.startsWith("nw-"));
+    expect(m.map((x) => [x.external_id, x.lead_id])).toEqual([["nw-in", lead]]);
+    await setRules({ attendeeIsLead: true, titleWords: [], calendarIds: [] });
+  });
+
+  it("a customer's sessions stay out once they're won; a call from before the win stays theirs", async () => {
+    const lead = await h.seedLead({ ownerId: maya.id, email: "client@customers.test" });
+    h.fake!.putEvent(ME, {
+      id: "cu-before",
+      title: "Sales call",
+      start: at(-48),
+      end: at(-47),
+      attendees: ["client@customers.test"],
+    });
+    h.fake!.putEvent(ME, {
+      id: "cu-after",
+      title: "Weekly session",
+      start: at(30),
+      end: at(31),
+      attendees: ["client@customers.test"],
+    });
+    await sync(mayaConn);
+    expect((await meetings(maya.id)).filter((x) => x.external_id.startsWith("cu-"))).toHaveLength(2);
+    // Won a day ago: the next full read takes the session to come out, and keeps the call before.
+    await su("UPDATE leads SET won_at = $2 WHERE id = $1", [lead, at(-24)]);
+    h.clock.advance(25 * HOUR);
+    await sync(mayaConn);
+    const m = (await meetings(maya.id)).filter((x) => x.external_id.startsWith("cu-"));
+    expect(m.map((x) => [x.external_id, x.lead_id])).toEqual([["cu-before", lead]]);
+  });
+
+  it("the same email on a customer and on a newer open lead: the event is the open lead's", async () => {
+    const won = await h.seedLead({ ownerId: maya.id, email: "again@customers.test" });
+    await su("UPDATE leads SET won_at = $2 WHERE id = $1", [won, at(-240)]);
+    const open = await h.seedLead({ ownerId: maya.id, email: "again@customers.test" });
+    h.fake!.putEvent(ME, {
+      id: "ag-1",
+      title: "New project call",
+      start: at(12),
+      end: at(13),
+      attendees: ["again@customers.test"],
+    });
+    await sync(mayaConn);
+    expect((await meetings(maya.id)).find((x) => x.external_id === "ag-1")).toMatchObject({ lead_id: open });
+  });
+
+  it("a meeting a person linked to a lead by hand stays theirs through the next full read, whoever is invited", async () => {
+    await h.seedLead({ ownerId: maya.id, email: "invited@leads.test" });
+    const other = await h.seedLead({ ownerId: maya.id, name: "Phone-only lead" });
+    h.fake!.putEvent(ME, {
+      id: "ln-1",
+      title: "Call",
+      start: at(14),
+      end: at(15),
+      attendees: ["invited@leads.test"],
+    });
+    await sync(mayaConn);
+    // As Link to a lead leaves it (a person's link), and the invite changed since.
+    await su("UPDATE meetings SET lead_id = $1, matched_by = 'person' WHERE external_id = 'ln-1'", [other]);
+    h.fake!.putEvent(ME, {
+      id: "ln-1",
+      title: "Call",
+      start: at(14),
+      end: at(15),
+      attendees: ["someone@else.test"],
+    });
+    h.clock.advance(25 * HOUR);
+    await sync(mayaConn);
+    expect((await meetings(maya.id)).find((x) => x.external_id === "ln-1")).toMatchObject({
+      lead_id: other,
+      matched_by: "person",
+    });
+  });
+
+  it("linking a meeting by hand marks it as the person's", async () => {
+    const lead = await h.seedLead({ ownerId: maya.id, name: "Linked by hand" });
+    const id = newId();
+    await su(
+      `INSERT INTO meetings (id, owner_id, connection_id, source, external_id, matched_by, title, starts_at, ends_at, created_at, updated_at)
+       VALUES ($1, $2, $3, 'google', 'hand-1', 'title', 'Call', now() + interval '1 day', now() + interval '25 hours', now(), now())`,
+      [id, maya.id, mayaConn],
+    );
+    const r = await (
+      await h.signIn(maya)
+    ).inject({
+      method: "PATCH",
+      url: `/api/v1/meetings/${id}`,
+      payload: { leadId: lead },
+    });
+    expect(r.statusCode).toBe(200);
+    expect(
+      (await su<{ matched_by: string }>("SELECT matched_by FROM meetings WHERE id = $1", [id]))[0]!
+        .matched_by,
+    ).toBe("person");
+  });
+
+  it("migration 0139: Google's unlinked meetings with nothing recorded go; an outcome or a lead keeps one", async () => {
+    const lead = await h.seedLead({ ownerId: maya.id, email: "kept@leads.test" });
+    const ins = (id: string, leadId: string | null, status: string, outcome: boolean) =>
+      su(
+        `INSERT INTO meetings (id, lead_id, owner_id, connection_id, source, external_id, matched_by, title, starts_at, ends_at,
+                               status, outcome_at, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, 'google', $5, 'title', 'Old', now(), now() + interval '1 hour', $6, $7, now(), now())`,
+        [newId(), leadId, maya.id, mayaConn, id, status, outcome ? new Date() : null],
+      );
+    await ins("mg-junk", null, "scheduled", false);
+    await ins("mg-cancelled", null, "cancelled", false);
+    await ins("mg-logged", null, "completed", true);
+    await ins("mg-lead", lead, "scheduled", false);
+    await ins("mg-hand", lead, "scheduled", false);
+    const [hand] = await su<{ id: string }>("SELECT id FROM meetings WHERE external_id = 'mg-hand'");
+    await su(
+      "INSERT INTO audit_log (action, entity_type, entity_id) VALUES ('meeting.attached', 'meeting', $1)",
+      [hand!.id],
+    );
+    const { readFile } = await import("node:fs/promises");
+    const file = new URL(
+      "../../../../../packages/db/migrations/0139_calendar_leads_only.sql",
+      import.meta.url,
+    );
+    await setRules({ attendeeIsLead: true, titleWords: ["Call"], calendarIds: [ME] });
+    // As migrations run: the tables' owner, whom row-level security binds (review 2026-11-28: as the superuser the
+    // test passed while the real thing changed nothing).
+    await h.ownerPool.query(await readFile(file, "utf8"));
+    const left = await su<{ external_id: string }>(
+      "SELECT external_id FROM meetings WHERE external_id LIKE 'mg-%' ORDER BY external_id",
+    );
+    expect(left.map((x) => x.external_id)).toEqual(["mg-hand", "mg-lead", "mg-logged"]);
+    const marked = await su<{ external_id: string; matched_by: string }>(
+      "SELECT external_id, matched_by FROM meetings WHERE external_id IN ('mg-hand', 'mg-lead') ORDER BY external_id",
+    );
+    expect(marked.map((x) => x.matched_by)).toEqual(["person", "title"]);
+    const [c] = await swept<{ calendars: { fullAt?: string }[]; next_sync_at: Date }>(
+      "SELECT calendars, next_sync_at FROM calendar_connections WHERE id = $1",
+      [mayaConn],
+    );
+    expect(c!.calendars.every((x) => x.fullAt === undefined)).toBe(true);
+    // Narrowing saved under the old meaning is cleared; row-level security is FORCEd again.
+    const [rules] = await su<{ r: unknown }>("SELECT calendar->'rules' AS r FROM settings WHERE id = 1");
+    expect(rules!.r).toEqual({ attendeeIsLead: true, titleWords: [], calendarIds: [] });
+    const forced = await su<{ relname: string; relforcerowsecurity: boolean }>(
+      "SELECT relname, relforcerowsecurity FROM pg_class WHERE relname IN ('meetings', 'calendar_connections') ORDER BY relname",
+    );
+    expect(forced.every((x) => x.relforcerowsecurity)).toBe(true);
   });
 
   it("an all-day event is never a meeting", async () => {
@@ -525,15 +692,21 @@ describe("the final review's fixes (5A)", () => {
     h.fake!.putCalendar("team2@group.test", { name: "Team two" });
     await sync(mayaConn); // lists it
     await choose([ME, "team2@group.test"]);
-    await setRules({ attendeeIsLead: true, titleWords: [], calendarIds: ["team2@group.test"] });
+    await h.seedLead({ ownerId: maya.id, email: "review@leads.test" });
     const both = (title: string) => {
       for (const cal of [ME, "team2@group.test"])
-        h.fake!.putEvent(cal, { id: "fx-both", title, start: at(30), end: at(31), attendees: [ME] });
+        h.fake!.putEvent(cal, {
+          id: "fx-both",
+          title,
+          start: at(30),
+          end: at(31),
+          attendees: [ME, "review@leads.test"],
+        });
     };
     both("Pipeline review");
     await sync(mayaConn);
     const first = await meetingOf("fx-both");
-    expect(first).toMatchObject({ calendar_id: "team2@group.test" });
+    expect(first?.calendar_id).toMatch(/^(team2@group\.test|maya@business\.test)$/);
     both("Pipeline review, moved");
     await sync(mayaConn);
     expect((await meetingOf("fx-both"))?.id).toBe(first!.id);

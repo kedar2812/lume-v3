@@ -13,6 +13,7 @@ import { Popover } from "@/components/ui/Popover";
 import { dayKey, timeOf } from "@/lib/dates";
 import type { SnoozePreset, TaskView, TodayMeeting, TodayView } from "@/lib/tasks/types";
 import s from "./today.module.css";
+import { SourceMark } from "@/components/calendar/SourceMark";
 import { roving } from "@/lib/roving";
 
 const MIN = 60_000;
@@ -323,7 +324,10 @@ export function WorkTile({
                     className={s.who}
                   >
                     <b>{x.m.lead?.name ?? x.m.title}</b>
-                    <span>{x.m.lead ? x.m.title : "Not with a lead yet"}</span>
+                    <span className={s.callLine}>
+                      <SourceMark m={x.m} />
+                      <span className={s.callText}>{x.m.lead ? x.m.title : "Not with a lead yet"}</span>
+                    </span>
                   </Link>
                   <span className={s.acts} data-keep={x.owed || undefined}>
                     {x.owed ? (

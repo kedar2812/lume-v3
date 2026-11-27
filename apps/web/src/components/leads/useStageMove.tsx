@@ -13,11 +13,14 @@ import { LostReasonPicker } from "./LostReasonPicker";
 import { patchFor, valueOf } from "./useLeadEditor";
 import s from "./move.module.css";
 
+type Extra = { lostReasonId?: string; lostNote?: string };
 type Pending = {
   lead: Lead;
   stage: Stage;
   mode: "lost" | "required";
   missing: FieldDefView[];
+  /** A lost reason already given (a log card asks it itself), carried to the move after the fields. */
+  extra: Extra;
   resolve: (lead: Lead | null) => void;
 };
 type Attempt = { moved: Lead } | { missing: FieldDefView[] } | { refused: true };
@@ -27,7 +30,7 @@ const firstName = (lead: Lead) => firstNameOf(lead.name ?? "") || "this lead";
  * Every stage move in the app goes through here (drawer, board, table), so the rules are asked the same
  * way everywhere: a lost stage needs a reason, a stage with required fields asks for them, and a refusal
  * is explained. `request` resolves the moved lead, or null if nothing changed, so a board can put the
- * card back.
+ * card back. A reason already given (`extra.lostReasonId`, a log card's) isn't asked again.
  */
 export function useStageMove() {
   const catalog = useCatalog();
@@ -54,13 +57,14 @@ export function useStageMove() {
   );
 
   const request = useCallback(
-    (lead: Lead, stage: Stage) =>
+    (lead: Lead, stage: Stage, extra: Extra = {}) =>
       new Promise<Lead | null>((resolve) => {
-        if (stage.kind === "lost") return setPending({ lead, stage, mode: "lost", missing: [], resolve });
-        void attempt(lead, stage).then((res) => {
+        if (stage.kind === "lost" && !extra.lostReasonId)
+          return setPending({ lead, stage, mode: "lost", missing: [], extra: {}, resolve });
+        void attempt(lead, stage, extra).then((res) => {
           if ("moved" in res) return resolve(res.moved);
           if ("missing" in res)
-            return setPending({ lead, stage, mode: "required", missing: res.missing, resolve });
+            return setPending({ lead, stage, mode: "required", missing: res.missing, extra, resolve });
           resolve(null);
         });
       }),
@@ -102,6 +106,9 @@ function MoveDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState(pending.missing);
+  // Lost, then the stage asks for fields: the fields are shown next, and the reason goes with the move after them.
+  const [mode, setMode] = useState(pending.mode);
+  const [extra, setExtra] = useState<Extra>(pending.extra);
   const values = useRef<Record<string, unknown>>(
     Object.fromEntries(pending.missing.map((f) => [f.key, valueOf(pending.lead, f)])),
   );
@@ -110,14 +117,15 @@ function MoveDialog({
 
   const markLost = async (lostReasonId: string, lostNote: string) => {
     setBusy(true);
-    const res = await attempt(lead.current, pending.stage, {
-      lostReasonId,
-      ...(lostNote ? { lostNote } : {}),
-    });
+    const given: Extra = { lostReasonId, ...(lostNote ? { lostNote } : {}) };
+    const res = await attempt(lead.current, pending.stage, given);
     setBusy(false);
     if ("moved" in res) return onDone(res.moved);
     if ("missing" in res) {
+      for (const f of res.missing) values.current[f.key] ??= valueOf(lead.current, f);
+      setExtra(given);
       setMissing(res.missing);
+      setMode("required");
       return setError("This stage needs a few details first.");
     }
     onDone(null);
@@ -143,7 +151,7 @@ function MoveDialog({
       );
     }
     lead.current = saved.data.lead;
-    const res = await attempt(lead.current, pending.stage);
+    const res = await attempt(lead.current, pending.stage, extra);
     setBusy(false);
     if ("moved" in res) return onDone(res.moved);
     if ("missing" in res) {
@@ -153,7 +161,7 @@ function MoveDialog({
     onDone(null);
   };
 
-  if (pending.mode === "lost")
+  if (mode === "lost")
     return (
       <Dialog label={`Why was ${firstName(pending.lead)} lost?`} onClose={cancel}>
         <p className={s.title}>Why was {firstName(pending.lead)} lost?</p>

@@ -7,7 +7,7 @@ import type { AppDeps } from "../../app";
 import { createLimiter } from "../webhooks/limits";
 import { eventContext } from "../webhooks/process";
 import type { RejectReason } from "../webhooks/receive";
-import { CALENDLY_DEFAULTS, openCalendly, sealCalendly } from "./config";
+import { CALENDLY_DEFAULTS, leadLink, openCalendly, sealCalendly } from "./config";
 import { calendlySignatureCheck } from "./signature";
 
 const S = schema.leadSources;
@@ -19,7 +19,7 @@ const DUMMY_ID = "00000000-0000-7000-8000-000000000001";
 export const CALENDLY_KEPT = new Set(["invitee.created", "invitee.canceled"]);
 
 /** What LUME reads of a Calendly post before keeping it. */
-type Posted = { event?: unknown; payload?: { uri?: unknown } };
+type Posted = { event?: unknown; payload?: { uri?: unknown; scheduled_event?: { event_type?: unknown } } };
 const unauthorized = (reply: FastifyReply) => reply.code(401).send({ error: "unauthorized" });
 
 /**
@@ -45,6 +45,25 @@ export async function calendlyReceiveRoutes(app: FastifyInstance, d: AppDeps) {
       .set({ rejected: sql`${S.rejected} + 1`, lastRejectedReason: reason })
       .where(and(eq(S.id, id), eq(S.type, "calendly")))
       .catch((err: unknown) => app.log.warn({ err }, "couldn't count a refused Calendly post"));
+  /** LUME already holds this booking as a meeting (read as LUME's calendar sweep: whoever's it is). */
+  const haveBooking = async (uri: string) => {
+    const c = await d.pool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query("SELECT set_config('lume.calendar_sweep', 'on', true)");
+      const r = await c.query(
+        "SELECT 1 FROM meetings WHERE source = 'calendly' AND external_id = $1 LIMIT 1",
+        [uri],
+      );
+      await c.query("COMMIT");
+      return r.rows.length > 0;
+    } catch {
+      await c.query("ROLLBACK").catch(() => undefined);
+      return true; // unsure: kept, as before, rather than a cancellation lost
+    } finally {
+      c.release();
+    }
+  };
   const slowDown = (reply: FastifyReply, retryAfterSec: number) =>
     reply.code(429).header("retry-after", String(retryAfterSec)).send({ error: "slow_down" });
 
@@ -105,6 +124,14 @@ export async function calendlyReceiveRoutes(app: FastifyInstance, d: AppDeps) {
         return reply.code(400).send({ error: "bad_json" });
       }
       if (!CALENDLY_KEPT.has(event) || !uri) return reply.code(202).send({ accepted: true, ignored: true });
+      // Only the links for leads (owner 2026-11-27): a booking on another (a client's session, a personal event
+      // type) is let go here, never stored. A cancellation still reaches a meeting LUME already has.
+      const link =
+        typeof body.payload?.scheduled_event?.event_type === "string"
+          ? body.payload.scheduled_event.event_type
+          : "";
+      if (!leadLink(cfg.settings, link) && !(event === "invitee.canceled" && (await haveBooking(uri))))
+        return reply.code(202).send({ accepted: true, ignored: true });
 
       // One row per booking event, however often Calendly delivers it; a signature works once.
       const eventKey = `${event}:${uri}`.slice(0, 500);

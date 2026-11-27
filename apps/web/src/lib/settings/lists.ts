@@ -4,6 +4,8 @@ import type { LostReason, Product, Tag } from "@/lib/leads/types";
 
 /** The short lists people pick from: lost reasons, tags and packages. Each returns ApiResult. */
 export const listsClient = {
+  /** The lost reasons a lead can be lost for (anyone who sees leads). */
+  reasons: () => api.get<{ lostReasons: LostReason[] }>("/api/v1/lost-reasons"),
   createReason: (label: string) => api.post<{ lostReason: LostReason }>("/api/v1/lost-reasons", { label }),
   patchReason: (id: string, patch: { label?: string; position?: number }) =>
     api.patch<{ lostReason: LostReason }>(`/api/v1/lost-reasons/${id}`, patch),

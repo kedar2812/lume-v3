@@ -2,13 +2,16 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { leadsClient } from "@/lib/leads/client";
+import { listsClient } from "@/lib/settings/lists";
 import { tasksClient } from "@/lib/tasks/client";
+import type { Stage } from "@/lib/leads/types";
 import { LogCall } from "./LogCall";
 
 const toast = vi.fn();
 vi.mock("@/components/feedback/ToastProvider", () => ({ useToast: () => ({ toast, dismiss: vi.fn() }) }));
 vi.mock("@/lib/leads/client", () => ({ leadsClient: { logCall: vi.fn() } }));
 vi.mock("@/lib/tasks/client", () => ({ tasksClient: { presets: vi.fn(), create: vi.fn() } }));
+vi.mock("@/lib/settings/lists", () => ({ listsClient: { reasons: vi.fn() } }));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
 
 beforeEach(() => {
@@ -22,6 +25,9 @@ beforeEach(() => {
     }),
   );
   vi.mocked(tasksClient.create).mockResolvedValue(ok({}) as never);
+  vi.mocked(listsClient.reasons).mockResolvedValue(
+    ok({ lostReasons: [{ id: "r-price", label: "Too expensive", position: 0 }] }) as never,
+  );
   vi.mocked(leadsClient.logCall).mockResolvedValue(
     ok({ activity: { id: "a1" } as never, firstContact: { minutes: 44 } }),
   );
@@ -111,5 +117,92 @@ describe("Log a call (the approved LogCall board)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Log call" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Offline");
     expect(screen.getByRole("dialog", { name: "Log a call" })).toBeInTheDocument();
+  });
+});
+
+const st = (id: string, name: string, position: number, kind: Stage["kind"] = "open"): Stage => ({
+  id,
+  name,
+  position,
+  kind,
+  color: "accent",
+  requiredFieldIds: [],
+});
+const STAGES = [
+  st("s-new", "New", 0),
+  st("s-talk", "Talking", 1),
+  st("s-won", "Won", 2, "won"),
+  st("s-lost", "Lost", 3, "lost"),
+];
+const openWithStage = async () => {
+  const onMove = vi.fn().mockResolvedValue(undefined);
+  render(
+    <LogCall
+      lead={{ id: "l1", name: "Ananya Rao" }}
+      tz="Asia/Kolkata"
+      onLogged={vi.fn()}
+      stage={{ stages: STAGES, currentId: "s-new" }}
+      onMove={onMove}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Log a call (C)" }));
+  await screen.findByRole("radio", { name: /Tomorrow 10:00/ });
+  return onMove;
+};
+
+describe("Log a call: the stage (owner 2026-11-27, any stage from the log cards)", () => {
+  it("starts on Stays: logging moves nothing", async () => {
+    const onMove = await openWithStage();
+    expect(screen.getByRole("combobox", { name: "Stage" })).toHaveValue("");
+    await userEvent.click(screen.getByRole("button", { name: "Log call" }));
+    await waitFor(() => expect(toast).toHaveBeenCalled());
+    expect(onMove).not.toHaveBeenCalled();
+  });
+
+  it("a stage picked: the call is logged first, then the lead moves there", async () => {
+    const onMove = await openWithStage();
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Stage" }), "Talking");
+    await userEvent.click(screen.getByRole("button", { name: "Log call" }));
+    await waitFor(() => expect(onMove).toHaveBeenCalledWith(STAGES[1], {}));
+    expect(vi.mocked(leadsClient.logCall).mock.invocationCallOrder[0]!).toBeLessThan(
+      onMove.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("Lost asks why in the card, and the move carries the reason", async () => {
+    const onMove = await openWithStage();
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Stage" }), "Lost");
+    const why = await screen.findByRole("combobox", { name: "Why was Ananya lost?" });
+    expect(screen.getByRole("button", { name: "Log call" })).toBeDisabled();
+    await userEvent.selectOptions(why, "Too expensive");
+    await userEvent.click(screen.getByRole("button", { name: "Log call" }));
+    await waitFor(() => expect(onMove).toHaveBeenCalledWith(STAGES[3], { lostReasonId: "r-price" }));
+  });
+
+  it("a call that wasn't logged moves nothing", async () => {
+    vi.mocked(leadsClient.logCall).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      message: "Offline",
+    } as never);
+    const onMove = await openWithStage();
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Stage" }), "Won");
+    await userEvent.click(screen.getByRole("button", { name: "Log call" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Offline");
+    expect(onMove).not.toHaveBeenCalled();
+  });
+
+  it("opened again after a log: back on Stays", async () => {
+    await openWithStage();
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Stage" }), "Talking");
+    await userEvent.click(screen.getByRole("button", { name: "Log call" }));
+    await waitFor(() => expect(toast).toHaveBeenCalled());
+    await userEvent.click(screen.getByRole("button", { name: "Log a call (C)" }));
+    expect(await screen.findByRole("combobox", { name: "Stage" })).toHaveValue("");
+  });
+
+  it("no pipeline given: no stage row", async () => {
+    await open();
+    expect(screen.queryByRole("combobox", { name: "Stage" })).not.toBeInTheDocument();
   });
 });

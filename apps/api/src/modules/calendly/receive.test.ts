@@ -1,6 +1,8 @@
 import { createHmac } from "node:crypto";
 import { newId } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import pg from "pg";
+import { adminUrl } from "@lume/db";
 import { createHarness, type Harness } from "../../../test/harness";
 import { CALENDLY_DEFAULTS, sealCalendly } from "./config";
 
@@ -12,7 +14,7 @@ beforeAll(async () => {
 });
 afterAll(() => h.close());
 
-async function source(status = "active") {
+async function source(status = "active", settings = CALENDLY_DEFAULTS) {
   const id = newId();
   await h.ownerPool.query(
     "INSERT INTO lead_sources (id, type, name, status, config_enc) VALUES ($1, 'calendly', 'Calendly', $2, $3)",
@@ -27,7 +29,7 @@ async function source(status = "active") {
         organization: "https://api.calendly.com/organizations/o",
         user: "https://api.calendly.com/users/u",
         account: { name: "Maya Kapoor", email: "maya@business.test" },
-        settings: CALENDLY_DEFAULTS,
+        settings,
       }),
     ],
   );
@@ -39,7 +41,11 @@ const signature = (raw: string, at = h.clock.now.getTime(), key = KEY) => {
   const t = Math.floor(at / 1000);
   return `t=${t},v1=${createHmac("sha256", key).update(`${t}.${raw}`).digest("hex")}`;
 };
-const booking = (invitee = "INV1", event = "invitee.created") =>
+const booking = (
+  invitee = "INV1",
+  event = "invitee.created",
+  link = "https://api.calendly.com/event_types/DISC",
+) =>
   JSON.stringify({
     event,
     created_at: "2026-09-21T09:00:00.000000Z",
@@ -48,6 +54,7 @@ const booking = (invitee = "INV1", event = "invitee.created") =>
       name: "Dana Lead",
       uri: `https://api.calendly.com/scheduled_events/EV1/invitees/${invitee}`,
       scheduled_event: {
+        event_type: link,
         name: "Discovery call",
         start_time: "2026-09-22T10:00:00Z",
         end_time: "2026-09-22T10:30:00Z",
@@ -144,5 +151,68 @@ describe("receiving Calendly's posts (5B Task 5)", () => {
       "invitee.created",
       "invitee.canceled",
     ]);
+  });
+});
+
+/** Past row-level security (the test database's superuser): a meeting as LUME would already hold it. */
+async function asSuper(sql: string, params: unknown[]) {
+  const u = new URL(adminUrl());
+  u.pathname = new URL(h.url("lume_owner")).pathname;
+  const c = new pg.Client({ connectionString: u.toString() });
+  await c.connect();
+  try {
+    await c.query(sql, params);
+  } finally {
+    await c.end();
+  }
+}
+
+// Only the links for leads (owner 2026-11-27: "lume has to fetch data relevant to leads only").
+describe("receiving: only the links for leads", () => {
+  const DISC = "https://api.calendly.com/event_types/DISC";
+  const SESSION = "https://api.calendly.com/event_types/SESSION";
+  const chosen = { ...CALENDLY_DEFAULTS, links: [DISC] };
+
+  it("a booking on a link for leads is kept", async () => {
+    const id = await source("active", chosen);
+    expect((await post(id, booking("LK1", "invitee.created", DISC))).json()).toEqual({ accepted: true });
+    expect(await events(id)).toHaveLength(1);
+  });
+
+  it("a booking on any other link is let go at once: nothing of it is stored", async () => {
+    const id = await source("active", chosen);
+    const r = await post(id, booking("LK2", "invitee.created", SESSION));
+    expect([r.statusCode, r.json()]).toEqual([202, { accepted: true, ignored: true }]);
+    expect(await events(id)).toEqual([]);
+  });
+
+  it("links never chosen (connected before, or every link): every booking is kept, as before", async () => {
+    const id = await source("active", { ...CALENDLY_DEFAULTS, links: null });
+    await post(id, booking("LK3", "invitee.created", SESSION));
+    expect(await events(id)).toHaveLength(1);
+    const old = await source("active", { createLeads: true, rescheduleFollowUp: true, phoneQuestion: null });
+    await post(old, booking("LK4", "invitee.created", SESSION));
+    expect(await events(old)).toHaveLength(1);
+  });
+
+  it("no link chosen at all: nothing comes in", async () => {
+    const id = await source("active", { ...CALENDLY_DEFAULTS, links: [] });
+    await post(id, booking("LK5", "invitee.created", DISC));
+    expect(await events(id)).toEqual([]);
+  });
+
+  it("a cancellation on a link no longer for leads still reaches the meeting LUME has; one it never had is let go", async () => {
+    const id = await source("active", chosen);
+    const owner = await h.seedUser({});
+    const uri = "https://api.calendly.com/scheduled_events/EV1/invitees/LK6";
+    await asSuper(
+      `INSERT INTO meetings (id, owner_id, source, external_id, matched_by, title, starts_at, ends_at, status)
+       VALUES ($1, $2, 'calendly', $3, 'calendly', 'Old call', now(), now() + interval '30 minutes', 'scheduled')`,
+      [newId(), owner.id, uri],
+    );
+    expect((await post(id, booking("LK6", "invitee.canceled", SESSION))).json()).toEqual({ accepted: true });
+    const r = await post(id, booking("LK7", "invitee.canceled", SESSION));
+    expect(r.json()).toEqual({ accepted: true, ignored: true });
+    expect((await events(id)).map((e) => e.event_key)).toEqual([`invitee.canceled:${uri}`]);
   });
 });

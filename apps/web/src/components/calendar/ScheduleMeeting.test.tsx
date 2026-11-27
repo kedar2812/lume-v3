@@ -8,7 +8,18 @@ import { whatsappClient } from "@/lib/whatsapp/client";
 import { startCalendarConnect } from "./ConnectCalendar";
 import { ScheduleMeeting, ScheduleSheet } from "./ScheduleMeeting";
 
-vi.mock("@/lib/calendar/client", () => ({ calendarClient: { scheduleReady: vi.fn(), schedule: vi.fn() } }));
+vi.mock("@/lib/calendar/client", () => ({
+  calendarClient: {
+    scheduleReady: vi.fn(),
+    schedule: vi.fn(),
+    calendlyOptions: vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      data: { ready: { ready: false, why: "off", message: "Calendly isn't connected to LUME." }, times: [] },
+    })),
+    scheduleCalendly: vi.fn(),
+  },
+}));
 vi.mock("@/lib/leads/client", () => ({ leadsClient: { list: vi.fn(), prepareMessage: vi.fn() } }));
 vi.mock("@/lib/whatsapp/client", () => ({ whatsappClient: { send: vi.fn() } }));
 vi.mock("./ConnectCalendar", () => ({ startCalendarConnect: vi.fn(() => new Promise(() => {})) }));
@@ -229,5 +240,151 @@ describe("Schedule a meeting (owner, 2026-11-13)", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Schedule" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Choose a time from now on.");
     expect(screen.getByRole("textbox", { name: "Title" })).toBeInTheDocument();
+  });
+});
+
+// Owner 2026-11-27: "allow lume to schedule calls in calendly".
+describe("Schedule a meeting on Calendly", () => {
+  const READY = {
+    ready: { ready: true as const, link: { name: "Discovery call", duration: 30 } },
+    // 4 pm and 4:30 pm today, 11 am tomorrow, in Kolkata.
+    times: ["2026-11-13T10:30:00.000Z", "2026-11-13T11:00:00.000Z", "2026-11-14T05:30:00.000Z"],
+  };
+  const booked = {
+    meeting: {
+      ...scheduled({ send: true, why: null, open: false }).meeting,
+      title: "Discovery call",
+      source: "calendly",
+    },
+    label: "November 13, Friday at 4:30 pm",
+  };
+
+  it("Book with offers Google Calendar and Calendly, each with its mark; Calendly shows its own free times", async () => {
+    vi.mocked(calendarClient.calendlyOptions).mockResolvedValue(ok(READY) as never);
+    sheet();
+    const via = await screen.findByRole("radiogroup", { name: "Book with" });
+    expect(within(via).getByRole("radio", { name: "Google Calendar" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await userEvent.click(within(via).getByRole("radio", { name: "Calendly" }));
+    expect(await screen.findByText(/On/)).toHaveTextContent(
+      "On Discovery call (30 min), at the times it's free in Calendly.",
+    );
+    const slots = screen.getByRole("radiogroup", { name: "Free times" });
+    expect(
+      within(slots)
+        .getAllByRole("radio")
+        .map((r) => r.textContent),
+    ).toEqual(["4 pm", "4:30 pm"]);
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Day" }), "Saturday, November 14");
+    expect(
+      within(slots)
+        .getAllByRole("radio")
+        .map((r) => r.textContent),
+    ).toEqual(["11 am"]);
+  });
+
+  it("a time picked, Book on Calendly: booked, and it says Calendly sent the invite", async () => {
+    vi.mocked(calendarClient.calendlyOptions).mockResolvedValue(ok(READY) as never);
+    vi.mocked(calendarClient.scheduleCalendly).mockResolvedValue(ok(booked) as never);
+    const onScheduled = vi.fn();
+    sheet(MEERA, onScheduled);
+    await userEvent.click(await screen.findByRole("radio", { name: "Calendly" }));
+    expect(await screen.findByRole("button", { name: "Book on Calendly" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("radio", { name: "4:30 pm" }));
+    await userEvent.click(screen.getByRole("button", { name: "Book on Calendly" }));
+    expect(calendarClient.scheduleCalendly).toHaveBeenCalledWith({
+      leadId: MEERA.id,
+      startsAt: "2026-11-13T11:00:00.000Z",
+    });
+    expect(await screen.findByRole("heading", { name: "Booked in Calendly" })).toBeInTheDocument();
+    expect(screen.getByText("Calendly has sent Meera its own invite and reminders.")).toBeInTheDocument();
+    expect(onScheduled).toHaveBeenCalledWith(booked.meeting);
+  });
+
+  it("a lead Calendly can't book (no email): says why in words, nothing to pick", async () => {
+    vi.mocked(calendarClient.calendlyOptions).mockImplementation(
+      async (leadId?: string) =>
+        ok(
+          leadId
+            ? {
+                ready: {
+                  ready: false as const,
+                  why: "no_email" as const,
+                  message:
+                    "Meera has no email, and Calendly needs one to book. Add it to the lead, or book on Google Calendar.",
+                },
+                times: [],
+              }
+            : READY,
+        ) as never,
+    );
+    sheet();
+    await userEvent.click(await screen.findByRole("radio", { name: "Calendly" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Meera has no email, and Calendly needs one to book.",
+    );
+    expect(screen.getByRole("button", { name: "Book on Calendly" })).toBeDisabled();
+  });
+
+  it("a time taken meanwhile: says so, and reads the free times again", async () => {
+    vi.mocked(calendarClient.calendlyOptions).mockResolvedValue(ok(READY) as never);
+    vi.mocked(calendarClient.scheduleCalendly).mockResolvedValue({
+      ok: false,
+      status: 409,
+      code: "CALENDLY_TIME_TAKEN",
+      message: "That time isn't free in Calendly any more. Nothing was booked. Choose another.",
+    } as never);
+    sheet();
+    await userEvent.click(await screen.findByRole("radio", { name: "Calendly" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "4 pm" }));
+    const before = vi.mocked(calendarClient.calendlyOptions).mock.calls.length;
+    await userEvent.click(screen.getByRole("button", { name: "Book on Calendly" }));
+    expect(await screen.findByText(/That time isn't free in Calendly any more/)).toBeInTheDocument();
+    await waitFor(() => expect(vi.mocked(calendarClient.calendlyOptions).mock.calls.length).toBe(before + 1));
+  });
+
+  it("Google can't book now and Calendly can: Calendly first", async () => {
+    vi.mocked(calendarClient.scheduleReady).mockResolvedValue(
+      ok({
+        ready: false as const,
+        why: "connect" as const,
+        message: "Connect your Google Calendar to schedule meetings with a Meet link.",
+      }),
+    );
+    vi.mocked(calendarClient.calendlyOptions).mockResolvedValue(ok(READY) as never);
+    sheet();
+    expect(await screen.findByRole("radio", { name: "Calendly" })).toHaveAttribute("aria-checked", "true");
+    expect(await screen.findByRole("heading", { name: "Book on Calendly" })).toBeInTheDocument();
+  });
+
+  it("no Calendly booking link: no Book with, the Google sheet as before", async () => {
+    sheet();
+    expect(await screen.findByRole("heading", { name: "Schedule a meeting" })).toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup", { name: "Book with" })).not.toBeInTheDocument();
+  });
+
+  it("Google Calendar off but Calendly ready: the button is there", async () => {
+    vi.mocked(calendarClient.scheduleReady).mockResolvedValue(
+      ok({ ready: false as const, why: "off" as const, message: "Google Calendar is off in LUME." }),
+    );
+    vi.mocked(calendarClient.calendlyOptions).mockResolvedValue(ok(READY) as never);
+    render(<ScheduleMeeting lead={MEERA} tz={TZ} />);
+    expect(await screen.findByRole("button", { name: "Schedule a meeting" })).toBeInTheDocument();
+  });
+});
+
+describe("Book on Calendly with no lead chosen yet (review 2026-11-28)", () => {
+  it("asks Calendly nothing until a lead is picked", async () => {
+    vi.mocked(calendarClient.calendlyOptions).mockResolvedValue(
+      ok({ ready: { ready: true as const, link: null }, times: [] }) as never,
+    );
+    render(<ScheduleSheet lead={null} tz={TZ} onClose={vi.fn()} now={NOW} />);
+    await userEvent.click(await screen.findByRole("radio", { name: "Calendly" }));
+    expect(await screen.findByRole("searchbox", { name: "Find a lead" })).toBeInTheDocument();
+    // Once on opening (whether Calendly is set up), with no lead: never one for free times.
+    expect(vi.mocked(calendarClient.calendlyOptions).mock.calls.every((c) => c[0] === undefined)).toBe(true);
+    expect(screen.queryByRole("radiogroup", { name: "Free times" })).not.toBeInTheDocument();
   });
 });

@@ -192,3 +192,10 @@
     transition: none;
   }
 }
+
+/* The Stage row (owner 2026-11-27): the stage and, for a lost one, why. */
+.stageRow {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}

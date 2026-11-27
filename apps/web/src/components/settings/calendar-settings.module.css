@@ -243,6 +243,17 @@
 .ruleHead > div {
   flex: 1;
 }
+/* The first rule can't be switched off (owner 2026-11-27): it says so, where the others have their switch. */
+.always {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
 .ruleHead b {
   display: block;
   font-size: var(--fs-md);

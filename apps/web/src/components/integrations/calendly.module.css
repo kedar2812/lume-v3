@@ -286,3 +286,39 @@
     animation: none;
   }
 }
+
+/* Which links are for leads (owner 2026-11-27). A long link name wraps; it never runs out of the card. */
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.linksTitle {
+  margin: 6px 0 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.linkRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.linkSub {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.cant {
+  margin: 0;
+  padding: 0 0 0 16px;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.retry {
+  font: inherit;
+  font-weight: var(--fw-medium);
+  color: var(--accent-ink);
+}

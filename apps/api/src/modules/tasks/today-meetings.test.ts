@@ -62,6 +62,7 @@ describe("Today's calls (5C Task 9)", () => {
         status: "scheduled",
         lead: null,
         matchedBy: "attendee",
+        source: "google",
         reminder: null,
       },
       {
@@ -73,6 +74,7 @@ describe("Today's calls (5C Task 9)", () => {
         status: "scheduled",
         lead: { id: lead, name: "Dana Lead" },
         matchedBy: "attendee",
+        source: "google",
         reminder: null,
       },
     ]);

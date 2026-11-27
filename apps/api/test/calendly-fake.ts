@@ -20,6 +20,32 @@ export type FakeSubscription = {
   /** Calendly disables a subscription when its person loses access or the plan drops webhooks. */
   state?: "active" | "disabled";
 };
+/** One of the account's scheduling links (an event type), as the fake keeps it. */
+export type FakeLink = {
+  uri: string;
+  name: string;
+  duration: number;
+  owner: string;
+  active?: boolean;
+  paid?: boolean;
+  pooling?: string | null;
+  locations?: { kind: string; location?: string | null }[];
+  questions?: { name: string; required: boolean; enabled?: boolean }[];
+  /** Free start times (ISO), as Calendly's availability answers them. */
+  free?: string[];
+};
+/** A booking LUME made through the Scheduling API. */
+export type FakeBooking = {
+  uri: string;
+  event: string;
+  body: {
+    event_type: string;
+    start_time: string;
+    invitee: { name: string; email: string; timezone: string };
+    location?: { kind: string; location?: string };
+    questions_and_answers?: { question: string; answer: string; position: number }[];
+  };
+};
 export type CalendlyFake = {
   url: string;
   /** A token Calendly accepts. */
@@ -31,6 +57,14 @@ export type CalendlyFake = {
   /** A free plan: Calendly refuses every subscription. */
   freePlan: boolean;
   subscriptions: FakeSubscription[];
+  /** The account's links (event types): the organization's, or the token's person's own. */
+  links: FakeLink[];
+  /** Bookings made with POST /invitees, in order. */
+  bookings: FakeBooking[];
+  /** Scheduled events LUME cancelled. */
+  cancelled: string[];
+  /** The next booking's id (its invitee and event URIs end in it), for a test that must know it before. */
+  nextBookingId?: string;
   /** The next `count` calls answer with this status. */
   fail(status: number, count?: number): void;
   /** The token is revoked (every call 401) until restored. */
@@ -136,6 +170,92 @@ export async function startCalendlyFake(): Promise<CalendlyFake> {
       subscriptions.splice(i, 1);
       return send(res, 204);
     }
+    if (u.pathname === "/event_types" && req.method === "GET") {
+      const org = u.searchParams.get("organization");
+      if (org && !api.orgAdmin)
+        return send(res, 403, { title: "Permission Denied", message: "You do not have permission" });
+      const wantActive = u.searchParams.get("active") === "true";
+      return send(res, 200, {
+        collection: api.links
+          .filter((l) => !wantActive || l.active !== false)
+          .map((l) => ({
+            uri: l.uri,
+            name: l.name,
+            duration: l.duration,
+            active: l.active !== false,
+            scheduling_url: `https://calendly.com/maya/${l.uri.split("/").at(-1)}`,
+            pooling_type: l.pooling ?? null,
+            is_paid: !!l.paid,
+            profile: { name: l.owner, type: "User" },
+            locations: l.locations ?? null,
+            custom_questions: (l.questions ?? []).map((q) => ({
+              ...q,
+              enabled: q.enabled !== false,
+              type: "string",
+            })),
+          })),
+        pagination: { next_page_token: null },
+      });
+    }
+    if (u.pathname === "/event_type_available_times" && req.method === "GET") {
+      const l = api.links.find((x) => x.uri === u.searchParams.get("event_type"));
+      if (!l) return send(res, 404, { title: "Resource Not Found", message: "" });
+      const from = Date.parse(u.searchParams.get("start_time") ?? "");
+      const to = Date.parse(u.searchParams.get("end_time") ?? "");
+      if (!(to > from) || to - from > 7 * 24 * 3_600_000)
+        return send(res, 400, { title: "Invalid Argument", message: "The supplied parameters are invalid." });
+      return send(res, 200, {
+        collection: (l.free ?? [])
+          .filter((t) => Date.parse(t) >= from && Date.parse(t) < to)
+          .map((t) => ({ status: "available", start_time: t, invitees_remaining: 1 })),
+      });
+    }
+    if (u.pathname === "/invitees" && req.method === "POST") {
+      const b = JSON.parse((await readBody(req)) || "{}") as FakeBooking["body"];
+      const l = api.links.find((x) => x.uri === b.event_type);
+      if (!l) return send(res, 404, { title: "Resource Not Found", message: "" });
+      if (l.paid)
+        return send(res, 400, {
+          title: "Invalid Argument",
+          message: "Event types that require payment cannot be scheduled via the API.",
+        });
+      if (!(l.free ?? []).includes(b.start_time))
+        return send(res, 400, {
+          title: "Invalid Argument",
+          message: "The selected time is no longer available.",
+        });
+      const kinds = (l.locations ?? []).map((x) => x.kind);
+      if (kinds.length && (!b.location || !kinds.includes(b.location.kind)))
+        return send(res, 400, {
+          title: "Invalid Argument",
+          message: "Specified location kind is not configured for this event type.",
+        });
+      const asked = new Set((b.questions_and_answers ?? []).map((q) => q.question));
+      if ((l.questions ?? []).some((q) => q.required && q.enabled !== false && !asked.has(q.name)))
+        return send(res, 400, {
+          title: "Invalid Argument",
+          message: "Required Questions and Answers cannot be blank.",
+        });
+      const id = api.nextBookingId ?? randomBytes(8).toString("hex");
+      delete api.nextBookingId;
+      const booking: FakeBooking = {
+        uri: `${BASE}/scheduled_events/EV${id}/invitees/IN${id}`,
+        event: `${BASE}/scheduled_events/EV${id}`,
+        body: b,
+      };
+      api.bookings.push(booking);
+      l.free = (l.free ?? []).filter((t) => t !== b.start_time);
+      return send(res, 201, {
+        resource: { uri: booking.uri, event: booking.event, status: "active", scheduling_method: "api" },
+      });
+    }
+    const cancel = /^\/scheduled_events\/([^/]+)\/cancellation$/.exec(u.pathname);
+    if (cancel && req.method === "POST") {
+      const b = api.bookings.find((x) => x.event.endsWith(`/${cancel[1]}`));
+      if (!b) return send(res, 404, { title: "Resource Not Found", message: "" });
+      api.cancelled.push(b.event);
+      return send(res, 201, { resource: { canceled_by: "LUME", reason: "x" } });
+    }
     return send(res, 404, { title: "Resource Not Found", message: "Unknown path" });
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -150,6 +270,9 @@ export async function startCalendlyFake(): Promise<CalendlyFake> {
     freePlan: false,
     revoked: false,
     subscriptions,
+    links: [],
+    bookings: [],
+    cancelled: [],
     fail(status, count = 1) {
       failing = { status, left: count };
     },

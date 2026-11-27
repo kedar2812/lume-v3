@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { calendarClient } from "@/lib/calendar/client";
 import { leadsClient } from "@/lib/leads/client";
+import { listsClient } from "@/lib/settings/lists";
 import { pipelinesClient } from "@/lib/settings/pipelines";
 import { tasksClient } from "@/lib/tasks/client";
 import { LogOutcome } from "./LogOutcome";
@@ -10,6 +11,7 @@ import { LogOutcome } from "./LogOutcome";
 vi.mock("@/lib/calendar/client", () => ({ calendarClient: { patchMeeting: vi.fn() } }));
 vi.mock("@/lib/leads/client", () => ({ leadsClient: { get: vi.fn(), move: vi.fn() } }));
 vi.mock("@/lib/settings/pipelines", () => ({ pipelinesClient: { list: vi.fn() } }));
+vi.mock("@/lib/settings/lists", () => ({ listsClient: { reasons: vi.fn() } }));
 vi.mock("@/lib/tasks/client", () => ({ tasksClient: { create: vi.fn(), presets: vi.fn() } }));
 const ok = <T,>(data: T) => ({ ok: true as const, status: 200, data });
 
@@ -50,6 +52,7 @@ beforeEach(() => {
             stage("s-booked", "Call booked", 1),
             stage("s-done", "Call done", 2),
             stage("s-won", "Won", 3, "won"),
+            stage("s-lost", "Lost", 4, "lost"),
           ],
         },
       ],
@@ -62,6 +65,14 @@ beforeEach(() => {
         { id: "in_3d", label: "In 3 days" },
       ],
     }),
+  );
+  vi.mocked(listsClient.reasons).mockResolvedValue(
+    ok({
+      lostReasons: [
+        { id: "r-price", label: "Too expensive", position: 0 },
+        { id: "r-later", label: "Not now", position: 1 },
+      ],
+    }) as never,
   );
   vi.mocked(calendarClient.patchMeeting).mockResolvedValue(ok({}) as never);
   vi.mocked(leadsClient.move).mockResolvedValue(ok({}) as never);
@@ -84,8 +95,8 @@ describe("Log outcome", () => {
   it("Held: records it with the note, moves the lead on to the next open stage, and sets the next step", async () => {
     const onDone = open();
     await userEvent.click(await screen.findByRole("radio", { name: /Held/ }));
-    const move = await screen.findByRole("switch", { name: "Move Karim to Call done" });
-    expect(move).toHaveAttribute("aria-checked", "true");
+    // After Held, the stage starts on the next open one.
+    expect(await screen.findByRole("combobox", { name: "Stage" })).toHaveValue("s-done");
     await userEvent.type(screen.getByRole("textbox", { name: "Note" }), "Wants the annual plan");
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Next step" }), "In 3 days");
     await userEvent.click(screen.getByRole("button", { name: "Save outcome" }));
@@ -93,7 +104,7 @@ describe("Log outcome", () => {
       status: "completed",
       outcomeNote: "Wants the annual plan",
     });
-    expect(leadsClient.move).toHaveBeenCalledWith("l-karim", "s-done");
+    expect(leadsClient.move).toHaveBeenCalledWith("l-karim", "s-done", {});
     expect(tasksClient.create).toHaveBeenCalledWith("l-karim", {
       title: "Next step after Pricing walkthrough",
       due: { preset: "in_3d" },
@@ -104,7 +115,7 @@ describe("Log outcome", () => {
   it("No-show: no move; a Rebook follow-up, on by default", async () => {
     open();
     await userEvent.click(await screen.findByRole("radio", { name: /No-show/ }));
-    expect(screen.queryByRole("switch", { name: /^Move/ })).not.toBeInTheDocument();
+    expect(await screen.findByRole("combobox", { name: "Stage" })).toHaveValue("");
     expect(screen.getByRole("switch", { name: "Set a Rebook follow-up" })).toHaveAttribute(
       "aria-checked",
       "true",
@@ -118,10 +129,13 @@ describe("Log outcome", () => {
     });
   });
 
-  it("a switch turned off does nothing; Rescheduled just records it", async () => {
+  it("Stays: no move; Rescheduled just records it", async () => {
     open();
     await userEvent.click(await screen.findByRole("radio", { name: /Held/ }));
-    await userEvent.click(await screen.findByRole("switch", { name: "Move Karim to Call done" }));
+    await userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: "Stage" }),
+      "Stays in Call booked",
+    );
     await userEvent.click(screen.getByRole("radio", { name: /Rescheduled/ }));
     await userEvent.click(screen.getByRole("button", { name: "Save outcome" }));
     expect(calendarClient.patchMeeting).toHaveBeenCalledWith("m1", {
@@ -130,6 +144,96 @@ describe("Log outcome", () => {
     });
     expect(leadsClient.move).not.toHaveBeenCalled();
     expect(tasksClient.create).not.toHaveBeenCalled();
+  });
+
+  it("any stage, after any outcome: every stage of the lead's pipeline, in order, the one it's in first", async () => {
+    open();
+    await userEvent.click(await screen.findByRole("radio", { name: /Rescheduled/ }));
+    const pick = await screen.findByRole("combobox", { name: "Stage" });
+    expect([...(pick as HTMLSelectElement).options].map((o) => o.text)).toEqual([
+      "Stays in Call booked",
+      "New",
+      "Call done",
+      "Won",
+      "Lost",
+    ]);
+    await userEvent.selectOptions(pick, "New");
+    await userEvent.click(screen.getByRole("button", { name: "Save outcome" }));
+    expect(leadsClient.move).toHaveBeenCalledWith("l-karim", "s-new", {});
+  });
+
+  it("Held, then a stage picked, then another outcome: the stage picked stays", async () => {
+    open();
+    await userEvent.click(await screen.findByRole("radio", { name: /Held/ }));
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Stage" }), "Won");
+    await userEvent.click(screen.getByRole("radio", { name: /No-show/ }));
+    expect(screen.getByRole("combobox", { name: "Stage" })).toHaveValue("s-won");
+  });
+
+  it("Held then No-show, the stage untouched: back to Stays (a no-show never moves on its own)", async () => {
+    open();
+    await userEvent.click(await screen.findByRole("radio", { name: /Held/ }));
+    expect(await screen.findByRole("combobox", { name: "Stage" })).toHaveValue("s-done");
+    await userEvent.click(screen.getByRole("radio", { name: /No-show/ }));
+    expect(screen.getByRole("combobox", { name: "Stage" })).toHaveValue("");
+  });
+
+  it("Lost asks why, in the card; Save waits for a reason, and the move carries it", async () => {
+    open();
+    await userEvent.click(await screen.findByRole("radio", { name: /No-show/ }));
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Stage" }), "Lost");
+    const why = await screen.findByRole("combobox", { name: "Why was Karim lost?" });
+    expect(screen.getByRole("button", { name: "Save outcome" })).toBeDisabled();
+    await userEvent.selectOptions(why, "Too expensive");
+    await userEvent.click(screen.getByRole("button", { name: "Save outcome" }));
+    expect(leadsClient.move).toHaveBeenCalledWith("l-karim", "s-lost", { lostReasonId: "r-price" });
+  });
+
+  it("Lost with no lost reasons set up: says where they're added, and Save stays off", async () => {
+    vi.mocked(listsClient.reasons).mockResolvedValue(ok({ lostReasons: [] }) as never);
+    open();
+    await userEvent.click(await screen.findByRole("radio", { name: /Held/ }));
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Stage" }), "Lost");
+    expect(
+      await screen.findByText("There are no lost reasons yet. An admin can add them in Settings."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save outcome" })).toBeDisabled();
+  });
+
+  it("Lost picked, then another stage: the reason isn't asked, and Save is back", async () => {
+    open();
+    await userEvent.click(await screen.findByRole("radio", { name: /Held/ }));
+    const pick = await screen.findByRole("combobox", { name: "Stage" });
+    await userEvent.selectOptions(pick, "Lost");
+    await screen.findByRole("combobox", { name: "Why was Karim lost?" });
+    await userEvent.selectOptions(pick, "Won");
+    expect(screen.queryByRole("combobox", { name: /lost\?/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save outcome" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Save outcome" }));
+    expect(leadsClient.move).toHaveBeenCalledWith("l-karim", "s-won", {});
+  });
+
+  it("at the last open stage, Held starts on Stays", async () => {
+    vi.mocked(leadsClient.get).mockResolvedValue(
+      ok({
+        lead: { id: "l-karim", version: 3, pipelineId: "p1", stageId: "s-done", name: "Karim Aziz" },
+      }) as never,
+    );
+    open();
+    await userEvent.click(await screen.findByRole("radio", { name: /Held/ }));
+    expect(await screen.findByRole("combobox", { name: "Stage" })).toHaveValue("");
+  });
+
+  it("the lead can't be read: the outcome alone, no stage row", async () => {
+    vi.mocked(leadsClient.get).mockResolvedValue({
+      ok: false,
+      status: 404,
+      code: "NOT_FOUND",
+      message: "x",
+    } as never);
+    open();
+    await userEvent.click(await screen.findByRole("radio", { name: /Held/ }));
+    expect(screen.queryByRole("combobox", { name: "Stage" })).not.toBeInTheDocument();
   });
 
   it("Review Focus 4: logged by someone else meanwhile, it says who, keeps the note, and changes nothing more", async () => {
@@ -157,7 +261,7 @@ describe("Log outcome", () => {
     render(<LogOutcome meeting={{ ...MEETING, lead: null }} tz={TZ} onClose={vi.fn()} onDone={vi.fn()} />);
     expect(await screen.findByRole("dialog", { name: "How did it go?" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("radio", { name: /Held/ }));
-    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Stage" })).not.toBeInTheDocument();
   });
 
   it("Review: a move the pipeline refuses keeps the dialog: the outcome is saved, and it says what didn't happen", async () => {
@@ -169,7 +273,7 @@ describe("Log outcome", () => {
     } as never);
     const onDone = open();
     await userEvent.click(await screen.findByRole("radio", { name: /Held/ }));
-    await screen.findByRole("switch", { name: "Move Karim to Call done" });
+    expect(await screen.findByRole("combobox", { name: "Stage" })).toHaveValue("s-done");
     await userEvent.click(screen.getByRole("button", { name: "Save outcome" }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Outcome saved.");

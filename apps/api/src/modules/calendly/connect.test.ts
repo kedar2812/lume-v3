@@ -105,12 +105,16 @@ describe("connecting Calendly (5B Task 4)", () => {
       createLeads: false,
       rescheduleFollowUp: true,
       phoneQuestion: "Your WhatsApp number",
+      links: null,
+      bookWith: null,
     });
     expect((await call(admin, "PATCH", { phoneQuestion: "x".repeat(201) })).statusCode).toBe(400);
     expect((await call(admin, "PATCH", { createLeads: true, phoneQuestion: null })).json().settings).toEqual({
       createLeads: true,
       rescheduleFollowUp: true,
       phoneQuestion: null,
+      links: null,
+      bookWith: null,
     });
   });
 

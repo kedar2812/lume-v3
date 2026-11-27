@@ -569,6 +569,18 @@
   color: var(--text-2);
   white-space: nowrap;
 }
+/* The title, after where the meeting came from (owner 2026-11-27); the title is cut short, never the mark. */
+.blk .blkTitle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.blk .blkTitle > span:last-child {
+  overflow: hidden;
+  color: inherit;
+  text-overflow: ellipsis;
+}
 .blk[data-state="soon"]::before {
   background: var(--warn);
 }

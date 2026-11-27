@@ -5,6 +5,7 @@ import {
   dayStart,
   filterMeetings,
   meetingState,
+  sourceOf,
   readCalendarUrl,
   showsEveryone,
   weekBlocks,
@@ -214,5 +215,33 @@ describe("the address", () => {
       day: null,
       meeting: null,
     });
+  });
+});
+
+// Where a call came from, at a glance (owner 2026-11-27: "a clear proper indicator that differentiates calendly from
+// google calendar ... and filter calls").
+describe("where a meeting came from", () => {
+  const base = meet("x", "2026-10-01 10:00");
+  it("Calendly's own bookings, and the ones LUME booked on Calendly, are Calendly's", () => {
+    expect(sourceOf({ ...base, matchedBy: "calendly", source: "calendly" })).toBe("calendly");
+    expect(sourceOf({ ...base, matchedBy: "lume", source: "calendly" })).toBe("calendly");
+  });
+  it("LUME AI's calls are LUME AI's; the rest are on Google Calendar", () => {
+    expect(sourceOf({ ...base, matchedBy: "lume_ai", source: "lume" })).toBe("lume_ai");
+    expect(sourceOf({ ...base, matchedBy: "lume", source: "lume" })).toBe("google");
+    expect(sourceOf({ ...base, matchedBy: "attendee", source: "google" })).toBe("google");
+  });
+  it("From: keeps only that source's meetings; none keeps all", () => {
+    const ms = [
+      { ...base, id: "g", matchedBy: "attendee" as const, source: "google" as const },
+      { ...base, id: "c", matchedBy: "calendly" as const, source: "calendly" as const },
+      { ...base, id: "a", matchedBy: "lume_ai" as const, source: "lume" as const },
+    ];
+    const ids = (source: "google" | "calendly" | "lume_ai" | null) =>
+      filterMeetings(ms, { mineOf: null, stageId: null, source }).map((m) => m.id);
+    expect(ids("calendly")).toEqual(["c"]);
+    expect(ids("google")).toEqual(["g"]);
+    expect(ids("lume_ai")).toEqual(["a"]);
+    expect(ids(null)).toEqual(["g", "c", "a"]);
   });
 });

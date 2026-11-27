@@ -6,6 +6,26 @@ column in the release that stops using it.
 
 ## Unreleased
 
+- **Log outcome and Log a call move the lead to any stage** (clients 2026-11-27: "allow moving lead to any pipeline
+  stage via the log cards"): a Stage row with every stage of the lead's pipeline, the one it's in first as "Stays in
+  …". After Held it starts on the next open stage, as before; otherwise on Stays. A Lost stage asks its reason right
+  in the card; a stage that needs fields says so, with Open lead. The lead's drawer shows the new stage at once.
+- **Only leads' calls come in from Google Calendar** (clients 2026-11-27: "irrelevant data from calender ends up in
+  lume"): an event is kept only when a lead (not yet a customer) is invited to it. Title words and calendars in
+  Settings → Calendar now only narrow that; they never bring in an event without a lead. A client's sessions, once
+  they're won, stay out; a call from before the win stays. Unlinked meetings Google brought with nothing logged are
+  removed, and every calendar is read again in full.
+- **Calendly: which links are for leads** (Settings → Integrations → Calendly): a booking on any other link (a client's
+  session, a personal event type) is let go on arrival and never stored. Until someone chooses, every link counts,
+  and the card says so.
+- **Schedule a meeting on Calendly**: with LUME's booking link chosen in Settings, Schedule a meeting offers Book with
+  Google Calendar or Calendly. Calendly's own free times are offered, Calendly books it and sends the lead its invite
+  and reminders, and the meeting is on the lead at once (Calendly's post about it never makes a second one).
+- **Where each call came from, at a glance**: every meeting shows the company's own mark and name (Google Calendar,
+  Calendly, LUME AI) in the agenda, the week, the phone views, the meeting's drawer, the lead's Meetings and Today; the
+  Calendar has a From filter.
+- **Fixed:** a lost reason picked, then the stage asking for fields: the dialog said so but never showed them.
+
 - **LUME AI on Instagram, rough edges:** an account whose LUME AI run is paused says so on the Instagram card, why, and
   that the team answers meanwhile, with a link to the run; a run paused because Instagram couldn't be reached on the
   account carries on with the next message once it can, from someone new or someone it already holds (a pause someone

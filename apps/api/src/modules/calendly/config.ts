@@ -20,12 +20,24 @@ export type CalendlySettings = {
   rescheduleFollowUp: boolean;
   /** The booking question whose answer is the phone, when Calendly's own SMS number isn't asked. */
   phoneQuestion: string | null;
+  /**
+   * The links (event type URIs) whose bookings are leads' (owner 2026-11-27): a booking on any other is dropped on
+   * arrival, never stored. null (a Calendly connected before this) takes every link until an admin chooses.
+   */
+  links?: string[] | null;
+  /** LUME's booking link: the one LUME books calls on in Calendly (Schedule a meeting); one of `links`. */
+  bookWith?: string | null;
 };
 export const CALENDLY_DEFAULTS: CalendlySettings = {
   createLeads: true,
   rescheduleFollowUp: true,
   phoneQuestion: null,
+  links: null,
+  bookWith: null,
 };
+
+/** A booking on this link is a lead's: every link until chosen (null), else only the chosen ones. */
+export const leadLink = (s: CalendlySettings, link: string) => s.links == null || s.links.includes(link);
 
 /** Sealed in config_enc, bound to the source: the token and signing key never leave it. */
 export type CalendlyConfig = {

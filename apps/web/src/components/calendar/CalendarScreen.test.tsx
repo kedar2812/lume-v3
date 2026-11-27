@@ -13,6 +13,11 @@ vi.mock("@/lib/calendar/client", () => ({
   calendarClient: {
     meetings: vi.fn(),
     scheduleReady: vi.fn(async () => ({ ok: true, status: 200, data: { ready: true } })),
+    calendlyOptions: vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      data: { ready: { ready: false, why: "off", message: "Calendly isn't connected to LUME." }, times: [] },
+    })),
   },
 }));
 
@@ -135,6 +140,55 @@ describe("the Calendar page: whose and which", () => {
     await userEvent.click(screen.getByRole("menuitemradio", { name: "Won" }));
     expect(screen.queryByRole("group", { name: /Discovery call a/ })).not.toBeInTheDocument();
     expect(screen.getByRole("group", { name: /Discovery call w/ })).toBeInTheDocument();
+  });
+});
+
+// Owner 2026-11-27: "a clear proper indicator that differentiates calendly from google calendar ... and filter calls".
+describe("the Calendar page: where each call came from", () => {
+  const FROM = [
+    meet("g", "2026-10-01 09:00", { source: "google" }),
+    meet("c", "2026-10-01 11:00", { matchedBy: "calendly", source: "calendly" }),
+    meet("l", "2026-10-01 12:00", { matchedBy: "lume", source: "calendly" }),
+    meet("i", "2026-10-01 13:00", { matchedBy: "lume_ai", source: "lume" }),
+  ];
+  it("each meeting in the agenda says where it came from, in words beside the company's own mark", async () => {
+    vi.mocked(calendarClient.meetings).mockResolvedValue(ok({ meetings: FROM }));
+    view();
+    const row = (id: string) => screen.getByRole("group", { name: new RegExp(`Discovery call ${id}`) });
+    await screen.findByRole("group", { name: /Discovery call g/ });
+    expect(row("g")).toHaveTextContent("Google Calendar");
+    expect(row("c")).toHaveTextContent("Calendly");
+    // Booked in LUME on Calendly: it's Calendly's.
+    expect(row("l")).toHaveTextContent("Calendly");
+    expect(row("i")).toHaveTextContent("LUME AI");
+    expect(row("c").querySelector('img[src="/brand/calendly.svg"]')).not.toBeNull();
+    expect(row("g").querySelector('img[src="/brand/google-calendar.png"]')).not.toBeNull();
+  });
+
+  it("From keeps only that source's calls, and All sources brings them back", async () => {
+    vi.mocked(calendarClient.meetings).mockResolvedValue(ok({ meetings: FROM }));
+    view();
+    await screen.findByRole("group", { name: /Discovery call g/ });
+    await userEvent.click(screen.getByRole("button", { name: "All sources" }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "Calendly" }));
+    expect(screen.queryByRole("group", { name: /Discovery call g/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: /Discovery call i/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: /Discovery call c/ })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: /Discovery call l/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Calendly/ }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "All sources" }));
+    expect(screen.getByRole("group", { name: /Discovery call g/ })).toBeInTheDocument();
+  });
+
+  it("the week's blocks carry the mark, and say where they're from to a screen reader", async () => {
+    vi.mocked(calendarClient.meetings).mockResolvedValue(ok({ meetings: FROM }));
+    view({ initial: { view: "week", day: "2026-10-01", meeting: null } });
+    expect(
+      await screen.findByRole("button", { name: /Discovery call c, .*from Calendly/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Discovery call g, .*from Google Calendar/ }),
+    ).toBeInTheDocument();
   });
 });
 

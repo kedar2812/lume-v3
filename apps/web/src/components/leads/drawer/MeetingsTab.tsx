@@ -4,6 +4,7 @@ import type { Meeting } from "@/lib/calendar/types";
 import { shortDate } from "@/lib/dates";
 import { timeRange } from "./NextMeeting";
 import m from "./meetings.module.css";
+import { SourceMark } from "@/components/calendar/SourceMark";
 
 const OUTCOME: Partial<Record<Meeting["status"], { label: string; tone: string }>> = {
   completed: { label: "Held", tone: "ok" },
@@ -46,7 +47,8 @@ export function MeetingsTab({
         <i className={m.rule} aria-hidden />
         <span className={m.rowBody}>
           <b>{x.title}</b>
-          <span>
+          <span className={m.rowWhen}>
+            <SourceMark m={x} />
             {shortDate(start, tz)}, {timeRange(start, new Date(x.endsAt), tz)}
           </span>
           {x.outcomeNote && <span className={m.noteText}>{x.outcomeNote}</span>}

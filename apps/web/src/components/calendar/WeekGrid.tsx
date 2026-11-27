@@ -1,9 +1,17 @@
 "use client";
 import { useMemo } from "react";
-import { dayStart, meetingState, WEEK_FROM_HOUR, WEEK_TO_HOUR, weekBlocks } from "@/lib/calendar/agenda";
+import {
+  dayStart,
+  meetingState,
+  sourceOf,
+  WEEK_FROM_HOUR,
+  WEEK_TO_HOUR,
+  weekBlocks,
+} from "@/lib/calendar/agenda";
 import type { Meeting } from "@/lib/calendar/types";
 import { timeOf } from "@/lib/dates";
 import s from "./calendar.module.css";
+import { SourceMark, SOURCE_NAME } from "./SourceMark";
 
 const HOURS = WEEK_TO_HOUR - WEEK_FROM_HOUR;
 /** Pixels per minute: an hour is 48 px tall. */
@@ -93,10 +101,14 @@ export function WeekGrid({
                         width: `calc(${100 / b.lanes}% - 6px)`,
                       }),
                     }}
-                    aria-label={`${m.title}, ${start}, ${m.lead?.name ?? "not with a lead yet"}`}
+                    aria-label={`${m.title}, ${start}, ${m.lead?.name ?? "not with a lead yet"}, from ${SOURCE_NAME[sourceOf(m)]}`}
+                    data-source={sourceOf(m)}
                     onClick={() => onOpen(m.id)}
                   >
-                    <b>{m.title}</b>
+                    <b className={s.blkTitle}>
+                      <SourceMark m={m} />
+                      <span>{m.title}</span>
+                    </b>
                     <span>
                       {b.clipped === "after" ? `${start} ↓` : b.clipped === "before" ? `${start} ↑` : start}
                       {m.lead ? ` · ${m.lead.name}` : ""}

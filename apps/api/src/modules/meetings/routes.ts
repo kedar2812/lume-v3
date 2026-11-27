@@ -5,6 +5,7 @@ import type { AppDeps } from "../../app";
 import { scheduleMeetingSchema } from "@lume/core";
 import { badRequest, forbidden } from "../../http/errors";
 import { maySchedule, scheduleMeeting, scheduleReady } from "./schedule";
+import { calendlyOptions, scheduleOnCalendly } from "./schedule-calendly";
 import { leadMeetings, listMeetings, patchMeeting } from "./service";
 
 const view = { permission: "calendar.view" as const };
@@ -36,6 +37,21 @@ export async function meetingRoutes(app: FastifyInstance, d: AppDeps): Promise<v
   );
   // Schedule a meeting (owner, 2026-11-13): whether this person can now, and booking one with a Meet link.
   r.get("/api/v1/meetings/schedule/ready", { config: view }, (req) => scheduleReady(req, d));
+  // On Calendly (owner 2026-11-27): ready or why not, the booking link's free times, and booking one.
+  r.get(
+    "/api/v1/meetings/schedule/calendly",
+    { config: view, schema: { querystring: z.object({ leadId: z.uuid().optional() }).strict() } },
+    (req) => calendlyOptions(req, d, req.query.leadId ?? null),
+  );
+  r.post(
+    "/api/v1/meetings/schedule/calendly",
+    { config: view, schema: { body: z.object({ leadId: z.uuid(), startsAt: z.string().max(40) }).strict() } },
+    async (req, reply) => {
+      // Who may book: whoever may schedule a meeting on Google (review 2026-11-28: the same people, either way).
+      if (!maySchedule(req)) throw forbidden();
+      return reply.code(201).send(await scheduleOnCalendly(req, d, req.body));
+    },
+  );
   r.post(
     "/api/v1/meetings/schedule",
     // The body is checked by the core schema here, so a refusal says what's wrong in words.

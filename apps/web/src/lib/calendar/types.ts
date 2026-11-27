@@ -38,7 +38,9 @@ export type Meeting = {
   link: string | null;
   location: string | null;
   ownerId: string;
-  matchedBy: "attendee" | "title" | "calendar" | "calendly" | "lume_ai" | "lume";
+  matchedBy: "attendee" | "title" | "calendar" | "calendly" | "lume_ai" | "lume" | "person";
+  /** Where it lives: Google Calendar, Calendly, or LUME's own calls (on Google with a Meet link). */
+  source?: "google" | "calendly" | "lume";
   outcomeNote: string | null;
   lead: { id: string; name: string; pipelineId: string; stageId: string } | null;
 };
@@ -57,6 +59,31 @@ export type CalendlySettings = {
   createLeads: boolean;
   rescheduleFollowUp: boolean;
   phoneQuestion: string | null;
+  /** The links whose bookings are leads' (event type URIs); null or missing: every link. */
+  links?: string[] | null;
+  /** LUME's booking link, the one it books calls on. */
+  bookWith?: string | null;
+};
+
+/** One of the Calendly account's scheduling links, for Settings (owner 2026-11-27). */
+export type CalendlyLink = {
+  uri: string;
+  name: string;
+  duration: number;
+  schedulingUrl: string;
+  owner: string | null;
+  /** Its bookings come into LUME. */
+  forLeads: boolean;
+  /** LUME can book calls on it; otherwise why not. */
+  bookable: boolean;
+  why?: string;
+};
+export type CalendlyLinks = {
+  every: boolean;
+  /** The links saved; one Calendly didn't list this time stays saved. */
+  saved?: string[] | null;
+  bookWith: string | null;
+  links: CalendlyLink[];
 };
 
 /** Settings → Integrations → Calendly: never the token or the signing key. */
@@ -87,3 +114,15 @@ export type Scheduled = {
   message: string;
   whatsapp: { send: boolean; why: string | null; open: boolean };
 };
+
+/** Booking on Calendly (owner 2026-11-27): ready or why not, in words, and the link's free start times. */
+export type CalendlyReady =
+  /** `link` is null when only LUME's settings were read (no lead chosen yet: Calendly isn't asked). */
+  | { ready: true; link: { name: string; duration: number } | null }
+  | {
+      ready: false;
+      why: "off" | "no_link" | "link_gone" | "not_bookable" | "no_email" | "no_phone";
+      message: string;
+    };
+export type CalendlyOptions = { ready: CalendlyReady; times: string[] };
+export type CalendlyScheduled = { meeting: Meeting; label: string };

@@ -37,7 +37,9 @@ export type TodayMeeting = {
   link: string | null;
   status: "scheduled" | "completed" | "no_show" | "rescheduled" | "cancelled";
   lead: { id: string; name: string } | null;
-  matchedBy: "attendee" | "title" | "calendar" | "calendly" | "lume_ai" | "lume";
+  matchedBy: "attendee" | "title" | "calendar" | "calendly" | "lume_ai" | "lume" | "person";
+  /** Where it lives: Google Calendar, Calendly, or LUME's own calls. */
+  source?: "google" | "calendly" | "lume";
   /** Its WhatsApp reminder (the stage rule's): when it's due, or when it was sent. */
   reminder: { at: string; sent: boolean } | null;
 };

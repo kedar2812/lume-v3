@@ -10,6 +10,7 @@ import {
   dayStart,
   filterMeetings,
   meetingState,
+  type MeetingSource,
   writeCalendarUrl,
   type CalendarUrl,
 } from "@/lib/calendar/agenda";
@@ -27,6 +28,7 @@ import { ScheduleMeeting } from "./ScheduleMeeting";
 import { ConnectCalendar } from "./ConnectCalendar";
 import { LinkLeadSheet } from "./LinkLeadSheet";
 import { LogOutcome } from "./LogOutcome";
+import { SOURCE_NAME, SourceIcon } from "./SourceMark";
 import { NewLeadSheet } from "@/components/leads/NewLeadSheet";
 import type { Session } from "@/server/session";
 import { CatalogProvider } from "@/components/leads/CatalogProvider";
@@ -147,6 +149,8 @@ export function CalendarScreen({
   const [open, setOpen] = useState<string | null>(initial.meeting);
   const [mine, setMine] = useState(!everyone);
   const [stageId, setStageId] = useState<string | null>(null);
+  /** From (owner 2026-11-27: "filter calls"): Google Calendar, Calendly or LUME AI; null for all. */
+  const [from, setFrom] = useState<MeetingSource | null>(null);
   const [meetings, setMeetings] = useState<Meeting[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   /** The meeting whose outcome is being logged (Task 11). */
@@ -227,8 +231,8 @@ export function CalendarScreen({
   }, [view, day, open, today]);
 
   const shown = useMemo(
-    () => filterMeetings(meetings ?? [], { mineOf: mine ? me : null, stageId }),
-    [meetings, mine, me, stageId],
+    () => filterMeetings(meetings ?? [], { mineOf: mine ? me : null, stageId, source: from }),
+    [meetings, mine, me, stageId, from],
   );
   const week = useMemo(() => weekOf(day, weekStart), [day, weekStart]);
   const step = view === "week" ? 7 : 1;
@@ -345,6 +349,48 @@ export function CalendarScreen({
                     >
                       {st.id && <i className={s.dot} style={{ background: tokenColor(st.color) }} />}
                       {st.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Popover>
+            <Popover
+              label="From"
+              role="menu"
+              triggerClassName={s.chip}
+              active={!!from}
+              trigger={
+                <>
+                  {from && (
+                    <span data-source={from}>
+                      <SourceIcon src={from} />
+                    </span>
+                  )}
+                  {from ? SOURCE_NAME[from] : "All sources"}
+                  <Chevron />
+                </>
+              }
+            >
+              {(close) => (
+                <div className={s.menu}>
+                  {([null, "google", "calendly", "lume_ai"] as const).map((src) => (
+                    <button
+                      key={src ?? "all"}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={src === from}
+                      className={s.menuItem}
+                      onClick={() => {
+                        close();
+                        setFrom(src);
+                      }}
+                    >
+                      {src && (
+                        <span data-source={src}>
+                          <SourceIcon src={src} />
+                        </span>
+                      )}
+                      {src ? SOURCE_NAME[src] : "All sources"}
                     </button>
                   ))}
                 </div>

@@ -217,9 +217,9 @@ const SCENES: Scene[] = [
       await r.zoom(main.getByText("Calendly bookings arrive on their own").first());
       await r.hold(1100);
       await r.zoom(null);
-      await r.moveTo(main.getByAltText("From Calendly").first());
+      await r.moveTo(main.locator('[data-source="calendly"]').first());
       await r.hold(700);
-      await r.moveTo(main.getByAltText("From Google Calendar").first());
+      await r.moveTo(main.locator('[data-source="google"]').first());
       await r.hold(700);
       await r.click(
         main

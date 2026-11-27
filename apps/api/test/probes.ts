@@ -107,6 +107,7 @@ export const PROBES: Record<string, Probe> = {
   },
   "PATCH /api/v1/integrations/calendly": { access: "integrations.manage", body: () => ({}) },
   "DELETE /api/v1/integrations/calendly": { access: "integrations.manage" },
+  "GET /api/v1/integrations/calendly/links": { access: "integrations.manage" },
   "PUT /api/v1/settings/calendar": {
     access: "settings.manage",
     body: () => ({ rules: { attendeeIsLead: true, titleWords: [], calendarIds: [] } }),
@@ -178,6 +179,8 @@ export const PROBES: Record<string, Probe> = {
   // Schedule a meeting (2026-11-13): who can now, and booking one (a bare body is refused in words, 400).
   "GET /api/v1/meetings/schedule/ready": { access: "calendar.view" },
   "POST /api/v1/meetings/schedule": { access: "calendar.view", body: () => ({}) },
+  "GET /api/v1/meetings/schedule/calendly": { access: "calendar.view" },
+  "POST /api/v1/meetings/schedule/calendly": { access: "calendar.view", body: () => ({}) },
   "PATCH /api/v1/meetings/:id": {
     access: "calendar.view",
     path: () => `/api/v1/meetings/${uuid}`,

@@ -1,12 +1,12 @@
 "use client";
 import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
-import { AiGlyph } from "@/components/ai/AiGlyph";
 import { Avatar } from "@/components/ui/Avatar";
 import { meetingState, type AgendaDay } from "@/lib/calendar/agenda";
 import type { Meeting } from "@/lib/calendar/types";
 import { timeOf } from "@/lib/dates";
 import { tokenColor } from "@/lib/leads/colors";
 import s from "./calendar.module.css";
+import { SourceMark } from "./SourceMark";
 
 const OUTCOME: Record<string, { label: string; tone: "ok" | "bad" | "mute" }> = {
   completed: { label: "Held", tone: "ok" },
@@ -21,22 +21,8 @@ export function soonWords(m: Meeting, now: Date): string {
   return mins > 0 ? `in ${mins} min` : "now";
 }
 
-/** The mark of where a meeting came from: LUME AI's or Calendly's own, else Google Calendar's (on white). */
-export function SourceMark({ m }: { m: Meeting }) {
-  if (m.matchedBy === "lume_ai")
-    return (
-      <span className={s.gtile} role="img" aria-label="Booked by LUME AI">
-        <AiGlyph size={12} />
-      </span>
-    );
-  return m.matchedBy === "calendly" ? (
-    <img className={s.mark} src="/brand/calendly.svg" alt="From Calendly" width={16} height={16} />
-  ) : (
-    <span className={s.gtile}>
-      <img src="/brand/google-calendar.png" alt="From Google Calendar" width={12} height={12} />
-    </span>
-  );
-}
+/** The mark of where a meeting came from: one component everywhere (owner 2026-11-27). */
+export { SourceMark };
 
 /**
  * The agenda (canvas Main): each day under its date rule, each meeting with its time, the 3px rule (blue to
@@ -126,7 +112,7 @@ export function Agenda({
                           {stage.name}
                         </span>
                       )}
-                      <SourceMark m={m} />
+                      <SourceMark m={m} words />
                       <Avatar name={owner} size={20} />
                     </span>
                   </span>

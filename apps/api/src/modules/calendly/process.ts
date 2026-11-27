@@ -251,6 +251,27 @@ export async function processCalendlyEvent(o: ProcessDeps, ev: Event, src: Sourc
             { column: null, code: "BAD_BOOKING", message: "Calendly's post had no booking LUME could read." },
           ],
         }));
+      // A booking LUME made itself (Schedule a meeting on Calendly, owner 2026-11-27): its meeting is already on the
+      // lead, with the history, the move and the notice done. Calendly's post only brings its link and place. One
+      // booking at a time (the lock Schedule a meeting holds too): whichever comes second finds the other's meeting.
+      await req.db.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtext('calendly_booking'), hashtext(${inv.uri}))`,
+      );
+      const ours = await ownBooking(req, inv.uri);
+      if (ours) {
+        await req.db.execute(sql`SELECT set_config('lume.calendar_sweep', 'on', true)`);
+        await req.db.execute(sql`
+          UPDATE meetings SET link = COALESCE(${cut(inv.link, 2000)}, link), location = COALESCE(${cut(inv.location, 1000)}, location),
+                 updated_at = now(), version = version + 1
+           WHERE id = ${ours.id}`);
+        await req.db.execute(sql`SELECT set_config('lume.calendar_sweep', '', true)`);
+        return void (await finish(req, ev.id, {
+          status: "done",
+          result: null,
+          leadId: ours.leadId,
+          problems: [],
+        }));
+      }
 
       // The lead: matched or made by the intake engine (new leads switched on), else only matched.
       let leadId: string | null = null;
@@ -384,6 +405,23 @@ export async function processCalendlyEvent(o: ProcessDeps, ev: Event, src: Sourc
       .catch((err: unknown) =>
         o.app.log.error({ err }, "couldn't queue a Reschedule reminder; the sweeper will"),
       );
+  }
+}
+
+/** The meeting LUME already holds for this invitee, whoever's it is (read as LUME's sweep). */
+async function ownBooking(
+  req: FastifyRequest,
+  uri: string,
+): Promise<{ id: string; leadId: string | null } | null> {
+  await req.db.execute(sql`SELECT set_config('lume.calendar_sweep', 'on', true)`);
+  try {
+    const r = await req.db.execute<{ id: string; lead_id: string | null }>(
+      sql`SELECT id, lead_id FROM meetings WHERE source = 'calendly' AND external_id = ${uri} LIMIT 1`,
+    );
+    const m = r.rows[0];
+    return m ? { id: m.id, leadId: m.lead_id } : null;
+  } finally {
+    await req.db.execute(sql`SELECT set_config('lume.calendar_sweep', '', true)`);
   }
 }
 

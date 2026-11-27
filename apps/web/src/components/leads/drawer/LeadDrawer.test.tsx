@@ -32,8 +32,22 @@ vi.mock("@/lib/calendar/client", () => ({
   calendarClient: {
     leadMeetings: vi.fn(async () => ({ ok: true, status: 200, data: { meetings: [] } })),
     scheduleReady: vi.fn(async () => ({ ok: true, status: 200, data: { ready: true } })),
+    calendlyOptions: vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      data: { ready: { ready: false, why: "off", message: "Calendly isn't connected to LUME." }, times: [] },
+    })),
+    patchMeeting: vi.fn(async () => ({ ok: true, status: 200, data: {} })),
   },
 }));
+vi.mock("@/lib/settings/pipelines", async () => {
+  const { testCatalog } = await import("@/lib/leads/test-catalog");
+  return {
+    pipelinesClient: {
+      list: vi.fn(async () => ({ ok: true, status: 200, data: { pipelines: testCatalog().pipelines } })),
+    },
+  };
+});
 vi.mock("@/lib/templates/client", () => ({
   templatesClient: {
     list: vi.fn(async () => ({ ok: true, status: 200, data: { templates: [] } })),
@@ -655,6 +669,54 @@ describe("LeadDrawer: meetings (5D Task 11)", () => {
     answerFirst(ok({ meetings: [meeting("a", "Old lead's call", first.id)] }));
     await new Promise((r) => setTimeout(r, 0));
     expect(screen.getByRole("region", { name: "Next meeting" })).toHaveTextContent("Pricing walkthrough");
+  });
+
+  // Owner 2026-11-27 (any stage from the log cards): a move made in Log outcome shows on the drawer at once.
+  it("Log outcome moves the lead: the drawer shows where it went", async () => {
+    const { calendarClient } = await import("@/lib/calendar/client");
+    const past = new Date(Date.now() - 3 * 3_600_000);
+    vi.mocked(calendarClient.leadMeetings).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        meetings: [
+          {
+            id: "m-past",
+            title: "Discovery call",
+            startsAt: past.toISOString(),
+            endsAt: new Date(past.getTime() + 1_800_000).toISOString(),
+            status: "scheduled",
+            link: null,
+            location: null,
+            ownerId: "00000000-0000-7000-8000-000000000001",
+            matchedBy: "attendee",
+            outcomeNote: null,
+            lead: { id: "l1", name: "Aisha Khan", pipelineId: "p1", stageId: "s-new" },
+          },
+        ],
+      },
+    } as never);
+    vi.mocked(leadsClient.move).mockResolvedValue(ok({ lead: testLead({ stageId: "s-sent" }) }));
+    const session = fakeSession({
+      permissions: [
+        { key: "leads.view", scope: "own" },
+        { key: "leads.edit", scope: "own" },
+        { key: "calendar.view", scope: "own" },
+      ],
+      capabilities: { sheets: false, calendar: true },
+    });
+    const h = open(testLead(), session);
+    await userEvent.click(await screen.findByRole("tab", { name: /Meetings/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "Log outcome" }));
+    await userEvent.click(await screen.findByRole("radio", { name: /Held/ }));
+    // The lead read again after the move says where it is now.
+    vi.mocked(leadsClient.get).mockResolvedValue(ok({ lead: testLead({ stageId: "s-sent" }) }));
+    expect(await screen.findByRole("combobox", { name: "Stage" })).toHaveValue("s-sent");
+    await userEvent.click(screen.getByRole("button", { name: "Save outcome" }));
+    await vi.waitFor(() => expect(leadsClient.move).toHaveBeenCalledWith("l1", "s-sent", {}));
+    await vi.waitFor(() =>
+      expect(h.onChanged).toHaveBeenCalledWith(expect.objectContaining({ stageId: "s-sent" })),
+    );
   });
 
   it("without calendar.view, no meetings are asked for or shown", async () => {

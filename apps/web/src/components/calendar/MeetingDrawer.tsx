@@ -16,11 +16,12 @@ import s from "./calendar.module.css";
 /** Why LUME kept this event, in words: the rule that matched it. */
 const WHY: Record<Meeting["matchedBy"], string> = {
   attendee: "A lead is invited to it.",
-  title: "Its title has one of your calendar words.",
-  calendar: "It's on a calendar LUME keeps whole.",
+  title: "A lead is invited to it, and its title has one of your calendar words.",
+  calendar: "A lead is invited to it, on a calendar LUME reads.",
   calendly: "It was booked through Calendly.",
   lume_ai: "LUME AI booked it in a WhatsApp chat, at a time you gave it.",
   lume: "It was scheduled in LUME, with a Google Meet link.",
+  person: "Someone linked it to the lead.",
 };
 const OUTCOME: Partial<Record<Meeting["status"], string>> = {
   completed: "Held",
@@ -225,10 +226,15 @@ export function MeetingDrawer({
           <dl className={s.kv}>
             <dt>Whose meeting</dt>
             <dd>{owner ?? "Someone who has left"}</dd>
+            <dt>From</dt>
+            <dd className={s.why}>
+              <SourceMark m={m} words />
+            </dd>
             <dt>Why it&apos;s here</dt>
             <dd className={s.why}>
-              <SourceMark m={m} />
-              {WHY[m.matchedBy]}
+              {m.matchedBy === "lume" && m.source === "calendly"
+                ? "It was booked in LUME on Calendly, and Calendly sent the invite."
+                : WHY[m.matchedBy]}
             </dd>
             {m.location && (
               <>

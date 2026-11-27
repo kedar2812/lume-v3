@@ -8,8 +8,10 @@ import { calendarClient } from "@/lib/calendar/client";
 import type { MeetingOutcome } from "@/lib/calendar/types";
 import { nearDay, timeOf } from "@/lib/dates";
 import { leadsClient } from "@/lib/leads/client";
-import type { Stage } from "@/lib/leads/types";
+import type { LostReason, Stage } from "@/lib/leads/types";
+import { listsClient } from "@/lib/settings/lists";
 import { pipelinesClient } from "@/lib/settings/pipelines";
+import { choiceReady, moveOf, StagePick, STAYS, type StageChoice } from "@/components/leads/StagePick";
 import { tasksClient } from "@/lib/tasks/client";
 import s from "./outcome.module.css";
 import { roving } from "@/lib/roving";
@@ -46,10 +48,11 @@ const ICON: Record<MeetingOutcome, string> = {
 };
 
 /**
- * Log outcome (canvas LogOutcome): Held, No-show or Rescheduled, with a note. Held can move the lead on to its
- * pipeline's next open stage; a no-show can set a Rebook follow-up; either can set a next step from the
- * follow-up presets. Saving records the outcome first; only once that's accepted do the move and the
- * follow-up happen. Logged by someone else meanwhile, it says who and keeps the note typed.
+ * Log outcome (canvas LogOutcome): Held, No-show or Rescheduled, with a note. Any outcome can move the lead to any
+ * stage of its pipeline (owner 2026-11-27); after Held it starts on the next open stage, otherwise on Stays. A no-show
+ * can set a Rebook follow-up; either can set a next step from the follow-up presets. Saving records the outcome
+ * first; only once that's accepted do the move and the follow-up happen. Logged by someone else meanwhile, it says
+ * who and keeps the note typed.
  */
 export function LogOutcome({
   meeting: m,
@@ -65,8 +68,11 @@ export function LogOutcome({
   const first = m.lead ? (m.lead.name.trim().split(/\s+/)[0] ?? m.lead.name) : "";
   const [choice, setChoice] = useState<MeetingOutcome | null>(null);
   const [note, setNote] = useState("");
-  const [nextStage, setNextStage] = useState<Stage | null>(null);
-  const [move, setMove] = useState(true);
+  /** The lead's pipeline's stages in order, and where the lead is now (null until read, or when it can't be). */
+  const [path, setPath] = useState<{ stages: Stage[]; currentId: string } | null>(null);
+  /** A stage the person picked; until then the outcome decides (Held: the next open stage; otherwise Stays). */
+  const [picked, setPicked] = useState<StageChoice | null>(null);
+  const [reasons, setReasons] = useState<LostReason[] | null>(null);
   const [rebook, setRebook] = useState(true);
   const [presets, setPresets] = useState<{ id: string; label: string }[]>([]);
   const [step, setStep] = useState("");
@@ -75,7 +81,7 @@ export function LogOutcome({
   /** Saved, but something after it didn't happen (a move the pipeline refused, a follow-up not set). */
   const [unfinished, setUnfinished] = useState<string[] | null>(null);
 
-  // The lead's pipeline, for "Move to the next stage", and the follow-up time choices.
+  // The lead's pipeline, for the Stage row, and the follow-up time choices.
   useEffect(() => {
     void tasksClient.presets().then((r) => r.ok && setPresets(r.data.presets));
     if (!m.lead) return;
@@ -84,10 +90,22 @@ export function LogOutcome({
       const pipeline = p.data.pipelines.find((x) => x.id === l.data.lead.pipelineId);
       if (!pipeline) return;
       const stages = [...pipeline.stages].sort((a, b) => a.position - b.position);
-      const at = stages.findIndex((x) => x.id === l.data.lead.stageId);
-      setNextStage(at < 0 ? null : (stages.slice(at + 1).find((x) => x.kind === "open") ?? null));
+      const currentId = l.data.lead.stageId;
+      if (currentId && stages.some((x) => x.id === currentId)) setPath({ stages, currentId });
     });
   }, [m.lead]);
+
+  const at = path ? path.stages.findIndex((x) => x.id === path.currentId) : -1;
+  const nextOpen = path ? (path.stages.slice(at + 1).find((x) => x.kind === "open") ?? null) : null;
+  const stageChoice: StageChoice =
+    picked ?? (choice === "completed" && nextOpen ? { stageId: nextOpen.id, lostReasonId: "" } : STAYS);
+  const lostPicked = path?.stages.find((x) => x.id === stageChoice.stageId)?.kind === "lost";
+  // A lost stage asks why: the reasons are read once one is picked.
+  useEffect(() => {
+    if (!lostPicked || reasons) return;
+    void listsClient.reasons().then((r) => setReasons(r.ok ? r.data.lostReasons : []));
+  }, [lostPicked, reasons]);
+  const ready = !m.lead || !path || choiceReady(stageChoice, path.stages);
 
   const save = async () => {
     if (!choice) return;
@@ -101,9 +119,10 @@ export function LogOutcome({
     // The outcome is recorded; each step after it is checked, and one that didn't happen is said, never hidden.
     const missed: string[] = [];
     if (m.lead) {
-      if (choice === "completed" && move && nextStage) {
-        const r = await leadsClient.move(m.lead.id, nextStage.id);
-        if (!r.ok) missed.push(`${first} wasn't moved to ${nextStage.name}: ${r.message.replace(/\.$/, "")}`);
+      const mv = path ? moveOf(stageChoice, path.stages) : null;
+      if (mv) {
+        const r = await leadsClient.move(m.lead.id, mv.stage.id, mv.extra);
+        if (!r.ok) missed.push(`${first} wasn't moved to ${mv.stage.name}: ${r.message.replace(/\.$/, "")}`);
       }
       if (choice === "no_show" && rebook && presets[0]) {
         const r = await tasksClient.create(m.lead.id, {
@@ -189,8 +208,15 @@ export function LogOutcome({
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
-          {m.lead && choice === "completed" && nextStage && (
-            <Switch label={`Move ${first} to ${nextStage.name}`} checked={move} onChange={setMove} />
+          {m.lead && path && (
+            <StagePick
+              first={first}
+              stages={path.stages}
+              currentId={path.currentId}
+              value={stageChoice}
+              reasons={reasons}
+              onChange={setPicked}
+            />
           )}
           {m.lead && choice === "no_show" && presets.length > 0 && (
             <Switch label="Set a Rebook follow-up" checked={rebook} onChange={setRebook} />
@@ -244,7 +270,12 @@ export function LogOutcome({
             <button type="button" className={s.later} onClick={onClose}>
               Later
             </button>
-            <button type="button" className={s.save} disabled={!choice || busy} onClick={() => void save()}>
+            <button
+              type="button"
+              className={s.save}
+              disabled={!choice || busy || !ready}
+              onClick={() => void save()}
+            >
               Save outcome
             </button>
           </>

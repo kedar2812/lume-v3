@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Switch } from "@/components/ui/Switch";
+import { CalendlyLinks } from "./CalendlyLinks";
 import { calendarClient } from "@/lib/calendar/client";
 import type { CalendlySettings, CalendlyView } from "@/lib/calendar/types";
 import { usePlan } from "@/components/licence/LicenceProvider";
@@ -67,6 +68,13 @@ export function CalendlyCard({ initial }: { initial: CalendlyView }) {
       return setError(r.message);
     }
     setView(r.data);
+  };
+  /** The links' own saves: the card's view follows, and a refusal is said by the links themselves. */
+  const saveLinks = async (p: Partial<CalendlySettings>): Promise<string | null> => {
+    const r = await calendarClient.patchCalendly(p);
+    if (!r.ok) return r.message;
+    setView(r.data);
+    return null;
   };
 
   const disconnect = async () => {
@@ -206,6 +214,7 @@ export function CalendlyCard({ initial }: { initial: CalendlyView }) {
         Connected as <b>{view.account.name}</b> ({view.account.email})
         {view.runAs ? ` · leads and moves are made in ${view.runAs.name}'s name` : ""}
       </p>
+      <CalendlyLinks onSave={saveLinks} />
       <ul className={s.settings}>
         <li>
           <Switch

@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import { z } from "zod";
 import type { AppDeps } from "../../app";
-import { calendlyView, connectCalendly, disconnectCalendly, patchCalendly } from "./service";
+import { calendlyLinks, calendlyView, connectCalendly, disconnectCalendly, patchCalendly } from "./service";
 
 const manage = { permission: "integrations.manage" as const };
 
@@ -10,6 +10,7 @@ const manage = { permission: "integrations.manage" as const };
 export async function calendlyRoutes(app: FastifyInstance, d: AppDeps): Promise<void> {
   const r = app.withTypeProvider<ZodTypeProvider>();
   r.get("/api/v1/integrations/calendly", { config: manage }, (req) => calendlyView(req, d));
+  r.get("/api/v1/integrations/calendly/links", { config: manage }, (req) => calendlyLinks(req, d));
   r.post(
     "/api/v1/integrations/calendly",
     {
@@ -28,6 +29,10 @@ export async function calendlyRoutes(app: FastifyInstance, d: AppDeps): Promise<
             createLeads: z.boolean().optional(),
             rescheduleFollowUp: z.boolean().optional(),
             phoneQuestion: z.string().max(200).nullable().optional(),
+            /** The links whose bookings are leads' (event type URIs); null: every link. */
+            links: z.array(z.string().url().max(500)).max(200).nullable().optional(),
+            /** LUME's booking link (one of `links`); null: none. */
+            bookWith: z.string().url().max(500).nullable().optional(),
           })
           .strict(),
       },

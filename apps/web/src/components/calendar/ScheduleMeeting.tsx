@@ -14,9 +14,12 @@ import { EMPTY_FILTERS } from "@/lib/leads/filters";
 import { markAway } from "@/lib/messages/pending";
 import { whatsappClient } from "@/lib/whatsapp/client";
 import { startCalendarConnect } from "./ConnectCalendar";
+import { CalendlyBook } from "./CalendlyBook";
+import { SOURCE_NAME, SourceIcon } from "./SourceMark";
+import { roving } from "@/lib/roving";
 import s from "./schedule.module.css";
 
-type Lead = { id: string; name: string };
+export type Lead = { id: string; name: string };
 const first = (name: string) => name.trim().split(/\s+/)[0] || "your lead";
 
 const CalendarPlus = () => <UI_ICONS.schedule size={ICON_SIZE.md} aria-hidden />;
@@ -57,9 +60,11 @@ export function ScheduleMeeting({
   const [off, setOff] = useState<boolean | null>(null);
   useEffect(() => {
     let live = true;
-    void calendarClient
-      .scheduleReady()
-      .then((r) => live && setOff(r.ok && !r.data.ready && r.data.why === "off"));
+    // Off only when neither can book: Google Calendar off for the business, and no Calendly booking link ready.
+    void Promise.all([calendarClient.scheduleReady(), calendarClient.calendlyOptions()]).then(
+      ([g, c]) =>
+        live && setOff(g.ok && !g.data.ready && g.data.why === "off" && !(c.ok && c.data.ready.ready)),
+    );
     return () => {
       live = false;
     };
@@ -100,13 +105,61 @@ export function ScheduleSheet({
   const [problem, setProblem] = useState<string | null>(null);
   const [done, setDone] = useState<Scheduled | null>(null);
   const [doneLead, setDoneLead] = useState<Lead | null>(lead);
+  /** LUME's Calendly booking link is ready (owner 2026-11-27): Book with offers it beside Google Calendar. */
+  const [calendly, setCalendly] = useState(false);
+  const [via, setVia] = useState<"google" | "calendly" | null>(null);
 
   useEffect(() => {
-    void calendarClient.scheduleReady().then((r) => (r.ok ? setReady(r.data) : setProblem(r.message)));
+    void Promise.all([calendarClient.scheduleReady(), calendarClient.calendlyOptions()]).then(([g, c]) => {
+      const offered = c.ok && c.data.ready.ready;
+      setCalendly(offered);
+      if (g.ok) setReady(g.data);
+      else if (!offered) setProblem(g.message);
+      // Calendly first only when Google can't book now and Calendly can.
+      setVia(offered && !(g.ok && g.data.ready) ? "calendly" : "google");
+    });
   }, []);
 
+  const choose = calendly && !done && via && (
+    <div
+      className={s.bookWith}
+      role="radiogroup"
+      aria-label="Book with"
+      onKeyDown={(e) => roving(e, "radio")}
+    >
+      {(["google", "calendly"] as const).map((v) => (
+        <button
+          key={v}
+          type="button"
+          role="radio"
+          aria-checked={via === v}
+          tabIndex={via === v ? 0 : -1}
+          onClick={() => setVia(v)}
+        >
+          <span data-source={v}>
+            <SourceIcon src={v} />
+          </span>
+          {SOURCE_NAME[v]}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (via === "calendly")
+    return (
+      <Dialog label="Schedule a meeting" onClose={onClose} width={520} className={s.panel}>
+        {choose}
+        <CalendlyBook
+          lead={lead}
+          tz={tz}
+          onClose={onClose}
+          {...(onScheduled ? { onBooked: onScheduled } : {})}
+        />
+      </Dialog>
+    );
   return (
     <Dialog label="Schedule a meeting" onClose={onClose} width={520} className={s.panel}>
+      {choose}
       {done && doneLead ? (
         <ScheduledView done={done} lead={doneLead} onClose={onClose} />
       ) : !ready ? (
@@ -195,7 +248,7 @@ function NotReady({
   );
 }
 
-function LeadSearch({ onPick }: { onPick: (l: Lead) => void }) {
+export function LeadSearch({ onPick }: { onPick: (l: Lead) => void }) {
   const [q, setQ] = useState("");
   const [found, setFound] = useState<Lead[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);

@@ -1,0 +1,41 @@
+/* Where a meeting came from (owner 2026-11-27). Tokens only; third parties' marks as they are, Google's on white. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  max-width: 100%;
+  height: 22px;
+  padding: 0 8px 0 3px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--text-2);
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 0.5px var(--line-2);
+}
+.only {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+}
+.logo {
+  flex: none;
+}
+.tile {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  color: var(--text);
+  background: #fff;
+  box-shadow: 0 0 0 0.5px var(--line-2);
+}
+/* LUME AI's Loop: plain on the theme's own tile (lume-ai-mark rule), not on white. */
+[data-source="lume_ai"] .tile {
+  background: var(--sheet);
+}

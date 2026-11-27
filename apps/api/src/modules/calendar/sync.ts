@@ -388,7 +388,9 @@ async function write(
     organizer: e.organizer && !ours.has(e.organizer.trim().toLowerCase()) ? e.organizer : null,
     attendees: e.attendees.filter((a) => !ours.has(a.trim().toLowerCase())),
   });
-  // Only the addresses this read saw are looked up: a live lead's, the oldest when two share one.
+  // Only the addresses this read saw are looked up: a live lead's, the oldest when two share one (one not won before
+  // one that is: a customer enquiring again is a lead again). Won ones are customers (owner 2026-11-27): their
+  // sessions stay out once they're won.
   const emails = [
     ...new Set(
       read.reads.flatMap((r) =>
@@ -399,12 +401,14 @@ async function write(
       ),
     ),
   ];
-  const { rows: leads } = await c.query<{ e: string; id: string }>(
-    `SELECT DISTINCT ON (lower(email)) lower(email) AS e, id FROM leads
-      WHERE deleted_at IS NULL AND email = ANY($1::citext[]) ORDER BY lower(email), created_at, id`,
+  const { rows: leads } = await c.query<{ e: string; id: string; won_at: Date | null }>(
+    `SELECT DISTINCT ON (lower(email)) lower(email) AS e, id, won_at FROM leads
+      WHERE deleted_at IS NULL AND email = ANY($1::citext[])
+      ORDER BY lower(email), (won_at IS NOT NULL), created_at, id`,
     [emails],
   );
   const leadsByEmail = new Map(leads.map((l) => [l.e, l.id]));
+  const customers = new Map(leads.flatMap((l) => (l.won_at ? [[l.id, new Date(l.won_at)] as const] : [])));
   const owner = conn.user_id;
 
   // Every event decided across all its calendars first: Google gives one event the same id on each.
@@ -421,7 +425,10 @@ async function write(
       const match =
         ev.status === "cancelled" || ev.allDay || !ev.startsAt || !ev.endsAt
           ? null
-          : matchEvent({ title: ev.title, ...others(ev) }, { leadsByEmail, rules, calendarId: r.id });
+          : matchEvent(
+              { title: ev.title, ...others(ev) },
+              { leadsByEmail, rules, calendarId: r.id, customers, startsAt: ev.startsAt },
+            );
       byEvent.set(ev.id, [...(byEvent.get(ev.id) ?? []), { calendar: r.id, ev, match }]);
     }
 
@@ -436,6 +443,17 @@ async function write(
       [owner, eventId],
     );
     const old = was[0];
+    // A meeting a person linked to a lead by hand stays theirs, whatever the rules: that was their call.
+    const linked =
+      old?.lead_id &&
+      old.matched_by === "person" &&
+      !seen.some((x) => x.ev.status === "cancelled" || x.ev.allDay || !x.ev.startsAt || !x.ev.endsAt)
+        ? old.lead_id
+        : null;
+    if (linked && old)
+      for (const x of seen)
+        if (old.calendar_id === null || x.calendar === old.calendar_id)
+          x.match = { leadId: linked, why: "person" };
     const keeping = seen.filter((s) => s.match);
     const reported = seen.map((s) => s.calendar);
     if (!keeping.length) {

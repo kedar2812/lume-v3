@@ -5,6 +5,9 @@ import type { IntegrationsView } from "@/lib/sheets/types";
 import type {
   CalendarConnection,
   CalendarRules,
+  CalendlyLinks,
+  CalendlyOptions,
+  CalendlyScheduled,
   CalendlySettings,
   CalendlyView,
   Meeting,
@@ -48,6 +51,13 @@ export const calendarClient = {
     api.get<{ meetings: Meeting[] }>(`/api/v1/leads/${encodeURIComponent(leadId)}/meetings`),
   /** Schedule a meeting (2026-11-13): whether this person can, and booking one with a Meet link. */
   scheduleReady: () => api.get<ScheduleReady>("/api/v1/meetings/schedule/ready"),
+  /** Booking on Calendly (owner 2026-11-27): ready or why not, and LUME's booking link's free times. */
+  calendlyOptions: (leadId?: string) =>
+    api.get<CalendlyOptions>(
+      `/api/v1/meetings/schedule/calendly${leadId ? `?leadId=${encodeURIComponent(leadId)}` : ""}`,
+    ),
+  scheduleCalendly: (b: { leadId: string; startsAt: string }) =>
+    api.post<CalendlyScheduled>("/api/v1/meetings/schedule/calendly", b),
   schedule: (b: { leadId: string; title: string; startsAt: string; minutes: number; notes: string }) =>
     api.post<Scheduled>("/api/v1/meetings/schedule", b),
   /** Attach to a lead, or Log outcome (once, after it started). */
@@ -58,6 +68,8 @@ export const calendarClient = {
   calendly: () => api.get<CalendlyView>(CALENDLY),
   connectCalendly: (token: string) => api.post<CalendlyView>(CALENDLY, { token }),
   patchCalendly: (p: Partial<CalendlySettings>) => api.patch<CalendlyView>(CALENDLY, p),
+  /** The account's links, which are for leads, and which LUME can book on (owner 2026-11-27). */
+  calendlyLinks: () => api.get<CalendlyLinks>(`${CALENDLY}/links`),
   disconnectCalendly: () => api.del<CalendlyView>(CALENDLY),
 
   // Settings → Calendar's rules (settings.manage), saved whole.

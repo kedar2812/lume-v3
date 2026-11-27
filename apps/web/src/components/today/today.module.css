@@ -1484,3 +1484,16 @@ a.lit:hover {
   bottom: 0;
   left: 0;
 }
+/* A call's line: where it came from (owner 2026-11-27), then its title, cut short if it must be. */
+.who .callLine {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 5px;
+  min-width: 0;
+}
+.who .callLine .callText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

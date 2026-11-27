@@ -1,11 +1,14 @@
 "use client";
 import { ICON_SIZE, UI_ICONS, type Icon } from "@/components/ui/icons";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useToast } from "@/components/feedback/ToastProvider";
 import b from "@/components/ui/Button.module.css";
 import { Popover } from "@/components/ui/Popover";
 import { minutes } from "@/lib/analytics/words";
 import { leadsClient } from "@/lib/leads/client";
+import type { LostReason, Stage } from "@/lib/leads/types";
+import { listsClient } from "@/lib/settings/lists";
+import { choiceReady, moveOf, StagePick, STAYS, type StageChoice } from "../StagePick";
 import { tasksClient } from "@/lib/tasks/client";
 import { localInputToIso } from "@/lib/tasks/format";
 import s from "./logcall.module.css";
@@ -42,14 +45,21 @@ const TITLE: Record<Outcome, string> = {
 /**
  * Log a call (the approved LogCall board): how it went (1, 2, 3), what they said, and the next step as a follow-up,
  * all in one; LUME says when it was the lead's first contact and how soon it came. C opens it from the drawer.
+ * Given the lead's pipeline, it can move the lead to any stage too (owner 2026-11-27), once the call is logged.
  */
 export function LogCall({
   lead,
   tz,
   onLogged,
+  stage,
+  onMove,
 }: {
   lead: { id: string; name: string };
   tz: string;
+  /** The lead's pipeline's stages in order and the one it's in: the Stage row (none without it). */
+  stage?: { stages: Stage[]; currentId: string };
+  /** Moves the lead (the drawer's move, which asks for any fields the stage needs). */
+  onMove?: (stage: Stage, extra: { lostReasonId?: string }) => Promise<unknown>;
   /** The call it saved, and whether it has words in it (LUME AI can read those into a next step). */
   onLogged(activityId: string, said: boolean): void;
 }) {
@@ -61,7 +71,15 @@ export function LogCall({
   const [choices, setChoices] = useState<{ id: string; label: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const [moveTo, setMoveTo] = useState<StageChoice>(STAYS);
+  const [reasons, setReasons] = useState<LostReason[] | null>(null);
   const first = lead.name.split(" ")[0] || "them";
+  const lostPicked = stage?.stages.find((x) => x.id === moveTo.stageId)?.kind === "lost";
+  // A lost stage asks why: the reasons are read once one is picked.
+  useEffect(() => {
+    if (!lostPicked || reasons) return;
+    void listsClient.reasons().then((r) => setReasons(r.ok ? r.data.lostReasons : []));
+  }, [lostPicked, reasons]);
 
   const reset = () => {
     setOutcome("talked");
@@ -69,6 +87,7 @@ export function LogCall({
     setNext("none");
     setPicked("");
     setProblem(null);
+    setMoveTo(STAYS);
   };
   const choose = (o: Outcome) => {
     setOutcome(o);
@@ -88,6 +107,7 @@ export function LogCall({
       setBusy(false);
       return setProblem(r.message ?? "LUME couldn’t log the call just now.");
     }
+    const mv = stage && onMove ? moveOf(moveTo, stage.stages) : null;
     let followUp = true;
     if (next !== "none") {
       const t = await tasksClient.create(lead.id, {
@@ -113,6 +133,8 @@ export function LogCall({
       .filter(Boolean)
       .join(" ");
     toast({ tone: followUp ? "ok" : "warn", title: "Call logged", ...(detail ? { detail } : {}) });
+    // The call is in; then the move (the drawer's, which says itself if the stage refused it).
+    if (mv && onMove) await onMove(mv.stage, mv.extra);
   };
 
   return (
@@ -149,6 +171,19 @@ export function LogCall({
             busy={busy}
             problem={problem}
             first={first}
+            stageRow={
+              stage && onMove ? (
+                <StagePick
+                  first={first}
+                  stages={stage.stages}
+                  currentId={stage.currentId}
+                  value={moveTo}
+                  reasons={reasons}
+                  onChange={setMoveTo}
+                />
+              ) : null
+            }
+            ready={!stage || !onMove || choiceReady(moveTo, stage.stages)}
             onCancel={() => {
               close();
               reset();
@@ -175,6 +210,8 @@ function Panel(p: {
   busy: boolean;
   problem: string | null;
   first: string;
+  stageRow: ReactNode;
+  ready: boolean;
   onCancel(): void;
   onLog(): void;
 }) {
@@ -271,6 +308,7 @@ function Panel(p: {
           />
         )}
       </div>
+      {p.stageRow && <div className={s.stageRow}>{p.stageRow}</div>}
       {p.problem && (
         <p className={s.problem} role="alert">
           {p.problem}
@@ -280,7 +318,7 @@ function Panel(p: {
         <button type="button" className={s.cancel} onClick={p.onCancel}>
           Cancel
         </button>
-        <button type="button" className={s.log} disabled={p.busy} onClick={p.onLog}>
+        <button type="button" className={s.log} disabled={p.busy || !p.ready} onClick={p.onLog}>
           {p.busy ? "Logging…" : "Log call"}
         </button>
       </div>

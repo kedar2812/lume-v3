@@ -10,6 +10,8 @@ export type DayMeeting = {
   status: string;
   lead: { id: string; name: string } | null;
   matchedBy: string;
+  /** Where it lives (owner 2026-11-27, its mark): google, calendly or lume. */
+  source: string;
   reminder: { at: string; sent: boolean } | null;
 };
 
@@ -33,12 +35,13 @@ export async function meetingsBetween(
     lead_id: string | null;
     lead_name: string | null;
     matched_by: string;
+    source: string;
     reminder_status: string | null;
     reminder_due: string | Date | null;
     reminder_done: string | Date | null;
   }>(sql`
     SELECT m.id, m.title, m.starts_at, m.ends_at, m.link, m.status, l.id AS lead_id, l.name AS lead_name,
-           m.matched_by, r.status AS reminder_status, r.due_at AS reminder_due, r.done_at AS reminder_done
+           m.matched_by, m.source, r.status AS reminder_status, r.due_at AS reminder_due, r.done_at AS reminder_done
       FROM meetings m LEFT JOIN leads l ON l.id = m.lead_id AND l.deleted_at IS NULL
       -- 5D: its WhatsApp reminder (the stage rule's), still to go or sent: the newest one.
       LEFT JOIN LATERAL (
@@ -58,6 +61,7 @@ export async function meetingsBetween(
     status: m.status,
     lead: m.lead_id ? { id: m.lead_id, name: m.lead_name ?? "" } : null,
     matchedBy: m.matched_by,
+    source: m.source,
     reminder: m.reminder_status
       ? m.reminder_status === "done" && m.reminder_done
         ? { at: new Date(m.reminder_done).toISOString(), sent: true }

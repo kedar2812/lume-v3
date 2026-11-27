@@ -11,7 +11,11 @@ const SAMPLE_LEADS = new Map([
   ["dana.whitfield@example.com", "Dana"],
   ["karim.aziz@example.com", "Karim"],
   ["noor.rahman@example.com", "Noor"],
+  ["lena.park@example.com", "Lena"],
 ]);
+/** Lena is a customer already (won before the week): her sessions are a client's, not sales calls. */
+const SAMPLE_CUSTOMERS = new Map([["Lena", new Date("2026-01-01T00:00:00Z")]]);
+const SAMPLE_WEEK = new Date("2026-02-02T00:00:00Z");
 type SampleEvent = {
   when: string;
   title: string;
@@ -67,6 +71,13 @@ const SAMPLE: SampleEvent[] = [
   { when: "Thu 16:00", title: "Site visit, Al Barsha", who: "Just you", calendar: "team", attendees: [] },
   { when: "Fri 15:30", title: "School pickup", who: "Just you", calendar: "own", attendees: [] },
   {
+    when: "Fri 16:00",
+    title: "Weekly session",
+    who: "Lena Park (a customer)",
+    calendar: "own",
+    attendees: ["lena.park@example.com"],
+  },
+  {
     when: "Fri 17:00",
     title: "Quarterly review",
     who: "Noor Rahman (a lead)",
@@ -76,9 +87,10 @@ const SAMPLE: SampleEvent[] = [
 ];
 
 /**
- * Settings → Calendar rules (canvas Rules): which events are meetings with leads, for everyone's calendar.
- * Three rules with green switches, and a sample week that shows, as you change them, what would come in.
- * A rule switched off keeps nothing, whatever was typed into it.
+ * Settings → Calendar rules (canvas Rules): which events are meetings with leads, for everyone's calendar. Only events
+ * with a lead ever come in (owner 2026-11-27: "lume has to fetch data relevant to leads only, nothing else related to
+ * current clients or personal details"): that rule is always on, and the title words and calendars only narrow it. A
+ * sample week shows, as they change, what would come in. A rule switched off narrows nothing, whatever was typed.
  */
 export function CalendarRules({
   initial,
@@ -88,7 +100,6 @@ export function CalendarRules({
   /** The admin's own connected calendars, to choose from for rule 3 (none: say how to get them). */
   calendars: { id: string; name: string }[];
 }) {
-  const [attendee, setAttendee] = useState(initial.attendeeIsLead);
   const [wordsOn, setWordsOn] = useState(initial.titleWords.length > 0);
   const [words, setWords] = useState(initial.titleWords);
   const [calsOn, setCalsOn] = useState(initial.calendarIds.length > 0);
@@ -98,7 +109,7 @@ export function CalendarRules({
   const [error, setError] = useState<string | null>(null);
 
   const rules: Rules = {
-    attendeeIsLead: attendee,
+    attendeeIsLead: true,
     titleWords: wordsOn ? words : [],
     calendarIds: calsOn ? cals : [],
   };
@@ -111,6 +122,8 @@ export function CalendarRules({
         // The sample's "team" calendar stands for whichever calendars are chosen.
         rules: { ...rules, calendarIds: rules.calendarIds.length ? ["sample-team"] : [] },
         calendarId: e.calendar === "team" ? "sample-team" : "sample-own",
+        customers: SAMPLE_CUSTOMERS,
+        startsAt: SAMPLE_WEEK,
       },
     ),
   );
@@ -135,19 +148,17 @@ export function CalendarRules({
   return (
     <div className={s.rulesGrid}>
       <div className={s.rules}>
-        <div className={s.rule} data-on={attendee || undefined}>
+        <div className={s.rule} data-on>
           <span className={s.num}>1</span>
           <div className={s.ruleHead}>
             <div>
-              <b>An attendee is a lead</b>
-              <small>Someone invited has the email of a lead. The meeting goes on that lead.</small>
+              <b>Only events with a lead</b>
+              <small>
+                Someone invited has the email of a lead, and the meeting goes on that lead. Personal events,
+                and sessions with leads who are already customers, never come in.
+              </small>
             </div>
-            <Switch
-              label="An attendee is a lead"
-              labelHidden
-              checked={attendee}
-              onChange={(v) => (setAttendee(v), touch())}
-            />
+            <span className={s.always}>Always on</span>
           </div>
         </div>
 
@@ -156,11 +167,11 @@ export function CalendarRules({
           <div>
             <div className={s.ruleHead}>
               <div>
-                <b>The title has a word</b>
-                <small>Kept even before the person is a lead; attach it to one in a tap.</small>
+                <b>Only titles with a word</b>
+                <small>Of the events with a lead, only those whose title has one of these words.</small>
               </div>
               <Switch
-                label="The title has a word"
+                label="Only titles with a word"
                 labelHidden
                 checked={wordsOn}
                 onChange={(v) => (setWordsOn(v), touch())}
@@ -205,11 +216,11 @@ export function CalendarRules({
           <div>
             <div className={s.ruleHead}>
               <div>
-                <b>This calendar counts</b>
-                <small>Every event on these calendars, put on a lead by its attendees when it can be.</small>
+                <b>Only these calendars</b>
+                <small>Of the events with a lead, only those on these calendars.</small>
               </div>
               <Switch
-                label="This calendar counts"
+                label="Only these calendars"
                 labelHidden
                 checked={calsOn}
                 onChange={(v) => (setCalsOn(v), touch())}

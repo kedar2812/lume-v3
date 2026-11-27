@@ -85,7 +85,9 @@ describe("the Calendar on a phone", () => {
     ]);
     expect(rows[0]).toHaveTextContent("Discovery call · Held");
     expect(rows[1]).toHaveTextContent("Pricing walkthrough · Log outcome");
-    expect(rows[2]).toHaveTextContent("Discovery call · Calendly");
+    // Where it came from is its mark now (owner 2026-11-27), named for a screen reader.
+    expect(rows[2]).toHaveTextContent("Discovery call");
+    expect(within(rows[2]!).getByRole("img", { name: "From Calendly" })).toBeInTheDocument();
     const tomorrow = screen.getByRole("region", { name: "Tomorrow" });
     expect(tomorrow).toHaveTextContent("1 meeting");
     // Someone else's meeting names whose it is.

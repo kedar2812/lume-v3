@@ -174,7 +174,10 @@ test.describe("Calendar (5D)", () => {
       await drawer.getByRole("button", { name: "Log outcome" }).click();
       const outcome = page.getByRole("dialog", { name: "How did it go with Karim?" });
       await outcome.getByRole("radio", { name: /Held/ }).click();
-      await expect(outcome.getByRole("switch", { name: "Move Karim to Message sent" })).toBeChecked();
+      // After Held, the Stage row starts on the next open stage (any stage can be picked, owner 2026-11-27).
+      await expect(outcome.getByRole("combobox", { name: "Stage" }).locator("option:checked")).toHaveText(
+        "Message sent",
+      );
       await settle(page);
       await reviewCopy(page, `log-outcome-${theme}.png`);
       expect(await axe(page)).toEqual([]);

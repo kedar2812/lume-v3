@@ -7,11 +7,13 @@ import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
 import { HttpError, badRequest, notFound } from "../../http/errors";
-import { CalendlyError, createCalendly } from "./client";
+import { bookingPlan } from "./booking";
+import { CalendlyError, createCalendly, type CalendlyLink } from "./client";
 import {
   CALENDLY_DEFAULTS,
   CALENDLY_HEADERS,
   CALENDLY_MAPPING,
+  leadLink,
   openCalendly,
   sealCalendly,
   type CalendlyConfig,
@@ -186,6 +188,42 @@ export async function connectCalendly(req: FastifyRequest, d: AppDeps, token: st
   return view(req, d, await liveCalendly(req));
 }
 
+/**
+ * The account's scheduling links (owner 2026-11-27: "calendly link selection for lume"), each with whether its
+ * bookings are leads' and whether LUME can book on it, and why not in words.
+ */
+export async function calendlyLinks(req: FastifyRequest, d: AppDeps) {
+  const s = await liveCalendly(req);
+  if (!s) throw notFound("CALENDLY_NOT_CONNECTED", "Calendly isn't connected.");
+  const c = openCalendly(d.keyring, s.id, s.configEnc!);
+  let links: CalendlyLink[];
+  try {
+    links = await client(d, c.token).links({ scope: c.scope, organization: c.organization, user: c.user });
+  } catch (e) {
+    said(e);
+  }
+  return {
+    /** Every link counts (a Calendly connected before links could be chosen, or none chosen since). */
+    every: c.settings.links == null,
+    /** The links saved, as saved: one Calendly didn't list this time (turned off, or far down) stays saved. */
+    saved: c.settings.links ?? null,
+    bookWith: c.settings.bookWith ?? null,
+    links: links.map((l) => {
+      const plan = bookingPlan(l, c.settings);
+      return {
+        uri: l.uri,
+        name: l.name,
+        duration: l.duration,
+        schedulingUrl: l.schedulingUrl,
+        owner: l.owner,
+        forLeads: leadLink(c.settings, l.uri),
+        bookable: plan.ok,
+        ...(plan.ok ? {} : { why: plan.why }),
+      };
+    }),
+  };
+}
+
 export async function patchCalendly(req: FastifyRequest, d: AppDeps, p: Partial<CalendlySettings>) {
   const s = await liveCalendly(req);
   if (!s) throw notFound("CALENDLY_NOT_CONNECTED", "Calendly isn't connected.");
@@ -195,7 +233,29 @@ export async function patchCalendly(req: FastifyRequest, d: AppDeps, p: Partial<
     ...c.settings,
     ...p,
     ...(p.phoneQuestion !== undefined ? { phoneQuestion: p.phoneQuestion?.trim() || null } : {}),
+    ...(p.links ? { links: [...new Set(p.links)] } : {}),
   };
+  // LUME's booking link is one of the links for leads, and one Calendly lets LUME book (its bookings come back to it).
+  if (settings.bookWith) {
+    if (!leadLink(settings, settings.bookWith))
+      throw badRequest("BOOK_WITH_NOT_FOR_LEADS", "LUME's booking link must be one of the links for leads.");
+    if (p.bookWith !== undefined || p.phoneQuestion !== undefined) {
+      let links: CalendlyLink[];
+      try {
+        links = await client(d, c.token).links({
+          scope: c.scope,
+          organization: c.organization,
+          user: c.user,
+        });
+      } catch (e) {
+        said(e);
+      }
+      const l = links.find((x) => x.uri === settings.bookWith);
+      if (!l) throw badRequest("BOOK_WITH_UNKNOWN", "That link isn't in this Calendly account any more.");
+      const plan = bookingPlan(l, settings);
+      if (!plan.ok) throw badRequest("BOOK_WITH_NOT_BOOKABLE", `LUME can't book on ${l.name}: ${plan.why}`);
+    }
+  }
   const mine = can(req.actor!, "leads.import");
   await req.db
     .update(S)
@@ -223,6 +283,8 @@ export async function patchCalendly(req: FastifyRequest, d: AppDeps, p: Partial<
       createLeads: settings.createLeads,
       rescheduleFollowUp: settings.rescheduleFollowUp,
       phoneQuestion: !!settings.phoneQuestion,
+      links: settings.links == null ? "every" : settings.links.length,
+      bookWith: !!settings.bookWith,
     },
   });
   return view(req, d, await liveCalendly(req));

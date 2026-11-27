@@ -400,9 +400,9 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
     (!lead.lastMessageAt || Date.parse(lead.lastReplyAt) >= Date.parse(lead.lastMessageAt));
   const lostStage = pipeline?.stages.find((st) => st.kind === "lost");
 
-  const moveTo = async (target: Stage) => {
+  const moveTo = async (target: Stage, extra: { lostReasonId?: string } = {}) => {
     if (!lead) return;
-    const moved = await move.request(lead, target);
+    const moved = await move.request(lead, target, extra);
     if (moved) {
       changed(moved);
       logged();
@@ -835,6 +835,15 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
                     <LogCall
                       lead={{ id: lead.id, name: lead.name ?? "" }}
                       tz={tz}
+                      {...(pipeline && stage
+                        ? {
+                            stage: {
+                              stages: [...pipeline.stages].sort((a, b) => a.position - b.position),
+                              currentId: stage.id,
+                            },
+                            onMove: moveTo,
+                          }
+                        : {})}
                       onLogged={(activityId, said) => {
                         logged();
                         if (said && ai.canSuggest) ai.suggest(activityId, "call");
@@ -1080,7 +1089,8 @@ export function LeadDrawer({ id, session, neighbours, onClose, onStep, onChanged
             onDone={() => {
               setLogging(null);
               loadMeetings();
-              logged();
+              // The outcome may have moved the lead (any stage, owner 2026-11-27): the drawer reads it again.
+              void refresh();
             }}
           />
         )}

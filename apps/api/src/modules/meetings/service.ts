@@ -21,6 +21,8 @@ export type MeetingView = {
   location: string | null;
   ownerId: string;
   matchedBy: string;
+  /** Where it lives (owner 2026-11-27: its mark and the From filter): google, calendly or lume. */
+  source: string;
   outcomeNote: string | null;
   lead: { id: string; name: string; pipelineId: string; stageId: string } | null;
 };
@@ -34,6 +36,7 @@ type Row = {
   location: string | null;
   owner_id: string;
   matched_by: string;
+  source: string;
   outcome_note: string | null;
   lead_id: string | null;
   lead_name: string | null;
@@ -50,6 +53,7 @@ const view = (r: Row): MeetingView => ({
   location: r.location,
   ownerId: r.owner_id,
   matchedBy: r.matched_by,
+  source: r.source,
   outcomeNote: r.outcome_note,
   lead: r.lead_id
     ? { id: r.lead_id, name: r.lead_name ?? "", pipelineId: r.pipeline_id!, stageId: r.stage_id! }
@@ -58,7 +62,7 @@ const view = (r: Row): MeetingView => ({
 
 /** Meetings as row-level security lets this person see them: linked ones by their lead; unlinked, their own. */
 const SELECT = sql`SELECT m.id, m.title, m.starts_at, m.ends_at, m.status, m.link, m.location, m.owner_id,
-    m.matched_by, m.outcome_note, m.lead_id, l.name AS lead_name, l.pipeline_id, l.stage_id
+    m.matched_by, m.source, m.outcome_note, m.lead_id, l.name AS lead_name, l.pipeline_id, l.stage_id
   FROM meetings m LEFT JOIN leads l ON l.id = m.lead_id
   WHERE (m.lead_id IS NULL OR l.deleted_at IS NULL)`;
 
@@ -126,7 +130,9 @@ export async function patchMeeting(
     );
     if (!lead.rows[0]) throw notFound("LEAD_NOT_FOUND", "LUME couldn't find that lead.");
     await req.db.execute(
-      sql`UPDATE meetings SET lead_id = ${body.leadId}, updated_at = now(), version = version + 1 WHERE id = ${id}`,
+      // Marked as a person's link (owner 2026-11-27): the calendar's rules never take it away.
+      sql`UPDATE meetings SET lead_id = ${body.leadId}, matched_by = CASE WHEN source = 'google' THEN 'person' ELSE matched_by END,
+                              updated_at = now(), version = version + 1 WHERE id = ${id}`,
     );
     await audit(req, { action: "meeting.attached", entityType: "meeting", entityId: id, diff: {} });
   }

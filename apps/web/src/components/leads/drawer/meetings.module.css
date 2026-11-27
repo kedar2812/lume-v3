@@ -239,3 +239,10 @@
     transition: none;
   }
 }
+/* When, after where it came from (owner 2026-11-27). */
+.rowWhen {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}

@@ -61,13 +61,24 @@ export function agendaDays(
     });
 }
 
-/** Mine keeps the person's own meetings; a stage keeps meetings whose lead is in it. */
+/** Where a meeting came from, for its mark and the From filter: Calendly, LUME AI, or Google Calendar. */
+export type MeetingSource = "google" | "calendly" | "lume_ai";
+export function sourceOf(m: Pick<Meeting, "matchedBy"> & { source?: Meeting["source"] }): MeetingSource {
+  if (m.source === "calendly" || m.matchedBy === "calendly") return "calendly";
+  if (m.matchedBy === "lume_ai") return "lume_ai";
+  return "google";
+}
+
+/** Mine keeps the person's own meetings; a stage keeps meetings whose lead is in it; From, that source's. */
 export function filterMeetings(
   meetings: Meeting[],
-  f: { mineOf: string | null; stageId: string | null },
+  f: { mineOf: string | null; stageId: string | null; source?: MeetingSource | null },
 ): Meeting[] {
   return meetings.filter(
-    (m) => (!f.mineOf || m.ownerId === f.mineOf) && (!f.stageId || m.lead?.stageId === f.stageId),
+    (m) =>
+      (!f.mineOf || m.ownerId === f.mineOf) &&
+      (!f.stageId || m.lead?.stageId === f.stageId) &&
+      (!f.source || sourceOf(m) === f.source),
   );
 }
 
