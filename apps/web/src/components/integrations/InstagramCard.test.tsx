@@ -320,6 +320,50 @@ describe("the Instagram card (plan 2026-11-25-instagram-screens D1; canvas board
     ).not.toBeInTheDocument();
   });
 
+  it("LUME AI chosen but its run paused: the card says so, why, who answers meanwhile, and links the run (review M4)", async () => {
+    const cases: [string, string][] = [
+      ["person", "LUME AI is paused, so your team answers new DMs until someone resumes it."],
+      [
+        "speaker",
+        "LUME AI is paused: the person it speaks as can’t send messages now, so your team answers new DMs.",
+      ],
+      ["month", "LUME AI is paused for the rest of the month, so your team answers new DMs."],
+      [
+        "number",
+        "LUME AI is paused while this account can’t be reached. Your team answers new DMs, and LUME AI carries on with the next one once it can.",
+      ],
+    ];
+    for (const [reason, line] of cases) {
+      vi.mocked(instagramClient.accounts).mockResolvedValue(
+        ok({
+          accounts: [account({ newDms: "ai", aiRun: { id: "r9", status: "paused", pauseReason: reason } })],
+          ai: aiOn,
+        }),
+      );
+      const { unmount } = render(<InstagramCard ig={on} onView={vi.fn()} />);
+      expect(await screen.findByText(line)).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Open LUME AI’s run" })).toHaveAttribute(
+        "href",
+        "/autopilot?run=r9",
+      );
+      unmount();
+    }
+    // Running: the usual line, no link.
+    vi.mocked(instagramClient.accounts).mockResolvedValue(
+      ok({
+        accounts: [account({ newDms: "ai", aiRun: { id: "r9", status: "running", pauseReason: null } })],
+        ai: aiOn,
+      }),
+    );
+    render(<InstagramCard ig={on} onView={vi.fn()} />);
+    expect(
+      await screen.findByText(
+        "LUME AI answers DMs no flow claims, within Instagram’s 24 hours. Pause it on the LUME AI page.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open LUME AI’s run" })).toBeNull();
+  });
+
   it("LUME AI is never offered unless the server says it can answer there (no over-promising)", async () => {
     vi.mocked(instagramClient.accounts).mockResolvedValue(ok({ accounts: [account()] }));
     render(<InstagramCard ig={on} onView={vi.fn()} />);

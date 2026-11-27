@@ -1,4 +1,4 @@
-import { canOnRecord, instagramWindow, repliesLocked } from "@lume/core";
+import { canOnRecord, instagramWindow, moduleIncluded, repliesLocked } from "@lume/core";
 import type { RunGoal } from "@lume/db";
 import { sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
@@ -8,6 +8,7 @@ import { readAiProfile } from "../ai/profile";
 import { aiLeadsRoom, available } from "../ai/service";
 import { availability, usable } from "../autopilot/setup";
 import { loadActor } from "../../rbac/actor";
+import { instagramOn } from "./service";
 
 /**
  * LUME AI taking an Instagram conversation (plan 2026-11-27-instagram-lume-ai, Task 3): a new DM no flow claims, on an
@@ -61,6 +62,30 @@ export async function standingRun(
 }
 
 /**
+ * An Instagram run paused only because its account wasn't reachable (disconnected, Instagram off, out of the plan)
+ * carries on with the next message on the account once it is (review M4): a message arrived, so the account is back. A
+ * pause a person chose, or one for the speaker or the month, stands. True when the run is running now (another message
+ * at the same moment may have carried it on first: that counts too); said on the run as any resume is.
+ */
+export async function resumedForAccount(req: FastifyRequest, runId: string): Promise<boolean> {
+  if (!(await instagramOn(req)) || !moduleIncluded(req.server.licence.view().plan, "instagram")) return false;
+  const r = await req.db.execute(sql`
+    UPDATE autopilot_runs SET status = 'running', pause_reason = NULL, updated_at = now()
+     WHERE id = ${runId} AND status = 'paused' AND pause_reason = 'number'
+       AND EXISTS (SELECT 1 FROM instagram_accounts a
+                    WHERE a.id = autopilot_runs.instagram_account_id AND a.status = 'active')`);
+  if (!r.rowCount) {
+    const now = await req.db.execute<{ status: string }>(
+      sql`SELECT status FROM autopilot_runs WHERE id = ${runId}`,
+    );
+    return now.rows[0]?.status === "running";
+  }
+  await req.db.execute(sql`
+    INSERT INTO autopilot_events (run_id, lead_id, kind, data) VALUES (${runId}, NULL, 'resumed', '{}'::jsonb)`);
+  return true;
+}
+
+/**
  * Give the lead to LUME AI on this account's standing run, to answer what they just wrote. Only while LUME AI can
  * answer: switched on, a plan with replies, room in the month's AI leads, the standing run running. Answers the run
  * (already LUME AI's on it counts: a replayed hand-off starts nothing twice), "held" when another run holds the lead
@@ -106,7 +131,9 @@ export async function giveToAi(
   // The month's AI leads used up: new conversations are the team's (leads LUME AI holds already go on).
   if (!(await aiLeadsRoom(req, d))) return null;
   const run = await standingRun(req, o.accountId);
-  if (run?.status !== "running") return null;
+  if (!run) return null;
+  if (run.status !== "running" && !(run.status === "paused" && (await resumedForAccount(req, run.id))))
+    return null;
   // LUME AI writes as the run's speaker, within their reach: a lead they may not message is the team's (review I5).
   const speaker = (
     await req.db.execute<{ speaker_id: string }>(

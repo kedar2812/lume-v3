@@ -27,10 +27,17 @@ const lead = (o: Partial<RunLead> & { leadId: string }): RunLead => ({
 const detail = (o: {
   status?: "running" | "paused" | "ended";
   pauseReason?: string | null;
+  channel?: "whatsapp" | "instagram";
   leads?: RunLead[];
 }) =>
   ({
-    run: { id: "r1", status: o.status ?? "running", pauseReason: o.pauseReason ?? null, canControl: true },
+    run: {
+      id: "r1",
+      status: o.status ?? "running",
+      pauseReason: o.pauseReason ?? null,
+      channel: o.channel ?? "whatsapp",
+      canControl: true,
+    },
     counts: {},
     leads: o.leads ?? [],
     asks: [],
@@ -143,6 +150,18 @@ describe("runStatus", () => {
     expect(paused("paid").title).toBe("Paused: this month's paid WhatsApp messages are used");
     for (const r of ["person", "month", "quality", "speaker", "number", "paid"])
       expect(paused(r).working).toBe(false);
+  });
+
+  it("an Instagram run paused for its account names Instagram, never a WhatsApp number (2026-11-27)", () => {
+    const ig = (r: string) => status(detail({ status: "paused", pauseReason: r, channel: "instagram" }));
+    expect(ig("number")).toEqual({
+      title: "Paused: Instagram can't be reached on this account",
+      line: "It carries on by itself with the next message once the account is connected and Instagram is on.",
+      working: false,
+    });
+    // The rest say the same as a WhatsApp run's.
+    expect(ig("person").title).toBe("Paused");
+    expect(ig("month").title).toBe("Paused for the rest of the month");
   });
 
   it("done, with what it did", () => {

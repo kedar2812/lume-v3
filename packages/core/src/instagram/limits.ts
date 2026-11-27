@@ -25,6 +25,17 @@ export type IgOutMessage = {
 
 const encoder = new TextEncoder();
 export const textBytes = (s: string): number => encoder.encode(s).length;
+/**
+ * Room for the line LUME adds under a yes it booked a call for: a blank line, "Google Meet: " and a Meet link
+ * (https://meet.google.com/xxx-xxxx-xxx), 51 bytes, with some to spare.
+ */
+const MEET_LINE_ROOM = 64;
+/**
+ * Whether LUME AI's reply fits Instagram's 1,000 bytes, keeping room for the Meet line when it books a call with one
+ * (review M5): checked before the call is booked, so a yes never fails at sending once it has a time.
+ */
+export const igReplyFits = (message: string, meetLine: boolean): boolean =>
+  textBytes(message) + (meetLine ? MEET_LINE_ROOM : 0) <= IG_LIMITS.textBytes;
 /** Characters as a person counts them (an emoji is one). */
 const chars = (s: string) => [...s].length;
 const blank = (s: string | null | undefined) => !s || !s.trim();

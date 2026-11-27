@@ -82,6 +82,37 @@ describe("Who answers new DMs", () => {
     // Back to the team is always allowed.
     expect((await patch({ newDms: "team" })).statusCode).toBe(200);
   });
+
+  it("the account's standing run, as the card shows it: none yet, running, paused and why (review M4)", async () => {
+    expect((await view()).accounts[0].aiRun).toBeNull();
+    const run = randomUUID();
+    await h.queryAll(
+      `INSERT INTO autopilot_runs (id, name, started_by, speaker_id, channel, instagram_account_id, standing, goal,
+                                   permissions, follow_up_days, outside_hours)
+       VALUES ($1, 'New DMs on @harbour.studio', $2, $2, 'instagram', $3, true, '{"kind":"reply"}', '{}', '{}',
+               'reply_any_time')`,
+      [run, admin.id, account.id],
+    );
+    expect((await view()).accounts[0].aiRun).toEqual({ id: run, status: "running", pauseReason: null });
+    await h.queryAll("UPDATE autopilot_runs SET status = 'paused', pause_reason = 'person' WHERE id = $1", [
+      run,
+    ]);
+    expect((await view()).accounts[0].aiRun).toEqual({ id: run, status: "paused", pauseReason: "person" });
+    // A run someone started on Instagram leads (Who replied) isn't the account's standing run.
+    await h.queryAll(
+      `INSERT INTO autopilot_runs (id, name, started_by, speaker_id, channel, instagram_account_id, standing, goal,
+                                   permissions, follow_up_days, outside_hours)
+       VALUES ($1, 'Chase', $2, $2, 'instagram', $3, false, '{"kind":"reply"}', '{}', '{}', 'reply_any_time')`,
+      [randomUUID(), admin.id, account.id],
+    );
+    expect((await view()).accounts[0].aiRun).toEqual({ id: run, status: "paused", pauseReason: "person" });
+    // An ended one is no standing run.
+    await h.queryAll(
+      "UPDATE autopilot_runs SET status = 'ended', pause_reason = NULL, ended_at = now() WHERE id = $1",
+      [run],
+    );
+    expect((await view()).accounts[0].aiRun).toBeNull();
+  });
 });
 
 describe("what LUME AI aims for on Instagram", () => {

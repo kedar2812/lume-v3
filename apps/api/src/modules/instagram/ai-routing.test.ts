@@ -2,13 +2,20 @@ import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { ALL_GRANTS } from "@lume/core";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { IGSID, igDm, igEcho } from "../../../../../packages/core/src/instagram/fixtures";
+import {
+  IG_ACCOUNT,
+  IGSID,
+  igDm,
+  igEcho,
+  igEnvelope,
+} from "../../../../../packages/core/src/instagram/fixtures";
 import { createHarness, type Harness } from "../../../test/harness";
 import { deliverIg, IG_RELAY_TOKEN, seedIgAccount } from "../../../test/instagram";
 import { fakeAccount, startInstagramFake, type InstagramFake } from "../../../test/instagram-fake";
 import { ALL_MODULES, testLicence } from "../../../test/licence-plan";
 import { seedNumber } from "../../../test/whatsapp";
 import { fakeProvider } from "../../ai/fake";
+import { IG_MAYBE_SENT } from "./sender";
 
 /**
  * Who answers an Instagram DM (spec 2026-11-22 §2; plan 2026-11-27-instagram-lume-ai, Task 3): a person who took it
@@ -157,6 +164,114 @@ describe("who answers a new DM", () => {
     expect(await aiLeads()).toHaveLength(0);
   });
 
+  it("paused because the account wasn't connected: the next DM, once it is, carries it on (review M4)", async () => {
+    await setNewDms("ai");
+    await dm("Hi");
+    const [run] = await standing();
+    await h.queryAll("UPDATE autopilot_runs SET status = 'paused', pause_reason = 'number' WHERE id = $1", [
+      run!.id,
+    ]);
+    await h.queryAll("DELETE FROM autopilot_leads");
+    await dm("Hello again");
+    expect((await standing())[0]).toMatchObject({ id: run!.id, status: "running" });
+    expect(await aiLeads()).toEqual([expect.objectContaining({ run_id: run!.id, state: "replied" })]);
+    const said = await h.queryAll<{ kind: string }>(
+      "SELECT kind FROM autopilot_events WHERE run_id = $1 AND lead_id IS NULL AND kind = 'resumed'",
+      [run!.id],
+    );
+    expect(said).toHaveLength(1);
+    // Paused again with the lead it holds: their next message carries it on too, and LUME AI answers them.
+    await h.queryAll("UPDATE autopilot_runs SET status = 'paused', pause_reason = 'number' WHERE id = $1", [
+      run!.id,
+    ]);
+    await h.queryAll("UPDATE autopilot_leads SET state = 'talking', next_at = NULL WHERE run_id = $1", [
+      run!.id,
+    ]);
+    await dm("Are you there?");
+    expect((await standing())[0]).toMatchObject({ id: run!.id, status: "running" });
+    expect(await aiLeads()).toEqual([
+      expect.objectContaining({ run_id: run!.id, state: "replied", active: true }),
+    ]);
+  });
+
+  it("paused for the account, which still needs attention: a DM never carries it on (it would only pause again)", async () => {
+    await setNewDms("ai");
+    await dm("Hi");
+    const [run] = await standing();
+    await h.queryAll("UPDATE autopilot_runs SET status = 'paused', pause_reason = 'number' WHERE id = $1", [
+      run!.id,
+    ]);
+    await h.queryAll("DELETE FROM autopilot_leads");
+    await h.ownerPool.query("UPDATE instagram_accounts SET status = 'needs_attention' WHERE id = $1", [
+      account.id,
+    ]);
+    await dm("Hello again");
+    expect((await standing())[0]).toMatchObject({ status: "paused" });
+    expect(await aiLeads()).toHaveLength(0);
+  });
+
+  it("a tap on a button while LUME AI holds the conversation reaches LUME AI, never a flow (review M6)", async () => {
+    await setNewDms("ai");
+    await dm("Hi");
+    const [run] = await standing();
+    // LUME AI answered: the lead waits for them.
+    await h.queryAll("UPDATE autopilot_leads SET state = 'talking', next_at = NULL WHERE run_id = $1", [
+      run!.id,
+    ]);
+    await liveFlow([{ id: "m", type: "send", text: "From the flow" }], ["book"]);
+    await deliverIg(
+      h,
+      igEnvelope([
+        {
+          sender: { id: IGSID },
+          recipient: { id: IG_ACCOUNT },
+          timestamp: h.clock.now.getTime(),
+          postback: { mid: `aWdfPB${++n}`, title: "Book a call", payload: "step:3:book" },
+        },
+      ]),
+    );
+    await h.runInstagram();
+    expect(await aiLeads()).toEqual([
+      expect.objectContaining({ run_id: run!.id, state: "replied", active: true }),
+    ]);
+    expect(await flowRuns()).toHaveLength(0);
+    // A button's words are never read as a stop, whatever they say.
+    await deliverIg(
+      h,
+      igEnvelope([
+        {
+          sender: { id: IGSID },
+          recipient: { id: IG_ACCOUNT },
+          timestamp: h.clock.now.getTime(),
+          postback: { mid: `aWdfPB${++n}`, title: "Not interested", payload: "step:3:no" },
+        },
+      ]),
+    );
+    await h.runInstagram();
+    const t = await leadOf();
+    const [lead] = await h.queryAll<{ dnc_at: Date | null }>("SELECT dnc_at FROM leads WHERE id = $1", [
+      t.lead_id,
+    ]);
+    expect(lead!.dnc_at).toBeNull();
+    expect((await aiLeads())[0]).toMatchObject({ state: "replied", active: true });
+  });
+
+  it("paused by a person, or for its speaker: a DM never carries it on (their choice stands)", async () => {
+    await setNewDms("ai");
+    await dm("Hi");
+    const [run] = await standing();
+    for (const reason of ["person", "speaker", "month"]) {
+      await h.queryAll("UPDATE autopilot_runs SET status = 'paused', pause_reason = $2 WHERE id = $1", [
+        run!.id,
+        reason,
+      ]);
+      await h.queryAll("DELETE FROM autopilot_leads");
+      await dm(`Hello (${reason})`);
+      expect((await standing())[0]).toMatchObject({ status: "paused" });
+      expect(await aiLeads()).toHaveLength(0);
+    }
+  });
+
   it("a flow's keyword wins over LUME AI for a new DM; LUME AI holding the lead wins over the flow", async () => {
     await liveFlow([{ id: "p", type: "send", text: "Prices are in the guide." }], ["price"]);
     await setNewDms("ai");
@@ -212,6 +327,59 @@ describe("who answers a new DM", () => {
     );
     await h.runInstagram();
     expect((await aiLeads())[0]!.state).toBe("with_you");
+  });
+
+  it("the echo of LUME AI's own message whose answer was lost is that message, never a person's reply (review M7)", async () => {
+    await setNewDms("ai");
+    await dm("Hi");
+    const [run] = await standing();
+    const t = await leadOf();
+    const lost = randomUUID();
+    await h.queryAll(
+      `INSERT INTO instagram_outbox (id, client_key, account_id, thread_id, lead_id, user_id, kind, text, status, problem,
+                                     autopilot_run_id)
+       VALUES ($1, gen_random_uuid(), $2, $3, $4, $5, 'dm', 'Yes, there is room this week.', 'failed', $6, $7)`,
+      [lost, account.id, t.id, t.lead_id, admin.id, IG_MAYBE_SENT, run!.id],
+    );
+    await deliverIg(
+      h,
+      igEcho({ mid: "aWdfLOST1", text: "Yes, there is room this week.", at: h.clock.now.toISOString() }),
+    );
+    await h.runInstagram();
+    expect((await aiLeads())[0]!.state).not.toBe("with_you");
+    const [th] = await h.queryAll<{ taken_over_by: string | null }>(
+      "SELECT taken_over_by FROM instagram_threads WHERE id = $1",
+      [t.id],
+    );
+    expect(th!.taken_over_by).toBeNull();
+    expect(
+      await h.queryAll("SELECT status, mid, problem FROM instagram_outbox WHERE id = $1", [lost]),
+    ).toEqual([{ status: "sent", mid: "aWdfLOST1", problem: null }]);
+    // Not matched, so a person's reply as ever: a lost one of LUME AI's with other words, one older than a day, and
+    // a person's own lost one from LUME (no run).
+    const lostRow = async (text: string, o: { ai: boolean; ago?: string }) => {
+      const id = randomUUID();
+      await h.queryAll(
+        `INSERT INTO instagram_outbox (id, client_key, account_id, thread_id, lead_id, user_id, kind, text, status,
+                                       problem, autopilot_run_id, created_at)
+         VALUES ($1, gen_random_uuid(), $2, $3, $4, $5, 'dm', $6, 'failed', $7, $8, now() - $9::interval)`,
+        [id, account.id, t.id, t.lead_id, admin.id, text, IG_MAYBE_SENT, o.ai ? run!.id : null, o.ago ?? "0"],
+      );
+      return id;
+    };
+    const rows = [
+      await lostRow("Friday works too.", { ai: true }),
+      await lostRow("Old words.", { ai: true, ago: "2 days" }),
+      await lostRow("Old words.", { ai: false }),
+    ];
+    await deliverIg(h, igEcho({ mid: "aWdfLOST2", text: "Old words.", at: h.clock.now.toISOString() }));
+    await h.runInstagram();
+    expect((await aiLeads())[0]!.state).toBe("with_you");
+    expect(await h.queryAll("SELECT status FROM instagram_outbox WHERE id = ANY($1)", [rows])).toEqual([
+      { status: "failed" },
+      { status: "failed" },
+      { status: "failed" },
+    ]);
   });
 
   it("handed back after the person answered: LUME AI waits for them, never answering what was answered", async () => {

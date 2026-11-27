@@ -43,6 +43,16 @@ const POINTS = [
   },
 ] as const;
 
+/** Why the account's LUME AI run waits, and who answers meanwhile (review M4): a paused run never hides behind "LUME AI". */
+function pausedLine(reason: string | null): string {
+  if (reason === "number")
+    return "LUME AI is paused while this account can’t be reached. Your team answers new DMs, and LUME AI carries on with the next one once it can.";
+  if (reason === "speaker")
+    return "LUME AI is paused: the person it speaks as can’t send messages now, so your team answers new DMs.";
+  if (reason === "month") return "LUME AI is paused for the rest of the month, so your team answers new DMs.";
+  return "LUME AI is paused, so your team answers new DMs until someone resumes it.";
+}
+
 /**
  * Who answers, in the order LUME applies it (spec 2026-11-22 §2; board Main). LUME AI joins as the third line once it
  * can answer on Instagram (plan 2026-11-25-instagram-screens, Part E); until then it isn't offered.
@@ -429,9 +439,16 @@ export function InstagramCard({
                           ? `LUME AI can’t answer now, so your team does. ${ai?.why ?? ""}`.trim()
                           : (ai?.why ?? "LUME AI can’t answer Instagram here yet.")
                         : a.newDms === "ai"
-                          ? "LUME AI answers DMs no flow claims, within Instagram’s 24 hours. Pause it on the LUME AI page."
+                          ? a.aiRun?.status === "paused"
+                            ? pausedLine(a.aiRun.pauseReason)
+                            : "LUME AI answers DMs no flow claims, within Instagram’s 24 hours. Pause it on the LUME AI page."
                           : "Your team answers DMs no flow claims."}
                     </p>
+                    {ai?.ok && a.newDms === "ai" && a.aiRun?.status === "paused" && (
+                      <Link href={`/autopilot?run=${encodeURIComponent(a.aiRun.id)}`} className={s.waLink}>
+                        Open LUME AI’s run
+                      </Link>
+                    )}
                   </div>
                 </li>
               );

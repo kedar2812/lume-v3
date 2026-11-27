@@ -32,6 +32,11 @@ const PAUSED: Record<string, { title: string; line: string }> = {
   },
 };
 
+const IG_ACCOUNT_PAUSE = {
+  title: "Paused: Instagram can't be reached on this account",
+  line: "It carries on by itself with the next message once the account is connected and Instagram is on.",
+};
+
 const n = (x: number) => x.toLocaleString("en-US");
 /** How the engine says a lead waits for this month's AI leads (its LEADS_HELD, 2026-11-12). */
 export const isHeldForLeads = (l: Pick<RunLead, "reason">) =>
@@ -64,8 +69,12 @@ export function runStatus(
   const c = runCounts(d);
   if (d.run.status === "ended")
     return { title: "Done", line: `${n(c.messaged)} messaged · ${n(c.ready)} ready for you`, working: false };
-  if (d.run.status === "paused")
+  if (d.run.status === "paused") {
+    // An Instagram run pauses for its account, never a WhatsApp number (2026-11-27).
+    if (d.run.pauseReason === "number" && d.run.channel === "instagram")
+      return { ...IG_ACCOUNT_PAUSE, working: false };
     return { ...(PAUSED[d.run.pauseReason ?? "person"] ?? PAUSED.person!), working: false };
+  }
   const working = d.leads.filter((l) => WORKING.includes(l.state));
   const due = (l: RunLead) => !!l.nextAt && new Date(l.nextAt) <= now;
   const busy = working.filter((l) => BUSY.includes(l.state));

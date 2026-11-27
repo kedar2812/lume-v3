@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, asc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import type pg from "pg";
 import { instanceIdOf, newId, sign, unseal, verify, type Handoff, type Rules } from "@lume/core";
@@ -95,6 +95,23 @@ export async function accountsView(req: FastifyRequest, d?: AppDeps) {
     .leftJoin(schema.users, eq(schema.users.id, A.ownerUserId))
     .where(ne(A.status, "disconnected"))
     .orderBy(asc(A.connectedAt));
+  // Each account's standing LUME AI run, so a paused one never hides behind "LUME AI" on the card (review M4).
+  const R = schema.autopilotRuns;
+  const runs = rows.length
+    ? await req.db
+        .select({ accountId: R.instagramAccountId, id: R.id, status: R.status, pauseReason: R.pauseReason })
+        .from(R)
+        .where(
+          and(
+            eq(R.standing, true),
+            ne(R.status, "ended"),
+            inArray(
+              R.instagramAccountId,
+              rows.map((r) => r.id),
+            ),
+          ),
+        )
+    : [];
   return {
     ...(d
       ? {
@@ -114,6 +131,9 @@ export async function accountsView(req: FastifyRequest, d?: AppDeps) {
       problem: r.problem,
       newDmCreatesLead: r.newDmCreatesLead,
       newDms: r.newDms,
+      aiRun: ((x) => (x ? { id: x.id, status: x.status, pauseReason: x.pauseReason } : null))(
+        runs.find((x) => x.accountId === r.id),
+      ),
       limits: {
         newLeadsPerHour: r.newLeadsPerHour,
         mediaMbPerPersonDay: r.mediaMbPerPersonDay,

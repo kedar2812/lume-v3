@@ -101,7 +101,7 @@ export {
 } from "./instagram/templates";
 // LUME AI builds a flow (C1): the builder plays the answer's steps into its draft (zod and the graph only).
 export { applyOps, type GraphOp } from "./ai/flow-build";
-export { IG_LIMITS, messageProblems, textBytes, type IgOutMessage } from "./instagram/limits";
+export { IG_LIMITS, igReplyFits, messageProblems, textBytes, type IgOutMessage } from "./instagram/limits";
 export { foldKeyword, matchKeyword, type KeywordMode } from "./instagram/keywords";
 export { IG_WINDOW_MS } from "./instagram/window";
 export {

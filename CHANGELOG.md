@@ -6,6 +6,15 @@ column in the release that stops using it.
 
 ## Unreleased
 
+- **LUME AI on Instagram, rough edges:** an account whose LUME AI run is paused says so on the Instagram card, why, and
+  that the team answers meanwhile, with a link to the run; a run paused because Instagram couldn't be reached on the
+  account carries on with the next message once it can, from someone new or someone it already holds (a pause someone
+  chose stays). Such a run says "Instagram can't be reached on this account", never a WhatsApp number. A tap on a
+  button while LUME AI holds the conversation reaches LUME AI (never read as a stop). A yes that books a call keeps room
+  for the Meet link within Instagram's 1,000 bytes. LUME AI's message whose answer from Meta was lost, seen coming back
+  from Instagram with the same words within a day, is marked sent and never taken for a person's reply. A person's
+  message is never held behind one of LUME AI's that the run's pause or a takeover stopped at the last moment.
+- **Fixed:** Leads → More filters ran past its right edge when a WhatsApp number's label was long.
 - **One icon set across LUME** (`docs/design/icons.md`): the leads, settings, analytics, calendar, media, Today and the
   other screens take their icons from LUME's registry (Lucide's line icons, one meaning one icon), not their own
   drawings; a call outcome, a contact's channel and every close, search and remove look the same everywhere.

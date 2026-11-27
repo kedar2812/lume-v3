@@ -15,7 +15,7 @@ import { available } from "../ai/service";
 import { sendStopApology } from "../autopilot/engine";
 import { leadWrote, personSent } from "../autopilot/lead-events";
 import { tellPeople } from "../autopilot/ready";
-import { giveToAi } from "./ai-intake";
+import { giveToAi, resumedForAccount } from "./ai-intake";
 import { jobServer, withJobRequest } from "../imports/job-request";
 import { setDoNotContact } from "../leads/dnc";
 import { replyArrived } from "../leads/sending";
@@ -37,6 +37,7 @@ import {
 } from "./flow-run";
 import { createInstagramLead, leadByHandle, liveLead, noteHandleMatch, type IgAccountRow } from "./leads";
 import { igEventContext } from "./receive";
+import { IG_MAYBE_SENT } from "./sender";
 import { igGraphOf, igTokenContext, tellAdmins } from "./service";
 
 export type InstagramJobDeps = { app: FastifyInstance; d: AppDeps };
@@ -337,6 +338,9 @@ async function messageIn(
   const held = t.taken_over_by
     ? null
     : await leadWrote(req, leadId, at, e.text ?? "", { channel: "instagram", accountId: account.id });
+  // Their run paused only because the account wasn't reachable: this message says it is again (review M4).
+  if (held && !held.stopped && !held.running && (await resumedForAccount(req, held.runId)))
+    held.running = true;
   if (held) out.autopilot = { ...held, leadId };
   const took = held
     ? null
@@ -398,6 +402,23 @@ async function echo(
     SELECT 1 FROM instagram_outbox WHERE thread_id = ${t.id} AND status = 'sending' LIMIT 1`);
   if (flight.rows.length) {
     out.later = true;
+    return;
+  }
+  // LUME AI's own message whose answer from Meta was lost ("couldn't tell whether this went"): its echo, the same words
+  // within a day, is that message having gone. It's sent now, never a person's reply taking the conversation over
+  // (review M7).
+  const mine = await req.db.execute(sql`
+    UPDATE instagram_outbox SET status = 'sent', mid = ${e.mid}, problem = NULL, updated_at = now()
+     WHERE id = (SELECT id FROM instagram_outbox
+                  WHERE thread_id = ${t.id} AND kind = 'dm' AND autopilot_run_id IS NOT NULL AND status = 'failed'
+                    AND problem = ${IG_MAYBE_SENT} AND mid IS NULL
+                    AND text = ${e.text ?? ""} AND created_at > now() - interval '1 day'
+                  ORDER BY created_at DESC LIMIT 1)`);
+  if (mine.rowCount) {
+    await req.db.execute(sql`
+      UPDATE instagram_threads SET last_out_at = GREATEST(coalesce(last_out_at, ${at}), ${at}),
+                                   last_message_at = GREATEST(coalesce(last_message_at, ${at}), ${at})
+       WHERE id = ${t.id}`);
     return;
   }
   await req.db.execute(sql`
@@ -585,21 +606,35 @@ export async function processInstagramEvent(
           if (leadId && !(await onLeadAlready(req, leadId, ev.mid))) {
             const activityId = newId();
             // A tap on a flow's button is the person answering it. A tap is a button's words, never read for meaning.
-            const took = await flowOnMessage(
-              req,
-              account,
-              {
-                threadId: t.id,
-                leadId,
-                text: ev.title,
-                payload: ev.payload,
-                via: "dm",
-                first: false,
-                adId: null,
-              },
-              at,
-              out.flow,
-            );
+            // Who answers it is who answers a DM: a person who took it over, else the LUME AI run working this
+            // conversation (it hears that they wrote, and reads the button's words from the conversation; never a
+            // stop, as a tap is never read for meaning; review M6), else the flow.
+            const held = t.taken_over_by
+              ? null
+              : await leadWrote(req, leadId, at, "", {
+                  channel: "instagram",
+                  accountId: account.id,
+                });
+            if (held && !held.stopped && !held.running && (await resumedForAccount(req, held.runId)))
+              held.running = true;
+            if (held) out.autopilot = { ...held, leadId };
+            const took = held
+              ? null
+              : await flowOnMessage(
+                  req,
+                  account,
+                  {
+                    threadId: t.id,
+                    leadId,
+                    text: ev.title,
+                    payload: ev.payload,
+                    via: "dm",
+                    first: false,
+                    adId: null,
+                  },
+                  at,
+                  out.flow,
+                );
             await received(req, {
               id: activityId,
               leadId,

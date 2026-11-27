@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IG_LIMITS, messageProblems, textBytes } from "./limits";
+import { IG_LIMITS, igReplyFits, messageProblems, textBytes } from "./limits";
 
 /** Meta's limits on what LUME sends (read 2026-11-22): bytes, not characters. */
 describe("Instagram message limits", () => {
@@ -92,5 +92,23 @@ describe("Instagram message limits", () => {
         buttons: [{ title: "Open", url: "https://example.test" }],
       }),
     ).toEqual(["Use quick replies or buttons in one message, not both."]);
+  });
+});
+
+/** LUME AI's reply and the Meet line LUME adds under it when it books a call with one (review M5). */
+describe("igReplyFits", () => {
+  const meetLine = "\n\nGoogle Meet: https://meet.google.com/abc-defg-hij";
+  it("a reply that fits alone fits; with a Meet line coming it keeps room for that line", () => {
+    expect(igReplyFits("a".repeat(1000), false)).toBe(true);
+    expect(igReplyFits("a".repeat(1001), false)).toBe(false);
+    // Near the limit: fine alone, too long once the Meet line goes under it.
+    const near = "a".repeat(1000 - textBytes(meetLine) + 1);
+    expect(textBytes(near + meetLine)).toBeGreaterThan(IG_LIMITS.textBytes);
+    expect(igReplyFits(near, false)).toBe(true);
+    expect(igReplyFits(near, true)).toBe(false);
+    // What it lets through with a Meet line still fits once the line is added.
+    for (let n = 900; n <= 1000; n++)
+      if (igReplyFits("a".repeat(n), true))
+        expect(textBytes("a".repeat(n) + meetLine)).toBeLessThanOrEqual(1000);
   });
 });

@@ -22,11 +22,10 @@ import {
   freeCallTimes,
   guardReply,
   handoverWords,
-  IG_LIMITS,
+  igReplyFits,
   instagramWindow,
   moduleIncluded,
   nextMoveInstagram,
-  textBytes,
   windowsWords,
   newId,
   mergeAiProfile,
@@ -1091,11 +1090,12 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, runOf: Run, l: Lea
     fieldKeys,
     calls: c.callCheck,
   });
-  // Instagram takes at most 1,000 bytes: a longer reply is never cut or sent, a person gets the lead.
+  // Instagram takes at most 1,000 bytes: a longer reply is never cut or sent, a person gets the lead. A yes that books
+  // a call keeps room for the Meet link LUME adds under it (review M5).
   const g: GuardedReply =
     instagram &&
     (guarded.kind === "send" || guarded.kind === "ask") &&
-    textBytes(guarded.message) > IG_LIMITS.textBytes
+    !igReplyFits(guarded.message, !!c.calls?.meet && !!guarded.updates.meeting)
       ? { kind: "handover", reason: "LUME AI's reply was too long for Instagram.", evidence: null }
       : guarded;
   return actOn(

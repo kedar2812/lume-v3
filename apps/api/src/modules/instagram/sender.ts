@@ -135,7 +135,12 @@ async function wakeNext(o: IgSendDeps, threadId: string) {
  * room. A message Meta takes is a send (first contact, the follow-up's move); one Meta refuses says why in words; one
  * whose answer was lost is failed with words and never sent again by itself.
  */
-export async function sendInstagramOutbox(o: IgSendDeps, id: string): Promise<void> {
+export async function sendInstagramOutbox(
+  o: IgSendDeps,
+  id: string,
+  /** Looked at again after a claim that didn't take: never a third time. */
+  again = false,
+): Promise<void> {
   const { d } = o;
   const pool = d.jobPool ?? d.pool;
   const row = await allScope(
@@ -280,7 +285,9 @@ export async function sendInstagramOutbox(o: IgSendDeps, id: string): Promise<vo
     if (n >= o.privateRepliesPerHour)
       throw new TryLater("the account's private replies for this hour are used");
   }
-  if (!o.pacer.take(row.account_id)) throw new TryLater("the account's sends for this second are used");
+  // Its second look (after a claim that didn't take) spends no second slot of the account's pace (review M3).
+  if (!again && !o.pacer.take(row.account_id))
+    throw new TryLater("the account's sends for this second are used");
 
   await o.testHooks?.beforeClaim?.();
   const tries = row.tries + 1;
@@ -307,7 +314,14 @@ export async function sendInstagramOutbox(o: IgSendDeps, id: string): Promise<vo
       [id, tries],
     ),
   );
-  if (!claimed.rowCount) return; // an older one to this person goes first; it wakes this one when it's done
+  if (!claimed.rowCount) {
+    // An older one to this person goes first: it wakes this one when it's done (looked at again, it waits again). Or
+    // what let this one go changed since it was looked at (a person took over, LUME AI's run paused, do not contact):
+    // looked at once more now, it ends with why and the next one to them isn't held behind it until the minute's sweep
+    // (review M3).
+    if (!again) return sendInstagramOutbox(o, id, true);
+    return;
+  }
   const target = row.kind === "private_reply" ? { commentId: row.comment_id! } : { igsid: row.igsid };
   const body = igOutboundBody(
     target,

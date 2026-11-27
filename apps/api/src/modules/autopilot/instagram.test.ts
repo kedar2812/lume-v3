@@ -7,6 +7,7 @@ import { IG_RELAY_TOKEN, seedIgAccount } from "../../../test/instagram";
 import { fakeAccount, startInstagramFake, type InstagramFake } from "../../../test/instagram-fake";
 import { ALL_MODULES, testLicence } from "../../../test/licence-plan";
 import { fakeProvider } from "../../ai/fake";
+import { igPacer, sendInstagramOutbox } from "../instagram/sender";
 import { dueRuns, IG_LET_GO, IG_NO_AI_LEADS } from "./engine";
 
 /**
@@ -286,6 +287,49 @@ describe("LUME AI on Instagram (plan 2026-11-27-instagram-lume-ai, Task 2)", () 
     await h.runInstagramSend();
     expect(ig.sent).toHaveLength(0);
     expect((await outbox())[0]!.status).toBe("cancelled");
+  });
+
+  it("paused just as its message was being taken: it never goes, and the next one to them isn't held behind it (review M3)", async () => {
+    const { runId } = await setUp();
+    provider.script("autopilot_reply", [reply("Yes, there is room this week.")]);
+    await tick();
+    await tick(2 * MIN);
+    const [ai] = await outbox();
+    expect(ai).toMatchObject({ status: "queued", autopilot_run_id: runId });
+    // A person's message to them, queued behind LUME AI's.
+    const mine = randomUUID();
+    await h.queryAll(
+      `INSERT INTO instagram_outbox (id, client_key, account_id, thread_id, lead_id, user_id, kind, text, status, created_at)
+       SELECT $2, gen_random_uuid(), account_id, thread_id, lead_id, user_id, kind, 'A person writing.', 'queued',
+              created_at + interval '1 second'
+         FROM instagram_outbox WHERE id = $1`,
+      [ai!.id, mine],
+    );
+    h.instagramSendQueued.length = 0;
+    await sendInstagramOutbox(
+      {
+        app: h.app,
+        d: h.deps,
+        pacer: igPacer({ now: () => h.clock.now, perSecond: 20 }),
+        privateRepliesPerHour: 600,
+        testHooks: {
+          beforeClaim: () =>
+            h
+              .queryAll(
+                "UPDATE autopilot_runs SET status = 'paused', pause_reason = 'person' WHERE id = $1",
+                [runId],
+              )
+              .then(() => undefined),
+        },
+      },
+      ai!.id,
+    );
+    const rows = await outbox();
+    expect(rows.find((r) => r.id === ai!.id)!.status).toBe("cancelled");
+    // The person's is woken at once, never left for the minute's sweep.
+    expect(h.instagramSendQueued).toContain(mine);
+    await h.runInstagramSend();
+    expect(ig.sent).toHaveLength(1);
   });
 
   it("a reply over Instagram's 1,000 bytes is never cut or sent: a person gets the lead", async () => {

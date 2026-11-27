@@ -75,6 +75,8 @@ export type RunView = {
   speakerId: string;
   /** A WhatsApp run's number; null for an Instagram run (2026-11-27). */
   numberId: string | null;
+  /** Where it works (absent from an older LUME: WhatsApp). */
+  channel?: "whatsapp" | "instagram";
   goal: RunGoal;
   permissions: Permissions;
   followUpDays: number[];

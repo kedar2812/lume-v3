@@ -11,6 +11,8 @@ export type IgAccount = {
   newDmCreatesLead: boolean;
   /** Who answers a DM no flow claims (plan 2026-11-27-instagram-lume-ai): the team, or LUME AI. */
   newDms: "team" | "ai";
+  /** The account's standing LUME AI run ("New DMs on @account"), if it has one: running, or paused and why (review M4). */
+  aiRun?: { id: string; status: "running" | "paused"; pauseReason: string | null } | null;
   limits: { newLeadsPerHour: number; mediaMbPerPersonDay: number; mediaMbPerDay: number };
   sourceId: string | null;
   connectedAt: string;

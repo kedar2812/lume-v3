@@ -129,3 +129,33 @@ Tests: chip in every state; analytics counts on fixtures; scale budget run for t
 - Layered guards (no separate mutant): the sender's takeover check for LUME AI rows (the claim statement repeats it);
   giveToAi's taken-over check on the inbound path (process.ts checks first). No files are offered to LUME AI on
   Instagram, so the files mutant is equivalent.
+
+## Review minors, fixed after the push (2026-11-27 evening)
+
+Edge cases, each with its test (and a mutant):
+
+| Minor | The case | What happens now | Test |
+|---|---|---|---|
+| M4 | Standing run paused (account, a person, the speaker, the month) | The card says paused, why, the team answers meanwhile, and links the run; paused for the account ("number") carries on with the next message on the account (someone new, or someone it holds, a tap too) once the account is active, Instagram on, in the plan; two at once both count; any other pause stands | ai-routing "paused because the account", "still needs attention", "their choice stands"; ai-settings "as the card shows it"; InstagramCard "run paused"; words "names Instagram" |
+| M3 | LUME AI's row passes the checks, then the run pauses or a person takes over before the claim | Looked at once more at once (no second slot of the account's pace): cancelled with why, the next row to them woken (no 2-minute wait for the sweep) | autopilot/instagram "being taken" |
+| M5 | A yes near 1,000 bytes that books a call with a Meet link | Room kept for the Meet line (64 bytes): handed to a person before booking, never a failed send after | core limits "igReplyFits" |
+| M6 | A tap on a button while LUME AI's run holds the conversation | LUME AI's run hears that they wrote (the button's words reach it from the conversation; a tap is never read as a stop), flows step aside, as for a DM | ai-routing "tap on a button" |
+| M7 | Meta's answer to LUME AI's send was lost (IG_MAYBE_SENT), then its echo arrives | LUME AI's own lost DM on that thread, the same words, within a day: marked sent with Meta's id, never a person's reply; a flow's or a person's lost one, other words, or older than a day: a person's reply as ever | ai-routing "answer was lost" |
+
+Rulings:
+- M8 isn't a bug and stays as it was: a lead is in one run at a time, so someone an Instagram run holds who said stop on
+  WhatsApp got no apology there (the WhatsApp run filter saw none); their stop on Instagram gets the one apology. A first
+  fix took that one away; the second review caught it, and it was undone.
+- M4's two at once (two messages after a reconnect both reading the run paused): the one whose resume takes no row reads
+  the run again and carries on if it's running; not tested (a race).
+- M6's held-before-flow guard is layered: the flow already refuses a lead any run holds (its mutant survives).
+- M1 (the flow's hand-off to LUME AI after commit) stays: closing it moves giveToAi into the flow's transaction, a
+  larger change for a crash window of milliseconds; a lost hand-off leaves the lead with the team, never unanswered by
+  rule. Cost if wrong: a rare lead the team answers instead of LUME AI.
+- M5's engine wiring (`c.calls?.meet && guarded.updates.meeting`) isn't exercised end to end (no Instagram Meet
+  harness); the rule is core's, tested. Cost if wrong: today's behaviour (the lead to a person after booking).
+- M7's echo leaves the send uncounted in Analytics (counting needs the sender's actor in the event job). Cost if
+  wrong: one send missing from the numbers.
+- Found while there: an Instagram run's "number" pause read "the WhatsApp number isn't connected"; it says the
+  Instagram account now.
+
