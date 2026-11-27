@@ -18,6 +18,9 @@ column in the release that stops using it.
 - **Fixed:** in Team Chat, a message one deleted (or a reaction or edit one made) could come back as it was when a
   page of the conversation asked for just before was answered just after; one's own change now stays until the server
   has answered and every page asked for before then is in.
+- **Fixed:** in the flow builder, a step pressed while the canvas was still gliding into place (just after it
+  opens, or after Fit) could slide out from under the pointer, so its panel didn't open; a press on the canvas now holds it
+  where it is (the zoom bar, the panels and the map leave it going).
 - **One icon set across LUME** (`docs/design/icons.md`): the leads, settings, analytics, calendar, media, Today and the
   other screens take their icons from LUME's registry (Lucide's line icons, one meaning one icon), not their own
   drawings; a call outcome, a contact's channel and every close, search and remove look the same everywhere.

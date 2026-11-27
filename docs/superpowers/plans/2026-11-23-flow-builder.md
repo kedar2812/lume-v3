@@ -187,3 +187,28 @@ interpreter on its trigger (fixtures); byte limits and Meta's 13 quick replies /
 ## Finish
 
 - [ ] Full gate (`dev.sh test-db clean` and no stale toolbox first), fresh reviewer on the whole branch, fixes, push per part (A, B, C, D) so each lands green on its own.
+
+## Fix 2026-11-27: a press during the camera's glide
+
+Gate 53's e2e ("a flow on its canvas; a step added is saved and still there after a reload") clicked the Ask step just
+after a reload: the card took focus but its panel never opened. Cause: `useCamera`'s press handler returned for a press
+on a step before `stop()`, so the opening fit (a spring, 30 ms after the canvas mounts) carried the card away between
+press and release, and the click landed on the canvas, not the step.
+
+Edge cases:
+- A step pressed mid-glide: the camera stops where it is; the click is the step's (useCamera.test: RED before, GREEN).
+- The canvas pressed mid-glide: stops too (as before).
+- Nothing moving: `stop()` does nothing.
+- A press on a step that then moves: never a pan; the step is React Flow's to drag (test; the mutant without the step
+  check fails it).
+- A press on the canvas that moves: pans 1:1 (test).
+- Another button (right-click): unchanged, the camera keeps going.
+- Reduced motion: there's no glide to stop.
+
+- A press on a tool (the zoom bar, a panel, LUME AI's bar or plan card) or on the map: the camera carries on (fresh
+  review 2026-11-27, Important: stopping there made + and − pressed fast stop adding up, and a press on LUME AI's bar
+  while it fit the next flow in view could leave its steps off screen). Tests for both; mutants without the tools'
+  check, without the map in it, without `stop()` and without the step check each fail a test.
+
+Deferred minor (review): a press on the canvas while a pinch past the zoom limits springs back leaves the zoom past
+them until the next zoom (true before this fix for the bare canvas and the wheel; now for a step too).

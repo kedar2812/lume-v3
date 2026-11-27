@@ -21,6 +21,8 @@ import {
 /** Anything on the canvas that's not the canvas itself: a press there is that thing's, never a pan. */
 const BUSY =
   ".react-flow__node, .react-flow__handle, .react-flow__edge, .react-flow__minimap, button, a, input, textarea, select, [data-tool]";
+/** What sits over the canvas rather than on it: a press there never stops the camera. */
+const TOOLS = "[data-tool], .react-flow__minimap";
 
 type Goal =
   | { kind: "zoom"; z: number; ax: number; ay: number; wx: number; wy: number }
@@ -199,8 +201,14 @@ export function useCamera(o: { reduce: boolean; initial?: Cam }) {
       }
     };
     const onDown = (e: PointerEvent) => {
-      if (e.button !== 0 || (e.target as HTMLElement).closest(BUSY)) return;
-      stop();
+      if (e.button !== 0) return;
+      const hit = e.target as HTMLElement;
+      // A press on the canvas (a step, a line, the dots) holds the camera where it is: a step pressed while the view
+      // glides stays under the pointer, so the press is that step's (gate 53: the opening glide carried it away and
+      // the click was lost). The tools and the map leave it going: + and − pressed fast add up, and LUME AI's fit
+      // ends where it was meant to (review 2026-11-27).
+      if (!hit.closest(TOOLS)) stop();
+      if (hit.closest(BUSY)) return;
       const c = cam.current;
       drag.current = {
         id: e.pointerId,
