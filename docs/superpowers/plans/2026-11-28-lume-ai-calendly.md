@@ -65,3 +65,29 @@ booking link chosen, says which link, and says when it's not working; phone widt
 - `CallTimes`: "How LUME AI books a call": At a time it offers / With your Calendly link ("<link name>"), shown only
   with a booking link chosen; the not-working note with why; the call times stay (they're the fallback).
 - Tests: shown/hidden, saving `via`, the why.
+
+## Built 2026-11-28
+
+All four tasks, test first; 12 mutants killed (own meeting, link offered, Never, Ask me, booked words, no times with
+the link, via only, the send's check, the daily check, gone's why, availability, the screen's gone note).
+Rulings: `bookingLink` is optional in the model's answer (absent: false), so answers and fixtures from before stay
+valid. Instagram's standing LUME AI run reads availability without the server's deps (ai-intake.ts), so there a
+Calendly-only setup (no call times) leaves Book meetings off: deferred, call times still work there. The engine test
+moves a week per case (a weekend holds the sends).
+
+## Fresh review 2026-11-28
+
+Fixed, each test first and its mutant killed:
+- Important 1: with the link on offer, any time in LUME AI's words hands over, even one the lead named ("Tuesday 5pm
+  works, I'll call you then" went out); only the call the lead already booked may be said (its words are given).
+- Important 2: a booking link chosen before LUME kept its page shows "still reading … within a day, or save it again",
+  and the daily check fills the page and name in from Calendly.
+- Important 3: the daily check writes only over what it read (an admin's save meanwhile is kept), and keeps the page
+  and name current (an address changed in Calendly).
+- Copy: the screen never promises call times when there are none ("with none, a person confirms each call").
+
+Deferred minors (rulings): no guard on a link the model writes itself (it never sees the real address; the prompt
+forbids it); "pick on the link below" with bookingLink false goes out without a link (prompt-level, as files were
+before their guard); the send re-checks the link but not that via is still "calendly" (an Ask me approved after the
+switch still adds it); Instagram's 1,000 bytes is checked with the address at write time; ai-intake's availability
+without deps (above); `bookingLink` stays optional in the schema (absent: false), kept for older answers' types.

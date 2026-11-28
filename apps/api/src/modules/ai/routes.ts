@@ -33,7 +33,7 @@ export async function aiRoutes(app: FastifyInstance, d: AppDeps): Promise<void> 
   );
   // Settings → LUME AI (Autopilot spec 2026-10-19 §5): what it knows, its voice, the standing choices; admins. The body
   // is checked by the core schema in the service, so a refusal says what's wrong in words.
-  r.get("/api/v1/ai/profile", { config: { permission: "settings.manage" } }, (req) => getAiProfile(req));
+  r.get("/api/v1/ai/profile", { config: { permission: "settings.manage" } }, (req) => getAiProfile(req, d));
   // LUME AI writes templates (2026-10-31): two or three drafts from what the person asks for; whoever manages templates.
   r.post(
     "/api/v1/templates/draft",
@@ -46,7 +46,7 @@ export async function aiRoutes(app: FastifyInstance, d: AppDeps): Promise<void> 
   r.patch(
     "/api/v1/ai/profile",
     { config: { permission: "settings.manage" }, schema: { body: z.record(z.string(), z.unknown()) } },
-    (req) => patchAiProfile(req, req.body),
+    (req) => patchAiProfile(req, req.body, d),
   );
   r.put(
     "/api/v1/integrations/ai",

@@ -1,7 +1,7 @@
 import type pg from "pg";
 import type { Keyring } from "@lume/core";
 import { CalendlyError, createCalendly } from "./client";
-import { openCalendly } from "./config";
+import { openCalendly, sealCalendly } from "./config";
 
 /** What LUME says when Calendly stopped sending bookings (never Calendly's own words, never the token). */
 const SAID = {
@@ -48,6 +48,30 @@ export async function checkCalendly(o: {
       if (!(e instanceof CalendlyError) || e.kind === "unavailable") continue; // nothing learned
       code =
         e.kind === "token" ? "CALENDLY_TOKEN" : e.kind === "plan" ? "CALENDLY_PLAN" : "CALENDLY_SUBSCRIPTION";
+    }
+    // LUME's booking link still offered (spec 2026-11-28): LUME AI shares it only while Calendly lists it.
+    // Its page and name kept current too (review 2026-11-28): one chosen before LUME kept them, or whose address
+    // changed in Calendly. Written only over what was read: an admin's save meanwhile is never undone.
+    if (!code && c.settings.bookWith) {
+      const ls = await calendly
+        .links({ scope: c.scope, organization: c.organization, user: c.user })
+        .catch(() => null); // Calendly down: nothing learned
+      const l = ls?.find((x) => x.uri === c.settings.bookWith);
+      const next = !ls
+        ? c.settings
+        : l
+          ? { ...c.settings, bookGone: false, bookUrl: l.schedulingUrl, bookName: l.name }
+          : { ...c.settings, bookGone: true };
+      if (
+        next.bookGone !== c.settings.bookGone ||
+        next.bookUrl !== c.settings.bookUrl ||
+        next.bookName !== c.settings.bookName
+      )
+        await o.pool.query("UPDATE lead_sources SET config_enc = $2 WHERE id = $1 AND config_enc = $3", [
+          s.id,
+          sealCalendly(o.keyring, s.id, { ...c, settings: next }),
+          s.config_enc,
+        ]);
     }
     const ours = s.attention_code?.startsWith("CALENDLY_") ?? false;
     if (code && (s.status !== "needs_attention" || ours))

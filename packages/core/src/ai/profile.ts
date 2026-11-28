@@ -104,6 +104,7 @@ const calls = z.strictObject({
   daysAhead: whole(1, 60, "How far ahead is from 1 to 60 days."),
   how: words(200, "How the call happens"),
   meet: z.boolean({ error: "Choose whether LUME makes a Meet link." }).optional(),
+  via: z.enum(["times", "calendly"], { error: "Choose how LUME AI books a call." }).optional(),
 });
 
 const allow = z.enum(["go", "ask", "never"], { error: "Choose Go ahead, Ask me or Never." });

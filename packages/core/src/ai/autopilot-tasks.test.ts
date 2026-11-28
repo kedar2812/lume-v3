@@ -607,3 +607,92 @@ describe("a call LUME AI says yes to", () => {
     expect(off).toContain("We'll call you on this number.");
   });
 });
+
+/** LUME AI on Calendly (spec 2026-11-28, option A): it shares the business's booking link; the lead picks the time. */
+describe("a call through the business's Calendly link", () => {
+  const link = { name: "30 minute call", booked: null };
+  const asked = "Can we talk sometime this week?";
+  const g = (o: Partial<GuardCtx> = {}) =>
+    guard({ lastLeadMessage: asked, leadWords: asked, bookingLink: true, ...o });
+  const share = (message = "Happy to! Pick a time that suits you on the link below.") =>
+    reply({ message, bookingLink: true });
+
+  it("is told to share the link LUME adds, never a time, never that a call is booked", () => {
+    const say = autopilotInstructions("autopilot_reply", ctx({ bookingLink: link }));
+    expect(say).toContain("LUME adds the business's booking link under your message");
+    expect(say).toContain("set bookingLink to true");
+    expect(say).toContain("never write a link");
+    expect(say).toContain("Never offer, suggest or agree a day or time");
+    expect(say).not.toContain("callTimes");
+    // Without it, not a word about a booking link (WhatsApp's words exactly as before).
+    expect(autopilotInstructions("autopilot_reply", ctx())).not.toContain("bookingLink");
+  });
+
+  it("a lead who already booked: told so, and asked not to send the link again", () => {
+    const say = autopilotInstructions(
+      "autopilot_reply",
+      ctx({ bookingLink: { ...link, booked: "Thursday 3 December, 4:00 pm" } }),
+    );
+    expect(say).toContain("already booked a call for Thursday 3 December, 4:00 pm");
+    expect(say).toContain("don't send the link again");
+  });
+
+  it("the reply carries the link (LUME adds it), and only where the link is offered", () => {
+    expect(guardReply(share(), g())).toMatchObject({ kind: "send", updates: { bookingLink: true } });
+    // Asked for without the link on offer: dropped, the reply as it is.
+    expect(guardReply(share("Thanks for asking!"), g({ bookingLink: false }))).toMatchObject({
+      kind: "send",
+      updates: { bookingLink: false },
+    });
+  });
+
+  it("a time of its own, a booking of its own, or 'booked': a person gets the lead", () => {
+    expect(
+      guardReply(reply({ message: "Done, see you then.", meeting: { at: "2026-12-03T16:00" } }), g()),
+    ).toMatchObject({
+      kind: "handover",
+      reason: "LUME AI wanted to book a time itself; your Calendly link is how leads book.",
+    });
+    expect(guardReply(share("How about Thursday at 4 pm? Or pick on the link below."), g())).toMatchObject({
+      kind: "handover",
+      reason: "LUME AI wanted to name a time; with your Calendly link, the lead picks it.",
+    });
+    expect(
+      guardReply(share("You're all set for Thursday at 4 pm!"), g({ leadWords: "Thursday at 4 pm?" })),
+    ).toMatchObject({
+      kind: "handover",
+    });
+  });
+
+  // Review 2026-11-28 (Important 1): the lead's own time agreed in words, with nothing booked, never goes out.
+  it("any time in its words hands over, even one the lead named; only the call they already booked may be said", () => {
+    const lead = "Can we talk Tuesday 5pm?";
+    expect(
+      guardReply(
+        reply({ message: "Tuesday 5pm works, I'll call you then." }),
+        g({ leadWords: lead, lastLeadMessage: lead }),
+      ),
+    ).toMatchObject({
+      kind: "handover",
+      reason: "LUME AI wanted to name a time; with your Calendly link, the lead picks it.",
+    });
+    const booked = "December 3, Thursday at 4 pm";
+    expect(
+      guardReply(reply({ message: "Your call is on Thursday at 4 pm. Nothing to prepare!" }), g({ booked })),
+    ).toMatchObject({ kind: "send" });
+    expect(guardReply(reply({ message: "Your call is on Thursday at 5 pm." }), g({ booked }))).toMatchObject({
+      kind: "handover",
+    });
+  });
+
+  it("Book meetings set to Ask me waits for a tap; Never hands over", () => {
+    const ask = { ...AUTOPILOT_PRESETS.hands_off, book_meetings: "ask" as const };
+    expect(guardReply(share(), g({ permissions: ask }))).toMatchObject({
+      kind: "ask",
+      action: "book_meetings",
+      updates: { bookingLink: true },
+    });
+    const never = { ...AUTOPILOT_PRESETS.hands_off, book_meetings: "never" as const };
+    expect(guardReply(share(), g({ permissions: never }))).toMatchObject({ kind: "handover" });
+  });
+});

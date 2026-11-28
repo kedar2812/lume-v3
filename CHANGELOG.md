@@ -6,6 +6,14 @@ column in the release that stops using it.
 
 ## Unreleased
 
+- **LUME AI can book calls through your Calendly link**: in Settings → LUME AI, "How LUME AI books a call" offers
+  With your Calendly link once a booking link is chosen for LUME in Settings → Integrations → Calendly. Where LUME AI
+  would offer times, it invites the lead to pick one and LUME adds your booking link under its words; the lead books on
+  Calendly's own page and the booking comes into LUME as any Calendly booking does. LUME AI never names a time or says
+  a call is booked. If the link stops working (Calendly off, or the link no longer offered), Settings says why and
+  LUME AI offers your call times meanwhile; a reply whose link stopped working before it went is never sent, and a
+  person gets the lead.
+
 - **Each connected Instagram account shows its own profile photo** in Settings → Integrations → Instagram, instead of
   its initials. LUME reads it with the account's own connection and keeps its own copy (Instagram's links expire),
   looks again a week later, and lets it go when the account disconnects. An account with no photo keeps its initials.

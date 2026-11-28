@@ -233,6 +233,7 @@ export function AiSettings({
           speakers={initial.speakers}
           available={available}
           {...(meet ? { meet } : {})}
+          {...(initial.bookingLink ? { link: initial.bookingLink } : {})}
           onChange={(v) => edit("standing", v)}
         />
       </Panel>

@@ -22,6 +22,11 @@ export type CallRules = {
    * LUME AI's yes carries the link. Absent on profiles saved before it: off.
    */
   meet?: boolean;
+  /**
+   * How LUME AI books a call (spec 2026-11-28): at a time it offers from these, or by sharing the business's Calendly
+   * booking link so the lead picks the time. Absent on profiles saved before it: at a time it offers.
+   */
+  via?: "times" | "calendly";
 };
 export const CALL_MINUTES = [15, 30, 45, 60] as const;
 export const DEFAULT_CALL_RULES: CallRules = {

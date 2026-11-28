@@ -33,6 +33,8 @@ export type FakeLink = {
   questions?: { name: string; required: boolean; enabled?: boolean }[];
   /** Free start times (ISO), as Calendly's availability answers them. */
   free?: string[];
+  /** Its page, when not the default one (a link whose address was changed in Calendly). */
+  page?: string;
 };
 /** A booking LUME made through the Scheduling API. */
 export type FakeBooking = {
@@ -183,7 +185,7 @@ export async function startCalendlyFake(): Promise<CalendlyFake> {
             name: l.name,
             duration: l.duration,
             active: l.active !== false,
-            scheduling_url: `https://calendly.com/maya/${l.uri.split("/").at(-1)}`,
+            scheduling_url: l.page ?? `https://calendly.com/maya/${l.uri.split("/").at(-1)}`,
             pooling_type: l.pooling ?? null,
             is_paid: !!l.paid,
             profile: { name: l.owner, type: "User" },

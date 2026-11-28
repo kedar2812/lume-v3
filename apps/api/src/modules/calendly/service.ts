@@ -2,7 +2,7 @@ import { assertModule } from "../../licence/plan";
 import { randomBytes } from "node:crypto";
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
-import { can, newId, type Rules } from "@lume/core";
+import { can, moduleIncluded, newId, type Rules } from "@lume/core";
 import { schema } from "@lume/db";
 import type { AppDeps } from "../../app";
 import { audit } from "../../audit/audit";
@@ -232,6 +232,8 @@ export async function patchCalendly(req: FastifyRequest, d: AppDeps, p: Partial<
   const settings: CalendlySettings = {
     ...c.settings,
     ...p,
+    // A booking link taken away takes its page with it.
+    ...(p.bookWith === null ? { bookUrl: null, bookName: null, bookGone: false } : {}),
     ...(p.phoneQuestion !== undefined ? { phoneQuestion: p.phoneQuestion?.trim() || null } : {}),
     ...(p.links ? { links: [...new Set(p.links)] } : {}),
   };
@@ -254,6 +256,10 @@ export async function patchCalendly(req: FastifyRequest, d: AppDeps, p: Partial<
       if (!l) throw badRequest("BOOK_WITH_UNKNOWN", "That link isn't in this Calendly account any more.");
       const plan = bookingPlan(l, settings);
       if (!plan.ok) throw badRequest("BOOK_WITH_NOT_BOOKABLE", `LUME can't book on ${l.name}: ${plan.why}`);
+      // Its page and name, for LUME AI to share (spec 2026-11-28): as Calendly lists them now.
+      settings.bookUrl = l.schedulingUrl;
+      settings.bookName = l.name;
+      settings.bookGone = false;
     }
   }
   const mine = can(req.actor!, "leads.import");
@@ -306,4 +312,36 @@ export async function disconnectCalendly(req: FastifyRequest, d: AppDeps) {
   await req.db.update(S).set({ status: "archived", archivedAt: new Date() }).where(eq(S.id, s.id));
   await audit(req, { action: "calendly.disconnected", entityType: "lead_source", entityId: s.id, diff: {} });
   return { connected: false as const };
+}
+
+export type AiBookingLink = { ready: true; url: string; name: string } | { ready: false; why: string };
+
+/**
+ * The booking link LUME AI shares when the business chose Calendly (spec 2026-11-28): read from LUME's own settings,
+ * never asking Calendly in a reply. Not ready, with why in words: Calendly off, paused or needing attention, not in the
+ * plan, no booking link chosen, or Calendly no longer listing it (the daily check).
+ */
+export async function aiBookingLink(req: FastifyRequest, d: AppDeps): Promise<AiBookingLink> {
+  const s = await liveCalendly(req);
+  if (!s || !moduleIncluded(req.server.licence.view().plan, "calendly"))
+    return { ready: false, why: "Calendly isn't connected to LUME." };
+  if (s.status !== "active")
+    return { ready: false, why: "Calendly needs your attention in Settings → Integrations." };
+  const set = openCalendly(d.keyring, s.id, s.configEnc!).settings;
+  if (set.bookWith && leadLink(set, set.bookWith) && (!set.bookUrl || !set.bookName))
+    return {
+      ready: false,
+      why: "LUME is still reading your booking link's page from Calendly (within a day), or save it again in Settings → Integrations → Calendly.",
+    };
+  if (!set.bookWith || !set.bookUrl || !set.bookName || !leadLink(set, set.bookWith))
+    return {
+      ready: false,
+      why: "No booking link is chosen for LUME. Choose one in Settings → Integrations → Calendly.",
+    };
+  if (set.bookGone)
+    return {
+      ready: false,
+      why: `Calendly no longer offers ${set.bookName}. Choose another booking link in Settings → Integrations → Calendly.`,
+    };
+  return { ready: true, url: set.bookUrl, name: set.bookName };
 }

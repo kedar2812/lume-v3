@@ -1,3 +1,5 @@
+import type { AppDeps } from "../../app";
+import { aiBookingLink } from "../calendly/service";
 import {
   AUTOPILOT_ACTIONS,
   defaultGoalStages,
@@ -32,6 +34,8 @@ export type AiProfileView = {
   speakers: { id: string; name: string }[];
   /** What Autopilot can use of what's saved, each action off with why: the same answer the start sheet gets. */
   available: Record<AutopilotAction, Available>;
+  /** The Calendly booking link LUME AI would share (spec 2026-11-28), or why not; null where it wasn't asked. */
+  bookingLink: { name: string; ready: true } | { ready: false; why: string } | null;
 };
 /** `fixLabel`: the link's own words when they aren't the action's (a plan's "Upgrade to Max"). */
 export type Available = { ok: true } | { ok: false; why: string; fixHref: string | null; fixLabel?: string };
@@ -103,7 +107,10 @@ export async function filesOf(req: FastifyRequest, ids: string[]) {
 export async function availabilityOf(
   req: FastifyRequest,
   profile: AiProfile,
+  d?: AppDeps,
 ): Promise<Record<AutopilotAction, Available>> {
+  // With Calendly chosen and its booking link working, LUME AI can offer calls with no call times (spec 2026-11-28).
+  const linkReady = profile.standing.calls.via === "calendly" && !!d && (await aiBookingLink(req, d)).ready;
   // Files chosen in Settings → LUME AI that are still in Media (an archived one can't be sent).
   const files = (await filesOf(req, profile.knows.files)).filter((f) => !f.archived).length;
   const [lost] = await req.db
@@ -128,13 +135,14 @@ export async function availabilityOf(
       ? ok
       : { ok: false, why: "Add your lost reasons in Settings → Lists.", fixHref: "/settings/lists" },
     // Only inside the times the business gave it, clear of the speaker's meetings (spec 2026-11-02).
-    book_meetings: profile.standing.calls.windows.length
-      ? ok
-      : {
-          ok: false,
-          why: "Give LUME AI the times it may say yes to a call in Settings → LUME AI.",
-          fixHref: "/settings/ai",
-        },
+    book_meetings:
+      profile.standing.calls.windows.length || linkReady
+        ? ok
+        : {
+            ok: false,
+            why: "Give LUME AI the times it may say yes to a call in Settings → LUME AI.",
+            fixHref: "/settings/ai",
+          },
     // Plans and pricing (November 2026): on a tier without Autopilot replies, what LUME AI only does inside one.
     ...(repliesLocked(req.server.licence.view().plan)
       ? Object.fromEntries(
@@ -161,7 +169,13 @@ async function storedProfile(req: FastifyRequest, stages: Stage[], lock: boolean
   return row ? mergeAiProfile(row.profile, {}) : firstProfile(stages);
 }
 
-async function viewOf(req: FastifyRequest, profile: AiProfile, stages: Stage[]): Promise<AiProfileView> {
+async function viewOf(
+  req: FastifyRequest,
+  profile: AiProfile,
+  stages: Stage[],
+  d?: AppDeps,
+): Promise<AiProfileView> {
+  const link = d ? await aiBookingLink(req, d) : null;
   const [s] = await req.db
     .select({ currency: schema.settings.currency })
     .from(schema.settings)
@@ -172,7 +186,11 @@ async function viewOf(req: FastifyRequest, profile: AiProfile, stages: Stage[]):
     stages: stages.map((x) => ({ id: x.id, name: x.name, pipeline: x.pipeline })),
     files: await filesOf(req, profile.knows.files),
     speakers: await speakers(req),
-    available: await availabilityOf(req, profile),
+    available: await availabilityOf(req, profile, d),
+    // The Calendly booking link LUME AI would share (spec 2026-11-28), or why it can't.
+    bookingLink:
+      link &&
+      (link.ready ? { name: link.name, ready: true as const } : { ready: false as const, why: link.why }),
   };
 }
 
@@ -182,9 +200,9 @@ export async function readAiProfile(req: FastifyRequest): Promise<AiProfile> {
 }
 
 /** `GET /api/v1/ai/profile` (admins). */
-export async function getAiProfile(req: FastifyRequest): Promise<AiProfileView> {
+export async function getAiProfile(req: FastifyRequest, d?: AppDeps): Promise<AiProfileView> {
   const stages = await openStages(req);
-  return viewOf(req, await storedProfile(req, stages, false), stages);
+  return viewOf(req, await storedProfile(req, stages, false), stages, d);
 }
 
 /**
@@ -192,7 +210,11 @@ export async function getAiProfile(req: FastifyRequest): Promise<AiProfileView> 
  * saving different sections at once both keep theirs. What it names must be the business's own: files in Media (one
  * archived since it was chosen may stay, to be removed; it can't be chosen anew), open stages, people who may message.
  */
-export async function patchAiProfile(req: FastifyRequest, body: unknown): Promise<AiProfileView> {
+export async function patchAiProfile(
+  req: FastifyRequest,
+  body: unknown,
+  d?: AppDeps,
+): Promise<AiProfileView> {
   const problem = profileProblem(body);
   if (problem) throw refuse(problem);
   const patch = body as AiProfilePatch;
@@ -228,5 +250,5 @@ export async function patchAiProfile(req: FastifyRequest, body: unknown): Promis
   const sections = (["knows", "voice", "standing"] as const).filter((k) => patch[k] !== undefined);
   // Which sections changed, never the words: what a business knows and says is its own.
   await audit(req, { action: "ai_profile.updated", entityType: "settings", diff: { sections } });
-  return viewOf(req, next, stages);
+  return viewOf(req, next, stages, d);
 }

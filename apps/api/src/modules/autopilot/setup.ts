@@ -144,8 +144,11 @@ export async function numberProblem(
  * What the business has set up for each action (§1.3), from what's saved: `availabilityOf` in Settings → LUME AI's
  * module, so Settings and the start sheet say the same. An action that isn't available runs as Never whatever was chosen.
  */
-export async function availability(req: FastifyRequest): Promise<Record<AutopilotAction, Available>> {
-  return availabilityOf(req, await readAiProfile(req));
+export async function availability(
+  req: FastifyRequest,
+  d?: AppDeps,
+): Promise<Record<AutopilotAction, Available>> {
+  return availabilityOf(req, await readAiProfile(req), d);
 }
 
 /** The permissions a run keeps: as chosen, with anything the business can't use set to Never. */
@@ -245,7 +248,7 @@ export async function autopilotSetup(req: FastifyRequest, d: AppDeps): Promise<A
       dailyCap: st.dailyCap,
       speaker: st.speaker,
     },
-    available: await availability(req),
+    available: await availability(req, d),
     hours: { line: hoursLine(workingHoursFrom(s?.wh)) },
     number: number ? { display: number.display, tierLimit: tierLimitOf(number.tier) } : null,
     canRemember: can(req.actor!, "settings.manage"),

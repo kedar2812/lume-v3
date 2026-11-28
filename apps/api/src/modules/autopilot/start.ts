@@ -120,7 +120,7 @@ async function check(
   const chosen = Object.fromEntries(
     AUTOPILOT_ACTIONS.map((a) => [a, (b.permissions[a] as Allow | undefined) ?? "ask"]),
   ) as Record<AutopilotAction, Allow>;
-  const permissions = usable(chosen, await availability(req));
+  const permissions = usable(chosen, await availability(req, d));
 
   const speakerId = b.speakerId ?? req.actor!.userId;
   const speaker = (await speakers(req)).find((p) => p.id === speakerId);

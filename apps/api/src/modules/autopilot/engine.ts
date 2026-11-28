@@ -67,6 +67,7 @@ import { updateLead, visibleLead } from "../leads/service";
 import { moveStage } from "../leads/write";
 import { adminIds, notify } from "../notifications/notify";
 import { bookCall, busyFor, tellBooked, type Booked } from "../meetings/book";
+import { aiBookingLink } from "../calendly/service";
 import { calendarOn } from "../calendar/service";
 import { workingHoursFrom } from "../settings/follow-ups";
 import { createTask } from "../tasks/service";
@@ -812,6 +813,8 @@ export async function aiCtx(
     leadWords: string;
     lastLeadMessage: string;
     callCheck: GuardCtx["calls"];
+    /** The Calendly booking link's page LUME adds under a reply that shares it (spec 2026-11-28). */
+    bookingUrl: string | null;
   }
 > {
   const [s] = await req.db
@@ -882,8 +885,13 @@ export async function aiCtx(
   const rules = profile.standing.calls;
   // LUME makes the Meet link (spec 2026-11-03): only where Google Calendar is set up and switched on.
   const meet = !!o.calls && !!o.d && (await meetsOn(req, o.d, rules, run.speakerId));
+  // Calendly chosen (spec 2026-11-28): its booking link, while it works, in place of the call times.
+  const mayBook = !!run.permissions && run.permissions.book_meetings !== "never";
+  const linkRead =
+    o.calls && o.d && mayBook && rules.via === "calendly" ? await aiBookingLink(req, o.d) : null;
+  const link = linkRead?.ready ? linkRead : null;
   const callCheck =
-    o.calls && rules.windows.length && run.permissions && run.permissions.book_meetings !== "never"
+    !link && o.calls && rules.windows.length && mayBook
       ? {
           rules,
           tz,
@@ -934,7 +942,9 @@ export async function aiCtx(
       // The speaker's meetings ahead (eval 2026-11-04): LUME AI may say yes to any time inside the hours but these.
       taken: callCheck.busy.map((b) => ({ from: callStamp(b.start, tz), to: callStamp(b.end, tz) })),
     },
+    ...(link ? { bookingLink: { name: link.name, booked: await bookedLabel(req, lead.id, now, tz) } } : {}),
     callCheck,
+    bookingUrl: link?.url ?? null,
     leadWords: theirs
       .slice(-5)
       .map((m) => m.text)
@@ -1089,13 +1099,18 @@ async function writeReply(o: EngineDeps, req: FastifyRequest, runOf: Run, l: Lea
     lostReasonIds: reasons.map((x) => x.id),
     fieldKeys,
     calls: c.callCheck,
+    bookingLink: !!c.bookingLink,
+    booked: c.bookingLink?.booked ?? null,
   });
   // Instagram takes at most 1,000 bytes: a longer reply is never cut or sent, a person gets the lead. A yes that books
   // a call keeps room for the Meet link LUME adds under it (review M5).
   const g: GuardedReply =
     instagram &&
     (guarded.kind === "send" || guarded.kind === "ask") &&
-    !igReplyFits(guarded.message, !!c.calls?.meet && !!guarded.updates.meeting)
+    !igReplyFits(
+      guarded.updates.bookingLink && c.bookingUrl ? `${guarded.message}\n\n${c.bookingUrl}` : guarded.message,
+      !!c.calls?.meet && !!guarded.updates.meeting,
+    )
       ? { kind: "handover", reason: "LUME AI's reply was too long for Instagram.", evidence: null }
       : guarded;
   return actOn(
@@ -1284,6 +1299,7 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, runOf: Run, l: Lead)
       followUp: { at: string; title: string } | null;
       lostReasonId: string | null;
       meeting?: { at: string } | null;
+      bookingLink?: boolean;
     };
   };
   // One key per message as written: a retried step never sends it twice, and one written again after a Pause held it
@@ -1321,8 +1337,19 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, runOf: Run, l: Lead)
           meet: p.meet === true,
         });
       }
-      // The Meet link LUME made (spec 2026-11-03), on its own line under the yes.
-      const text = booked?.link ? `${now.draft}\n\nGoogle Meet: ${booked.link}` : now.draft;
+      // The Meet link LUME made (spec 2026-11-03), on its own line under the yes; or the business's Calendly booking
+      // link, read again now (spec 2026-11-28): one that stopped working sends nothing, and a person gets the lead.
+      let text = booked?.link ? `${now.draft}\n\nGoogle Meet: ${booked.link}` : now.draft;
+      if (p.updates?.bookingLink) {
+        const l = await aiBookingLink(req, o.d);
+        if (!l.ready)
+          throw new HttpError(
+            409,
+            "CALL_LINK_GONE",
+            "LUME's Calendly link stopped working, so LUME AI didn't send its reply.",
+          );
+        text = `${now.draft}\n\n${l.url}`;
+      }
       if (run.channel === "instagram") {
         // On Instagram, LUME AI's message in the lead's conversation on the run's account; no files go there.
         const t = await igThreadOf(req, run.instagramAccountId, l.leadId);
@@ -1368,7 +1395,12 @@ async function sendStep(o: EngineDeps, req: FastifyRequest, runOf: Run, l: Lead)
         .update(schema.calendarConnections)
         .set({ addsEvents: false, updatedAt: o.d.clock() })
         .where(eq(schema.calendarConnections.userId, run.speakerId));
-    if (e.code === "CALL_NOT_FREE" || e.code === "CALL_NO_MEET" || e.code === "CALL_MEET_GONE") {
+    if (
+      e.code === "CALL_NOT_FREE" ||
+      e.code === "CALL_NO_MEET" ||
+      e.code === "CALL_MEET_GONE" ||
+      e.code === "CALL_LINK_GONE"
+    ) {
       const headline = e.message;
       const pool = poolOf(o.d);
       req.afterCommit(
@@ -1593,4 +1625,26 @@ async function queueApology(
     await req.db.execute(sql`ROLLBACK TO SAVEPOINT autopilot_apology`);
     req.log.warn({ err }, "LUME AI couldn't send its apology for a stop");
   }
+}
+
+/** The call the lead has booked next (Calendly's post, or any other), in words on the business's clock; null: none. */
+async function bookedLabel(
+  req: FastifyRequest,
+  leadId: string,
+  now: Date,
+  tz: string,
+): Promise<string | null> {
+  const [m] = await req.db
+    .select({ at: schema.meetings.startsAt })
+    .from(schema.meetings)
+    .where(
+      and(
+        eq(schema.meetings.leadId, leadId),
+        eq(schema.meetings.status, "scheduled"),
+        sql`${schema.meetings.startsAt} > ${now}`,
+      ),
+    )
+    .orderBy(asc(schema.meetings.startsAt))
+    .limit(1);
+  return m ? callTimeLabel(m.at, tz) : null;
 }

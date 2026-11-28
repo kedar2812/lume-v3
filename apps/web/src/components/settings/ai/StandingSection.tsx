@@ -7,7 +7,7 @@ import { Field } from "@/components/ui/Field";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Switch } from "@/components/ui/Switch";
 import type { Available } from "@/lib/autopilot/types";
-import { CallTimes, type MeetSetup } from "./CallTimes";
+import { CallTimes, type BookingLink, type MeetSetup } from "./CallTimes";
 import s from "./ai.module.css";
 
 type Standing = AiProfile["standing"];
@@ -35,6 +35,7 @@ export function StandingSection({
   speakers,
   available,
   meet,
+  link,
   onChange,
 }: {
   value: Standing;
@@ -44,6 +45,8 @@ export function StandingSection({
   available?: Record<AutopilotAction, Available>;
   /** LUME makes the Meet link, where Google Calendar is set up here (spec 2026-11-03). */
   meet?: MeetSetup;
+  /** The Calendly booking link LUME AI may share instead (spec 2026-11-28). */
+  link?: BookingLink | null;
   onChange(v: Standing): void;
 }) {
   const set = (patch: Partial<Standing>) => onChange({ ...v, ...patch });
@@ -88,7 +91,12 @@ export function StandingSection({
         />
       </div>
 
-      <CallTimes value={v.calls} onChange={(calls) => set({ calls })} {...(meet ? { meet } : {})} />
+      <CallTimes
+        value={v.calls}
+        onChange={(calls) => set({ calls })}
+        {...(meet ? { meet } : {})}
+        {...(link ? { link } : {})}
+      />
 
       <div className={s.block}>
         <div className={s.pair}>

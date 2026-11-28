@@ -50,6 +50,8 @@ export type CatchUpRead = { read: { id: string; lines: string[] } };
 /** Settings → LUME AI as the API says it (Autopilot A1, Task 5): the profile and the business's things it names. */
 export type AiProfileView = {
   profile: AiProfile;
+  /** The Calendly booking link LUME AI would share (spec 2026-11-28), or why not. */
+  bookingLink?: { name: string; ready: true } | { ready: false; why: string } | null;
   currency: string;
   stages: { id: string; name: string; pipeline: string }[];
   files: { id: string; name: string; archived: boolean }[];

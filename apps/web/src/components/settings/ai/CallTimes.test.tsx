@@ -3,13 +3,21 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
-import { CallTimes, type MeetSetup } from "./CallTimes";
+import { CallTimes, type BookingLink, type MeetSetup } from "./CallTimes";
 
 let last: CallRules = DEFAULT_CALL_RULES;
-function Harness({ start = DEFAULT_CALL_RULES, meet }: { start?: CallRules; meet?: MeetSetup }) {
+function Harness({
+  start = DEFAULT_CALL_RULES,
+  meet,
+  link,
+}: {
+  start?: CallRules;
+  meet?: MeetSetup;
+  link?: BookingLink;
+}) {
   const [v, setV] = useState(start);
   last = v;
-  return <CallTimes value={v} onChange={setV} {...(meet ? { meet } : {})} />;
+  return <CallTimes value={v} onChange={setV} {...(meet ? { meet } : {})} {...(link ? { link } : {})} />;
 }
 
 /** Settings → LUME AI, the calls LUME AI may say yes to (spec 2026-11-02 LUME AI books calls). */
@@ -161,5 +169,41 @@ describe("calls LUME AI may say yes to", () => {
       await userEvent.click(screen.getByRole("button", { name: "Connect again" }));
       expect(asked).toBe(1);
     });
+  });
+});
+
+/** LUME AI on Calendly (spec 2026-11-28): the business's booking link instead of times. */
+describe("how LUME AI books a call", () => {
+  const ready: BookingLink = { name: "Discovery call", ready: true };
+  it("no booking link chosen in Calendly: not offered at all", () => {
+    render(<Harness />);
+    expect(screen.queryByRole("radiogroup", { name: "How LUME AI books a call" })).toBeNull();
+    render(<Harness link={{ ready: false, why: "No booking link is chosen for LUME." }} />);
+    expect(screen.queryByRole("radiogroup", { name: "How LUME AI books a call" })).toBeNull();
+  });
+
+  it("with a booking link: at a time it offers, or with the link, named; choosing it saves", async () => {
+    render(<Harness link={ready} />);
+    const how = screen.getByRole("radiogroup", { name: "How LUME AI books a call" });
+    expect(within(how).getByRole("radio", { name: "At a time it offers" })).toBeChecked();
+    await userEvent.click(within(how).getByRole("radio", { name: "With your Calendly link" }));
+    expect(last.via).toBe("calendly");
+    expect(
+      screen.getByText(/LUME AI shares Discovery call, and the lead picks a time on Calendly/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/never says a call is booked/)).toBeInTheDocument();
+  });
+
+  it("chosen, and the link stopped working: says why, and that the call times are used meanwhile", () => {
+    render(
+      <Harness
+        start={{ ...DEFAULT_CALL_RULES, via: "calendly" }}
+        link={{ ready: false, why: "Calendly no longer offers Discovery call." }}
+      />,
+    );
+    expect(screen.getByRole("radiogroup", { name: "How LUME AI books a call" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Calendly no longer offers Discovery call. Until it's fixed, LUME AI offers your call times; with none, a person confirms each call.",
+    );
   });
 });

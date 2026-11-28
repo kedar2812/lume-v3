@@ -18,6 +18,9 @@ export type MeetSetup = {
   allow(): Promise<string | null>;
 };
 
+/** The Calendly booking link LUME AI would share (spec 2026-11-28), or why it can't. */
+export type BookingLink = { name: string; ready: true } | { ready: false; why: string };
+
 /** Monday first, as a week reads; 0 is Sunday, as LUME stores days. */
 const WEEK = [
   { d: 1, name: "Monday" },
@@ -40,9 +43,12 @@ export function CallTimes({
   value: v,
   onChange,
   meet,
+  link,
 }: {
   value: CallRules;
   onChange(v: CallRules): void;
+  /** Where a Calendly booking link is chosen (spec 2026-11-28): LUME AI may share it instead of offering times. */
+  link?: BookingLink | null;
   /** Absent where Google Calendar isn't set up and on: no Meet link, the business's own words. */
   meet?: MeetSetup;
 }) {
@@ -64,6 +70,35 @@ export function CallTimes({
         When a lead asks for a call at one of these times and you&apos;re free, LUME AI says yes and books it.
         With none, a person confirms every call.
       </p>
+      {link && (link.ready || v.via === "calendly") && (
+        <div className={s.choice}>
+          <span className={s.label}>How LUME AI books a call</span>
+          <SegmentedControl
+            size="sm"
+            label="How LUME AI books a call"
+            value={v.via ?? "times"}
+            options={[
+              { value: "times", label: "At a time it offers" },
+              { value: "calendly", label: "With your Calendly link" },
+            ]}
+            onChange={(via) => set({ via })}
+          />
+        </div>
+      )}
+      {link &&
+        v.via === "calendly" &&
+        (link.ready ? (
+          <p className={s.blockLede}>
+            LUME AI shares {link.name}, and the lead picks a time on Calendly. It never says a call is booked:
+            the booking comes into LUME from Calendly. If the link stops working, LUME AI offers the times
+            below; with none, a person confirms each call.
+          </p>
+        ) : (
+          <p role="status" className={s.blockLede}>
+            {link.why} Until it&apos;s fixed, LUME AI offers your call times; with none, a person confirms
+            each call.
+          </p>
+        ))}
       {v.windows.map((w, i) => (
         <div key={i} role="group" aria-label={`Call times ${i + 1}`} className={s.callRow}>
           <div className={s.weekdays}>

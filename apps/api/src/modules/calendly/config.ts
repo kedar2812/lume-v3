@@ -27,6 +27,11 @@ export type CalendlySettings = {
   links?: string[] | null;
   /** LUME's booking link: the one LUME books calls on in Calendly (Schedule a meeting); one of `links`. */
   bookWith?: string | null;
+  /** The booking link's own page and name, as Calendly listed them when it was chosen (LUME AI shares the page). */
+  bookUrl?: string | null;
+  bookName?: string | null;
+  /** Calendly stopped listing the booking link (the daily check): LUME AI offers the call times until it's back. */
+  bookGone?: boolean;
 };
 export const CALENDLY_DEFAULTS: CalendlySettings = {
   createLeads: true,

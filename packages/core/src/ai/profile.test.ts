@@ -128,6 +128,15 @@ describe("voice and standing choices", () => {
     expect(profileProblem({ standing: { calls: { ...calls, meet: "yes" } } })).toBe(
       "Choose whether LUME makes a Meet link.",
     );
+    // How LUME AI books a call (spec 2026-11-28): at a time it offers, or with the business's Calendly link.
+    expect(profileProblem({ standing: { calls: { ...calls, via: "calendly" } } })).toBeNull();
+    expect(profileProblem({ standing: { calls: { ...calls, via: "times" } } })).toBeNull();
+    expect(profileProblem({ standing: { calls: { ...calls, via: "phone" } } })).toBe(
+      "Choose how LUME AI books a call.",
+    );
+    expect(
+      mergeAiProfile(null, { standing: { calls: { ...calls, via: "calendly" } } }).standing.calls.via,
+    ).toBe("calendly");
     const w = (x: object) => ({
       standing: { calls: { ...calls, windows: [{ ...calls.windows[0], ...x }] } },
     });

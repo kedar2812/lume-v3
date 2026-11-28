@@ -76,6 +76,11 @@ export type AutopilotCtx = {
     /** The speaker's meetings in the days ahead (eval 2026-11-04): a call never overlaps one. */
     taken?: { from: string; to: string }[];
   } | null;
+  /**
+   * The business's Calendly booking link, shared instead of times (spec 2026-11-28): its name, and the call the lead
+   * has already booked (as words on the business's clock), if any. LUME adds the link itself.
+   */
+  bookingLink?: { name: string; booked: string | null } | null;
 };
 
 export const autopilotFirstOutput = z.object({ templateId: z.uuid(), why: softText(200) }).strict();
@@ -100,6 +105,8 @@ export const autopilotReplyOutput = z
     lostReasonId: z.uuid().nullable(),
     /** A call LUME AI says yes to, on the business's clock, "YYYY-MM-DDTHH:mm" (spec 2026-11-02). */
     meeting: z.object({ at: z.string() }).strict().nullable().default(null),
+    /** The business's Calendly booking link goes under the message (spec 2026-11-28): LUME adds it. */
+    bookingLink: z.boolean().optional(),
   })
   .strict();
 export type AutopilotReply = z.infer<typeof autopilotReplyOutput>;
@@ -167,22 +174,29 @@ aren't sure of, answer with kind handover, the reason in one line, and the lead'
 about their own health, symptoms, medicine or treatment, or about investment returns or money decisions, is handed \
 over even when you would only decline to answer it.
 - When the goal is reached, answer with kind converted, the reason, and the lead's own words as evidence.${
-    c.calls
+    c.bookingLink
       ? `
+- Calls: the lead books a call themselves on the business's booking page ("${c.bookingLink.name}"). When the lead wants a call or asks when you can talk, invite them in your own words to pick a time that suits them, and set bookingLink to true: LUME adds the business's booking link under your message, so never write a link yourself. Never offer, suggest or agree a day or time, and never say a call is booked: the lead picks it on the page.${
+          c.bookingLink.booked
+            ? ` The lead has already booked a call for ${c.bookingLink.booked}: don't send the link again.`
+            : ""
+        }`
+      : c.calls
+        ? `
 - Calls: you may say yes to a call of ${c.calls.minutes} minutes on ${c.calls.windows} (the business's time), at least \
 ${c.calls.noticeHours} hours ahead and at most ${c.calls.daysAhead} days ahead, the whole call inside those hours, and \
 never overlapping a time in callsTaken (the speaker's meetings). When the lead proposes or agrees to such a time, say yes \
 in your message with its day and time, answer with kind reply, and set meeting.at to it ("YYYY-MM-DDTHH:mm" on the \
 business's clock). LUME checks it again before anything is sent.${
-          c.calls.meet
-            ? " LUME adds the Google Meet link under your message: never write a link, and say the call is on Google Meet."
-            : c.calls.how
-              ? ` Say how the call happens: ${c.calls.how}`
-              : ""
-        } \
+            c.calls.meet
+              ? " LUME adds the Google Meet link under your message: never write a link, and say the call is on Google Meet."
+              : c.calls.how
+                ? ` Say how the call happens: ${c.calls.how}`
+                : ""
+          } \
 When they ask when, or propose a time that doesn't fit, offer up to two times from callTimes (the soonest free ones) \
 and leave meeting null. Never say a call is booked without setting meeting.`
-      : ` A day or time the lead proposes for the goal step reaches it: a person confirms the slot, so never hand over \
+        : ` A day or time the lead proposes for the goal step reaches it: a person confirms the slot, so never hand over \
 for want of a calendar. Never say a call or visit is booked: a person confirms it.`
   }
 - Never say you're sending a file unless it's attached by its id in fileIds.
@@ -285,6 +299,10 @@ export type GuardCtx = {
   fieldKeys: string[];
   /** The times LUME AI may say yes to a call at and the speaker's meetings; null when none were given. */
   calls?: { rules: CallRules; tz: string; now: Date; busy: Busy[] } | null;
+  /** The business's Calendly booking link is on offer instead (spec 2026-11-28). */
+  bookingLink?: boolean;
+  /** With the link on offer: the call the lead already booked, in words (its time is the only one LUME AI may say). */
+  booked?: string | null;
 };
 export type ReplyUpdates = {
   stageId: string | null;
@@ -293,6 +311,8 @@ export type ReplyUpdates = {
   lostReasonId: string | null;
   /** A call to book as the reply goes, its start as an instant (ISO). */
   meeting?: { at: string } | null;
+  /** The business's Calendly booking link goes under the message (spec 2026-11-28). */
+  bookingLink?: boolean;
 };
 export type GuardedReply =
   | { kind: "send"; message: string; fileIds: string[]; updates: ReplyUpdates }
@@ -359,6 +379,11 @@ export function guardReply(out: AutopilotReply, g: GuardCtx): GuardedReply {
   if (priced && perms.answer_prices === "never") return neverSays("answer_prices");
   // A call it says yes to (spec 2026-11-02): checked here, whatever the model said, and again under a lock as it's booked.
   let meeting: { at: string } | null = null;
+  // With the Calendly link on offer, the lead books: LUME AI never books a time of its own (spec 2026-11-28).
+  if (out.meeting && g.bookingLink)
+    return handover("LUME AI wanted to book a time itself; your Calendly link is how leads book.");
+  const link = !!out.bookingLink && !!g.bookingLink;
+  if (link && perms.book_meetings === "never") return neverSays("book_meetings");
   if (out.meeting) {
     if (perms.book_meetings === "never") return neverSays("book_meetings");
     if (!g.calls) return handover(SLOT_WORDS.outside);
@@ -387,7 +412,16 @@ export function guardReply(out: AutopilotReply, g: GuardCtx): GuardedReply {
     .filter((m) => Number(m[1]) >= 1 && Number(m[1]) <= 12)
     .map((m) => (m[2] ? `${m[1]}:${m[2]}am ${m[1]}:${m[2]}pm` : `${m[1]}am ${m[1]}pm`))
     .join(" ");
-  const given = new Set(timesIn(`${g.leadWords}\n${g.businessWords}\n${callWords}\n${bare}`).map(tidyTime));
+  // With the Calendly link on offer, the lead picks the time on Calendly: no time in LUME AI's words but the call they
+  // already booked (review 2026-11-28), not even one they named.
+  if (g.bookingLink) {
+    const booked = new Set(timesIn(g.booked ?? "").map(tidyTime));
+    if (timesIn(message).some((t) => !booked.has(tidyTime(t))))
+      return handover("LUME AI wanted to name a time; with your Calendly link, the lead picks it.");
+  }
+  const given = new Set(
+    timesIn(`${g.leadWords}\n${g.businessWords}\n${callWords}\n${bare}\n${g.booked ?? ""}`).map(tidyTime),
+  );
   if (timesIn(message).some((t) => !given.has(tidyTime(t))))
     return handover("LUME AI wanted to offer a time you haven't given it.");
   if (!meeting && saysBooked(message)) return handover("LUME AI said a call was booked, but didn't book it.");
@@ -399,7 +433,7 @@ export function guardReply(out: AutopilotReply, g: GuardCtx): GuardedReply {
     return true;
   };
   if (perms.replies === "ask") asks.push("replies");
-  if (meeting && perms.book_meetings === "ask") asks.push("book_meetings");
+  if ((meeting || link) && perms.book_meetings === "ask") asks.push("book_meetings");
   if (priced && perms.answer_prices === "ask") asks.push("answer_prices");
   const chosen = out.fileIds.filter((f, i, all) => g.fileIds.includes(f) && all.indexOf(f) === i);
   const fileIds = chosen.length && allowed("send_files") ? chosen : [];
@@ -422,7 +456,7 @@ export function guardReply(out: AutopilotReply, g: GuardCtx): GuardedReply {
   const fields = fieldEntries.length && allowed("fill_fields") ? Object.fromEntries(fieldEntries) : {};
   const followUp = out.followUp && allowed("set_follow_ups") ? out.followUp : null;
 
-  const updates: ReplyUpdates = { stageId, fields, followUp, lostReasonId, meeting };
+  const updates: ReplyUpdates = { stageId, fields, followUp, lostReasonId, meeting, bookingLink: link };
   // One tap for the most careful thing waiting: losing a lead, then prices, then the rest.
   const order: AutopilotAction[] = [
     "mark_lost",

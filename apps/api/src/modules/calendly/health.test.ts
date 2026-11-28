@@ -2,6 +2,7 @@ import { ALL_GRANTS } from "@lume/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startCalendlyFake, type CalendlyFake } from "../../../test/calendly-fake";
 import { createHarness, type AuthedClient, type Harness } from "../../../test/harness";
+import { openCalendly, sealCalendly } from "./config";
 import { checkCalendly } from "./health";
 
 let h: Harness;
@@ -93,5 +94,95 @@ describe("Calendly's daily check (5B final review, Important 6)", () => {
     );
     await check();
     expect(await state()).toMatchObject({ status: "needs_attention", attention_code: "RUN_AS_ACCESS" });
+  });
+});
+
+/** LUME's booking link, which LUME AI shares (spec 2026-11-28; review 2026-11-28, Important 2 and 3). */
+describe("the daily check and LUME's booking link", () => {
+  const DISC = "https://api.calendly.com/event_types/DISC";
+  const settings = async () => {
+    const r = (
+      await h.ownerPool.query<{ config_enc: Buffer }>("SELECT config_enc FROM lead_sources WHERE id = $1", [
+        sourceId,
+      ])
+    ).rows[0]!;
+    return openCalendly(h.keyring, sourceId, r.config_enc).settings;
+  };
+  const choose = async (page?: string) => {
+    fake.links = [
+      { uri: DISC, name: "Discovery call", duration: 30, owner: "Maya Kapoor", ...(page ? { page } : {}) },
+    ];
+    const r = await admin.inject({
+      method: "PATCH",
+      url: "/api/v1/integrations/calendly",
+      payload: { bookWith: DISC },
+    });
+    expect(r.statusCode).toBe(200);
+  };
+
+  it("one chosen before LUME kept its page: the check fills the page and name in from Calendly", async () => {
+    await choose();
+    const r = (
+      await h.ownerPool.query<{ config_enc: Buffer }>("SELECT config_enc FROM lead_sources WHERE id = $1", [
+        sourceId,
+      ])
+    ).rows[0]!;
+    const c = openCalendly(h.keyring, sourceId, r.config_enc);
+    const older = { ...c.settings };
+    delete older.bookUrl;
+    delete older.bookName;
+    await h.ownerPool.query("UPDATE lead_sources SET config_enc = $2 WHERE id = $1", [
+      sourceId,
+      sealCalendly(h.keyring, sourceId, { ...c, settings: older }),
+    ]);
+    await check();
+    expect(await settings()).toMatchObject({
+      bookUrl: "https://calendly.com/maya/DISC",
+      bookName: "Discovery call",
+    });
+  });
+
+  it("its address changed in Calendly: the new page is kept, so LUME AI never shares a dead one", async () => {
+    await choose();
+    fake.links[0]!.page = "https://calendly.com/maya/intro-call";
+    fake.links[0]!.name = "Intro call";
+    await check();
+    expect(await settings()).toMatchObject({
+      bookUrl: "https://calendly.com/maya/intro-call",
+      bookName: "Intro call",
+    });
+  });
+
+  it("gone from Calendly, then back: marked, then cleared", async () => {
+    await choose();
+    fake.links = [];
+    await check();
+    expect((await settings()).bookGone).toBe(true);
+    fake.links = [{ uri: DISC, name: "Discovery call", duration: 30, owner: "Maya Kapoor" }];
+    await check();
+    expect((await settings()).bookGone).toBe(false);
+  });
+
+  it("an admin's save while the check waits on Calendly is kept, never written over", async () => {
+    await choose();
+    fake.links = [];
+    // The admin turns the booking link off just as the check is about to write what it learned.
+    const pool = {
+      query: async (text: string, params?: unknown[]) => {
+        if (text.startsWith("UPDATE lead_sources SET config_enc"))
+          expect(
+            (
+              await admin.inject({
+                method: "PATCH",
+                url: "/api/v1/integrations/calendly",
+                payload: { bookWith: null },
+              })
+            ).statusCode,
+          ).toBe(200);
+        return h.pool.query(text, params);
+      },
+    } as unknown as typeof h.pool;
+    await checkCalendly({ pool, keyring: h.keyring, endpoint: fake.url, wait: async () => undefined });
+    expect(await settings()).toMatchObject({ bookWith: null, bookUrl: null });
   });
 });
