@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { dayIn, daysOf } from "@/lib/analytics/range";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FlowGraph } from "@lume/core/shared";
 import { flowsClient, type FlowAiBuild, type FlowView } from "@/lib/flows/client";
@@ -31,6 +32,7 @@ vi.mock("motion/react", async (orig) => ({
   ...(await orig<typeof import("motion/react")>()),
   useReducedMotion: () => motion.reduce,
 }));
+const opens = vi.hoisted(() => [] as { x: number; y: number; w: number; h: number }[]);
 const fits = vi.hoisted(
   () => [] as { box: { x: number; y: number; w: number; h: number }; room?: { left: number } }[],
 );
@@ -44,6 +46,11 @@ vi.mock("./useCamera", async (orig) => {
       c.fit = (box, panel, room) => {
         fits.push({ box, ...(room ? { room } : {}) });
         fit(box, panel, room);
+      };
+      const open = c.open;
+      c.open = (box, start) => {
+        opens.push(box);
+        open(box, start);
       };
       return c;
     },
@@ -137,6 +144,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   motion.reduce = false;
   fits.length = 0;
+  opens.length = 0;
   vi.mocked(flowsClient.save).mockImplementation(async (_id, body) =>
     ok(view({ rev: body.rev + 1, graph: body.graph!, draft: body.graph! })),
   );
@@ -170,6 +178,71 @@ describe("the flow builder", () => {
     const list = screen.getByRole("dialog", { name: "Problems" });
     expect(list).toHaveTextContent("Write a message or add a file.");
     expect(within(list).getByRole("button", { name: "Show me" })).toBeInTheDocument();
+  });
+
+  // Owner 2026-11-28: "the information is not easily understood".
+  it("a step's card says its problem in words, each way out in what the person does, and where the flow ends", () => {
+    render(
+      <Builder
+        catalog={testCatalog()}
+        flows={[]}
+        businessName="Harbour Studio"
+        initial={view({
+          problems: ["Write a message or add a file."],
+          issues: [{ nodeId: "bye", words: "Write a message or add a file." }],
+        })}
+      />,
+    );
+    expect(screen.getByLabelText("Step: Message, Here it is.")).toHaveTextContent(
+      "Write a message or add a file.",
+    );
+    const hi = screen.getByLabelText("Step: Message, Hi! Want the guide?");
+    expect(hi).toHaveTextContent("Taps “Yes please”");
+    // The card's words aren't said twice (its title line used to repeat them).
+    expect(within(hi).getAllByText(/Hi! Want the guide\?/)).toHaveLength(1);
+    expect(screen.getByLabelText("Step: Message, Here it is.")).toHaveTextContent("Ends here");
+  });
+
+  // Found 2026-11-28 (owner: "the flow builder has quite some bugs"): Delete took the focused card away, focus fell to
+  // the page, and Undo's key never reached the builder.
+  it("a step deleted with the key: the canvas keeps the keys, so Undo brings it back", async () => {
+    render(<Builder initial={view()} catalog={testCatalog()} flows={[]} businessName="Harbour Studio" />);
+    const card = screen.getByLabelText("Step: Message, Here it is.");
+    // A plain click: React Flow's drag handler needs a real window behind a mouse-down.
+    fireEvent.click(card);
+    (card.closest(".react-flow__node") as HTMLElement).focus();
+    fireEvent.keyDown(document.activeElement!, { key: "Delete" });
+    expect(screen.queryByLabelText("Step: Message, Here it is.")).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByRole("region", { name: "The flow's canvas" }));
+    fireEvent.keyDown(document.activeElement!, { key: "z", ctrlKey: true });
+    expect(screen.getByLabelText("Step: Message, Here it is.")).toBeInTheDocument();
+  });
+
+  it("a step deleted from its panel: the canvas keeps the keys too", async () => {
+    render(<Builder initial={view()} catalog={testCatalog()} flows={[]} businessName="Harbour Studio" />);
+    fireEvent.click(screen.getByLabelText("Step: Message, Here it is."));
+    const panel = await screen.findByRole("complementary", { name: "Message step" });
+    await userEvent.click(within(panel).getByRole("button", { name: "Delete" }));
+    expect(document.activeElement).toBe(screen.getByRole("region", { name: "The flow's canvas" }));
+    fireEvent.keyDown(document.activeElement!, { key: "z", ctrlKey: true });
+    expect(screen.getByLabelText("Step: Message, Here it is.")).toBeInTheDocument();
+  });
+
+  // Owner 2026-11-28: a big flow opened fitted whole was too small to read; it opens readable (useCamera.open).
+  it("opening: the whole flow is handed to the readable opening view, once", async () => {
+    render(<Builder initial={view()} catalog={testCatalog()} flows={[]} businessName="Harbour Studio" />);
+    await waitFor(() => expect(opens).toHaveLength(1));
+    expect(opens[0]!.w).toBeGreaterThan(0);
+    expect(fits).toHaveLength(0);
+  });
+
+  it("the rail says each step's name beside it while pointed at or focused", async () => {
+    render(<Builder initial={view()} catalog={testCatalog()} flows={[]} businessName="Harbour Studio" />);
+    const wait = screen.getByRole("button", { name: "Add Wait" });
+    fireEvent.pointerEnter(wait);
+    expect(screen.getByText("Add Wait")).toBeInTheDocument();
+    fireEvent.pointerLeave(wait);
+    expect(screen.queryByText("Add Wait")).not.toBeInTheDocument();
   });
 
   it("a step added from the rail saves the whole graph with the version it read; Undo takes it back", async () => {
@@ -586,6 +659,26 @@ describe("the flow builder", () => {
     expect(within(phone).getByRole("log")).toHaveTextContent("Hi! Want the guide?");
   });
 
+  // Owner 2026-11-28: a custom range on the flow's numbers, not only the last 30 days.
+  it("Numbers for another range: the picker's days, read again, and the cards show those", async () => {
+    vi.mocked(flowsClient.stats).mockResolvedValue(
+      ok({
+        total: { triggered: 0, leads: 0, handed: 0, booked: 0, won: 0 },
+        byStep: { hi: { entered: 7, people: 7, sent: 7 } },
+        byLine: {},
+      }),
+    );
+    render(<Builder initial={view()} catalog={testCatalog()} flows={[]} businessName="Harbour Studio" />);
+    await userEvent.click(screen.getByRole("radio", { name: "Numbers" }));
+    await userEvent.click(await screen.findByRole("button", { name: /Last 30 days/ }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Date range" })).getByRole("button", { name: "Last 7 days" }),
+    );
+    const [from, to] = daysOf("7d", dayIn(new Date(), "UTC"));
+    await waitFor(() => expect(flowsClient.stats).toHaveBeenLastCalledWith("f1", { from, to }));
+    expect(screen.getByRole("button", { name: /Last 7 days/, expanded: false })).toBeInTheDocument();
+  });
+
   it("Numbers: each step's last 30 days on its card and each line's count on it; Build puts the steps back", async () => {
     vi.mocked(flowsClient.stats).mockResolvedValue(
       ok({
@@ -598,7 +691,10 @@ describe("the flow builder", () => {
     await userEvent.click(screen.getByRole("radio", { name: "Numbers" }));
     await waitFor(() => expect(flowsClient.stats).toHaveBeenCalledTimes(1));
     // The last 30 of the business's days: the server knows where its today ends.
-    expect(flowsClient.stats).toHaveBeenCalledWith("f1", 30);
+    {
+      const [from, to] = daysOf("30d", dayIn(new Date(), "UTC"));
+      expect(flowsClient.stats).toHaveBeenCalledWith("f1", { from, to });
+    }
     const hi = screen.getByLabelText("Step: Message, Hi! Want the guide?");
     await waitFor(() => expect(hi).toHaveTextContent("1,200"));
     expect(hi).toHaveTextContent("950");

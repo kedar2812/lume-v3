@@ -215,3 +215,27 @@
     display: none;
   }
 }
+
+/* In a crowded bar (the flow builder's Numbers) the range shrinks, its words ending "…", never pushing the bar's
+   other controls out (review 2026-11-28); the calendar opens from the button's left there, and never wider than the
+   window. */
+.wrap {
+  min-width: 0;
+}
+.button {
+  min-width: 0;
+  max-width: 100%;
+}
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pop {
+  max-width: calc(100vw - 24px);
+}
+.pop[data-align="left"] {
+  left: 0;
+  right: auto;
+  transform-origin: 60px 0;
+}

@@ -124,5 +124,10 @@ export type CalendlyReady =
       why: "off" | "no_link" | "link_gone" | "not_bookable" | "no_email" | "no_phone";
       message: string;
     };
-export type CalendlyOptions = { ready: CalendlyReady; times: string[] };
+export type CalendlyOptions = {
+  ready: CalendlyReady;
+  times: string[];
+  /** A lead Calendly can't book (no email): the link's page to send instead, a message ready, and WhatsApp's way. */
+  send?: { url: string; message: string; whatsapp: Scheduled["whatsapp"] };
+};
 export type CalendlyScheduled = { meeting: Meeting; label: string };

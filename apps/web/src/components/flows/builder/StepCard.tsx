@@ -3,7 +3,7 @@ import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
 import { memo } from "react";
 import type { GNode } from "@lume/core/shared";
 import { exitsOfNode } from "./graph-edit";
-import { KINDS, summary, waitWords, type StepKind } from "./kinds";
+import { exitWords, headline, KINDS, summary, waitWords, type StepKind } from "./kinds";
 import { ICON_SIZE, STEP_ICONS } from "@/components/ui/icons";
 import s from "./builder.module.css";
 
@@ -11,6 +11,8 @@ export type StepData = {
   node: GNode;
   /** Problems on this step (stops Publish), and warnings. */
   problems: number;
+  /** The first problem's words, said on the card (owner 2026-11-28: a "!" alone said nothing). */
+  say?: string | null;
   /** Numbers, when the Numbers view is on. */
   stats?: { entered: number; people: number; sent: number } | null;
   /** Just placed by LUME AI, not kept yet. */
@@ -79,6 +81,7 @@ function StepCardImpl({ data, selected }: NodeProps<StepNode>) {
   const n = data.node;
   const kind = KINDS[n.type];
   const exits = exitsOfNode(n);
+  const line = headline(n);
   return (
     <div
       className={s.nd}
@@ -96,7 +99,7 @@ function StepCardImpl({ data, selected }: NodeProps<StepNode>) {
         </span>
         <span className={s.titles}>
           <span className={s.nk}>{kind.label}</span>
-          <span className={s.nn}>{summary(n)}</span>
+          {line && <span className={s.nn}>{line}</span>}
         </span>
         {data.fresh && <span className={s.newtag}>New</span>}
         {data.problems > 0 && (
@@ -110,6 +113,11 @@ function StepCardImpl({ data, selected }: NodeProps<StepNode>) {
           </span>
         )}
       </span>
+      {data.problems > 0 && data.say && (
+        <span className={s.say} title={data.say}>
+          {data.say}
+        </span>
+      )}
       <span className={s.nb}>
         <Body n={n} />
         {exits.map((e) => (
@@ -118,7 +126,8 @@ function StepCardImpl({ data, selected }: NodeProps<StepNode>) {
             className={s.out}
             data-plain={e.key === "next" || e.key === "noAnswer" || undefined}
           >
-            <span className={s.outLabel}>{e.label}</span>
+            <span className={s.outLabel}>{exitWords(n, e)}</span>
+            {e.to === null && <span className={s.ends}>Ends here</span>}
             <Handle
               type="source"
               position={Position.Right}

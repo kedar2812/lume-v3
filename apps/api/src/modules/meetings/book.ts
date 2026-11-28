@@ -217,3 +217,33 @@ export function tellBooked(req: FastifyRequest, d: AppDeps, b: Booked) {
       }).catch((err: unknown) => req.log.error({ err }, "couldn't tell someone about a call LUME AI booked")),
   );
 }
+
+/**
+ * A call someone scheduled with a lead that isn't theirs (pending list 2026-11-28): the lead's owner is told who booked
+ * it and when, once it's kept. LUME AI's and Calendly's own bookings always told them; a teammate's didn't. Booking
+ * one's own lead, or a lead with no owner, tells nobody.
+ */
+export async function tellScheduled(
+  req: FastifyRequest,
+  d: AppDeps,
+  o: { leadId: string; leadName: string | null; ownerId: string | null; meetingId: string; label: string },
+) {
+  const by = req.actor!.userId;
+  if (!o.ownerId || o.ownerId === by) return;
+  const [who] = await req.db
+    .select({ name: schema.users.name })
+    .from(schema.users)
+    .where(eq(schema.users.id, by));
+  const pool = d.jobPool ?? d.pool;
+  const owner = o.ownerId;
+  req.afterCommit(
+    () =>
+      void notify(pool, owner, {
+        kind: "meeting_booked",
+        title: `${who?.name || "Someone"} booked a call with ${o.leadName || "your lead"}`,
+        body: o.label,
+        leadId: o.leadId,
+        data: { meetingId: o.meetingId },
+      }).catch((err: unknown) => req.log.error({ err }, "couldn't tell a lead's owner about a booked call")),
+  );
+}

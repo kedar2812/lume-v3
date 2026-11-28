@@ -5,7 +5,7 @@ import { calendarClient } from "@/lib/calendar/client";
 import type { CalendlyOptions, CalendlyScheduled, Meeting } from "@/lib/calendar/types";
 import { dayKey, timeOf } from "@/lib/dates";
 import { roving } from "@/lib/roving";
-import { LeadSearch, type Lead } from "./ScheduleMeeting";
+import { LeadSearch, SendLink, type Lead } from "./ScheduleMeeting";
 import s from "./schedule.module.css";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || "the lead";
@@ -99,6 +99,21 @@ export function CalendlyBook({
 
   const ready = opts?.ready;
   const times = days.get(day) ?? [];
+  // Calendly can't book them (no email): the booking link goes to them instead, to pick a time themselves.
+  if (lead && opts?.send && ready && !ready.ready)
+    return (
+      <div className={s.form}>
+        <h2 className={s.title}>Book on Calendly</h2>
+        <p className={s.lede}>{ready.message}</p>
+        <SendLink
+          lead={lead}
+          message={opts.send.message}
+          wa={opts.send.whatsapp}
+          onClose={onClose}
+          what="the booking link"
+        />
+      </div>
+    );
   return (
     <form
       className={s.form}

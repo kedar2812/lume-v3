@@ -457,24 +457,71 @@ function ScheduleForm({
 }
 
 function ScheduledView({ done, lead, onClose }: { done: Scheduled; lead: Lead; onClose: () => void }) {
-  const [text, setText] = useState(done.message);
   const [copied, setCopied] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState<"sent" | "opened" | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
-  const key = useRef(crypto.randomUUID()).current;
-  const wa = done.whatsapp;
-  const name = first(lead.name);
-
+  const [copyProblem, setCopyProblem] = useState<string | null>(null);
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(done.link);
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch {
-      setProblem("Your browser didn't let LUME copy. Select the link and copy it.");
+      setCopyProblem("Your browser didn't let LUME copy. Select the link and copy it.");
     }
   };
+
+  return (
+    <div className={s.done}>
+      <span className={s.tick} aria-hidden>
+        <UI_ICONS.done size={ICON_SIZE.lg} aria-hidden />
+      </span>
+      <h2 className={s.title}>Meeting scheduled</h2>
+      <p className={s.lede}>
+        {done.meeting.title} · {done.label}
+      </p>
+      <div className={s.linkRow}>
+        <MeetMark />
+        <a href={done.link} target="_blank" rel="noreferrer" className={s.link}>
+          {done.link.replace(/^https:\/\//, "")}
+        </a>
+        <Button size="sm" onClick={() => void copy()}>
+          {copied ? "Copied" : "Copy link"}
+        </Button>
+      </div>
+      {copyProblem && (
+        <p role="alert" className={s.problem}>
+          {copyProblem}
+        </p>
+      )}
+      <SendLink lead={lead} message={done.message} wa={done.whatsapp} onClose={onClose} />
+    </div>
+  );
+}
+
+/**
+ * A link sent to the lead on WhatsApp, the message ready to edit: through LUME when it can, else from the person's own
+ * WhatsApp with the message filled in. The Meet link after a booking, or a Calendly link a lead can pick a time on.
+ */
+export function SendLink({
+  lead,
+  message,
+  wa,
+  onClose,
+  what = "the link",
+}: {
+  lead: Lead;
+  message: string;
+  wa: Scheduled["whatsapp"];
+  onClose: () => void;
+  /** What's sent, in the question: "the link", "the booking link". */
+  what?: string;
+}) {
+  const [text, setText] = useState(message);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState<"sent" | "opened" | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const key = useRef(crypto.randomUUID()).current;
+  const name = first(lead.name);
+
   const send = async () => {
     if (!text.trim()) return setProblem("Write a message first.");
     setSending(true);
@@ -504,28 +551,11 @@ function ScheduledView({ done, lead, onClose }: { done: Scheduled; lead: Lead; o
   };
 
   return (
-    <div className={s.done}>
-      <span className={s.tick} aria-hidden>
-        <UI_ICONS.done size={ICON_SIZE.lg} aria-hidden />
-      </span>
-      <h2 className={s.title}>Meeting scheduled</h2>
-      <p className={s.lede}>
-        {done.meeting.title} · {done.label}
-      </p>
-      <div className={s.linkRow}>
-        <MeetMark />
-        <a href={done.link} target="_blank" rel="noreferrer" className={s.link}>
-          {done.link.replace(/^https:\/\//, "")}
-        </a>
-        <Button size="sm" onClick={() => void copy()}>
-          {copied ? "Copied" : "Copy link"}
-        </Button>
-      </div>
-
-      <section className={s.wa} aria-label="Send the link on WhatsApp">
+    <>
+      <section className={s.wa} aria-label={`Send ${what} on WhatsApp`}>
         <h3 className={s.waTitle}>
           <WhatsAppIcon size={16} />
-          Send {name} the link on WhatsApp?
+          Send {name} {what} on WhatsApp?
         </h3>
         {sent === "sent" ? (
           <p className={s.sent} role="status">
@@ -583,6 +613,6 @@ function ScheduledView({ done, lead, onClose }: { done: Scheduled; lead: Lead; o
           </>
         )}
       </div>
-    </div>
+    </>
   );
 }

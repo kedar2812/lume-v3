@@ -11,7 +11,8 @@ import { leadLink, openCalendly, type CalendlyConfig } from "../calendly/config"
 import { liveCalendly } from "../calendly/service";
 import { visibleLead } from "../leads/service";
 import { recordActivity } from "../leads/writer";
-import { toBookingStage } from "./book";
+import { messageRoute } from "../whatsapp/send";
+import { tellScheduled, toBookingStage } from "./book";
 import { meetingById, type MeetingView } from "./service";
 
 /**
@@ -122,11 +123,25 @@ export async function calendlyOptions(
   req: FastifyRequest,
   d: AppDeps,
   leadId: string | null,
-): Promise<{ ready: CalendlyReady; times: string[] }> {
+): Promise<{ ready: CalendlyReady; times: string[]; send?: SendInstead }> {
   const c = await context(req, d, !leadId);
   if ("ready" in c) return { ready: c, times: [] };
   const lead = await visibleLead(req, leadId!);
   const p = leadProblem(lead, c.plan);
+  // No email, so Calendly can't book them (pending list 2026-11-28): the link's own page to send instead, for them to
+  // pick a time themselves, with a message ready and whether WhatsApp can take it.
+  if (p?.why === "no_email") {
+    const first = (lead.name ?? "").trim().split(/\s+/)[0];
+    return {
+      ready: p,
+      times: [],
+      send: {
+        url: c.link.schedulingUrl,
+        message: `Hi${first ? ` ${first}` : ""}, here's where to pick a time for our call: ${c.link.schedulingUrl}`,
+        whatsapp: await messageRoute(req, d, lead.id),
+      },
+    };
+  }
   if (p) return { ready: p, times: [] };
   const now = d.clock();
   let times: Date[];
@@ -146,6 +161,8 @@ export async function calendlyOptions(
 }
 
 export type CalendlyScheduled = { meeting: MeetingView; label: string };
+/** The booking link to send a lead Calendly can't book, with a message ready and how WhatsApp can take it. */
+type SendInstead = { url: string; message: string; whatsapp: Awaited<ReturnType<typeof messageRoute>> };
 
 /** `POST /api/v1/meetings/schedule/calendly`: books the lead on LUME's booking link at one of its free times. */
 export async function scheduleOnCalendly(
@@ -166,6 +183,19 @@ export async function scheduleOnCalendly(
   const [tzRow] = await req.db.select({ tz: schema.settings.timezone }).from(schema.settings);
   const tz = tzRow?.tz ?? "UTC";
   const me = req.actor!.userId;
+  // One booking of a lead at a time (pending list 2026-11-28): a second press, or a colleague at the same moment, waits
+  // here, then finds the first one's meeting rather than booking the lead twice.
+  await req.db.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtext('calendly_lead_booking'), hashtext(${lead.id}))`,
+  );
+  await req.db.execute(sql`SELECT set_config('lume.calendar_sweep', 'on', true)`);
+  const twice = await req.db.execute<{ id: string }>(
+    sql`SELECT id FROM meetings WHERE lead_id = ${lead.id} AND source = 'calendly' AND status = 'scheduled'
+          AND starts_at = ${start} LIMIT 1`,
+  );
+  await req.db.execute(sql`SELECT set_config('lume.calendar_sweep', '', true)`);
+  if (twice.rows[0])
+    return { meeting: await meetingById(req, twice.rows[0].id), label: callTimeLabel(start, tz) };
   const cal = client(d, c.cfg.token);
   const location = c.plan.location
     ? {
@@ -236,6 +266,13 @@ export async function scheduleOnCalendly(
       byAi: false,
     });
     await toBookingStage(req, lead);
+    await tellScheduled(req, d, {
+      leadId: lead.id,
+      leadName: lead.name,
+      ownerId: lead.ownerId,
+      meetingId: id,
+      label: callTimeLabel(start, tz),
+    });
     await audit(req, {
       action: "meeting.scheduled",
       entityType: "lead",

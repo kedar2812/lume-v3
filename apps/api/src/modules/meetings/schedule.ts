@@ -10,7 +10,7 @@ import { GoogleError } from "../sheets/google";
 import { visibleLead } from "../leads/service";
 import { recordActivity } from "../leads/writer";
 import { messageRoute } from "../whatsapp/send";
-import { speakerCalendar, toBookingStage } from "./book";
+import { speakerCalendar, tellScheduled, toBookingStage } from "./book";
 import { meetingById, type MeetingView } from "./service";
 
 /**
@@ -145,6 +145,13 @@ export async function scheduleMeeting(
       byAi: false,
     });
     await toBookingStage(req, lead);
+    await tellScheduled(req, d, {
+      leadId: lead.id,
+      leadName: lead.name,
+      ownerId: lead.ownerId,
+      meetingId: id,
+      label: callTimeLabel(start, tz),
+    });
     await audit(req, {
       action: "meeting.scheduled",
       entityType: "lead",

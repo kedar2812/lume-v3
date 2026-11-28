@@ -38,6 +38,9 @@ import {
 } from "./graph-edit";
 import { KindIcon, StepCard, type StepNode } from "./StepCard";
 import { StartCard, type StartNode } from "./StartCard";
+import { keepNode } from "./keep-nodes";
+import { RangePicker } from "@/components/analytics/RangePicker";
+import { dayIn, daysOf, type RangeChoice } from "@/lib/analytics/range";
 import { KINDS, RAIL, type StepKind } from "./kinds";
 import { useCamera } from "./useCamera";
 import { Inspector, type FlowChoice } from "./Inspector";
@@ -58,6 +61,21 @@ const { back: ChevronLeft, versions: VersionsIcon, play: Play, close: X } = UI_I
 /** Where Starts when sits, kept with the steps' places. */
 export const START = "_start";
 const NODE_W = 244;
+/** The cards' widths, one object each: a new one every render would be a change to every card. */
+const STEP_STYLE = { width: NODE_W };
+const START_STYLE = { width: 220 };
+const FALLBACK_START = { x: -300, y: 0 };
+const FALLBACK_POS = { x: 0, y: 0 };
+/** A card is unchanged while its place, its words and whether it's selected are (keep-nodes.ts). */
+const sameCard = (a: StepNode | StartNode, b: StepNode | StartNode) =>
+  a.position === b.position && a.data === b.data && a.selected === b.selected && a.type === b.type;
+const NO_SIZES: ReadonlyMap<string, { width: number; height: number }> = new Map();
+const sameLine = (a: Edge, b: Edge) =>
+  a.source === b.source &&
+  a.target === b.target &&
+  a.sourceHandle === b.sourceHandle &&
+  a.selected === b.selected &&
+  a.label === b.label;
 const SAVE_MS = 800;
 const nodeTypes = { step: StepCard, start: StartCard };
 const newId = () => Math.random().toString(36).slice(2, 10);
@@ -94,7 +112,14 @@ const plural = (n: number) => `${n} step${n === 1 ? "" : "s"}`;
 type Saved = "saved" | "saving" | "unsaved" | "changed-elsewhere" | "failed";
 
 /** The flow builder (plan 2026-11-23-flow-builder, Part B; approved canvas KJJDFJ7wddubXwRuked4m9, board Builder). */
-type Props = { initial: FlowView; catalog: Catalog; flows: FlowChoice[]; businessName: string };
+type Props = {
+  initial: FlowView;
+  catalog: Catalog;
+  flows: FlowChoice[];
+  businessName: string;
+  /** The business's time zone: Numbers' ranges end on its today. */
+  tz?: string;
+};
 
 export function Builder(p: Props) {
   return (
@@ -104,7 +129,7 @@ export function Builder(p: Props) {
   );
 }
 
-function BuilderInner({ initial, catalog, flows, businessName }: Props) {
+function BuilderInner({ initial, catalog, flows, businessName, tz = "UTC" }: Props) {
   const reduce = !!useReducedMotion();
   const [graph, setGraph] = useState<FlowGraph>(initial.graph);
   const [issues, setIssues] = useState(initial.issues);
@@ -133,6 +158,7 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
   const history = useRef(new History(100));
   const clip = useRef<string[]>([]);
   const camera = useCamera({ reduce });
+  const host = camera.hostRef;
 
   // LUME AI builds the flow (C2): where it is, its words, its plan, the steps it made (New until kept), its cursor.
   const [aiPhase, setAiPhase] = useState<AiPhase>("idle");
@@ -144,6 +170,8 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
   const [beat, setBeat] = useState({ at: 0, of: 0 });
   const [fresh, setFresh] = useState<ReadonlySet<string>>(() => new Set());
   const [cursor, setCursor] = useState<{ x: number; y: number; label: string } | null>(null);
+  /** The rail's label for the step pointed at or focused (fixed, beside its button). */
+  const [railTip, setRailTip] = useState<{ label: string; x: number; y: number } | null>(null);
   const [doneSay, setDoneSay] = useState("");
   const aiBusy = aiPhase === "asking" || aiPhase === "playing";
   /** The canvas is LUME AI's from Build it until Keep, Discard or a failure (C2 detail): nothing else changes it. */
@@ -278,13 +306,19 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
     };
   }, [initial.id]);
 
-  // Numbers: the last 30 days, the business's days, read when the view opens (and again each time it opens).
+  // Numbers: any range of the business's days (owner 2026-11-28: not only the last 30), the last 30 to start; read
+  // when the view opens, each time it opens, and when the range changes.
+  const [numChoice, setNumChoice] = useState<RangeChoice>("30d");
+  const [numCustom, setNumCustom] = useState<{ from: string; to: string } | undefined>(undefined);
+  // The business's today, read once a visit: a re-render after midnight never moves the range under the numbers.
+  const [today] = useState(() => dayIn(new Date(), tz));
+  const [numFrom, numTo] = daysOf(numChoice, today, numCustom);
   useEffect(() => {
     if (mode !== "numbers") return;
     let live = true;
     setStats(null);
     setStatsSaid(null);
-    void flowsClient.stats(initial.id, 30).then((r) => {
+    void flowsClient.stats(initial.id, { from: numFrom, to: numTo }).then((r) => {
       if (!live) return;
       if (r.ok) setStats(r.data);
       else {
@@ -295,12 +329,18 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
     return () => {
       live = false;
     };
-  }, [mode, initial.id]);
+  }, [mode, initial.id, numFrom, numTo]);
   const numbers = mode === "numbers" ? stats : null;
 
   const problemsBy = useMemo(() => {
     const m = new Map<string, number>();
     for (const p of issues) if (p.nodeId && !p.warning) m.set(p.nodeId, (m.get(p.nodeId) ?? 0) + 1);
+    return m;
+  }, [issues]);
+  /** Each step's first problem, in its words, for its card (owner 2026-11-28: a "!" alone said nothing). */
+  const sayBy = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of issues) if (p.nodeId && !p.warning && !m.has(p.nodeId)) m.set(p.nodeId, p.words);
     return m;
   }, [issues]);
 
@@ -311,6 +351,7 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
       {
         node: GNode;
         problems: number;
+        say: string | null;
         lit: boolean;
         stat: FlowStats["byStep"][string] | null;
         fresh: boolean;
@@ -318,21 +359,33 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
       }
     >(),
   );
+  // Each card handed to React Flow as the same object while it's unchanged, and with its size when it changed, so a
+  // drag never makes React Flow measure every card again (owner 2026-11-28: "the cards are laggy").
+  const sizes = useRef(new Map<string, { width: number; height: number }>());
+  const kept = useRef(new Map<string, StepNode | StartNode>());
+  const keptLines = useRef(new Map<string, Edge>());
+  const startData = useMemo(() => ({ triggers: view.triggers }), [view.triggers]);
   const nodes = useMemo(() => {
-    const start: StartNode = {
-      id: START,
-      type: "start",
-      position: graph.pos[START] ?? { x: -300, y: 0 },
-      data: { triggers: view.triggers },
-      deletable: false,
-      selected: selected.includes(START),
-      style: { width: 220 },
-    };
+    const start = keepNode<StepNode | StartNode>(
+      kept.current,
+      {
+        id: START,
+        type: "start",
+        position: graph.pos[START] ?? FALLBACK_START,
+        data: startData,
+        deletable: false,
+        selected: selected.includes(START),
+        style: START_STYLE,
+      } as StartNode,
+      sameCard,
+      sizes.current,
+    ) as StartNode;
     const cache = dataCache.current;
     const live = new Set<string>();
     const steps: StepNode[] = graph.nodes.map((n) => {
       live.add(n.id);
       const problems = problemsBy.get(n.id) ?? 0;
+      const say = sayBy.get(n.id) ?? null;
       const on = lit.includes(n.id);
       // Numbers: what this step did over the range (a step nobody reached shows its zeros).
       const stat = numbers ? (numbers.byStep[n.id] ?? ZERO) : null;
@@ -342,6 +395,7 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
         !hit ||
         hit.node !== n ||
         hit.problems !== problems ||
+        hit.say !== say ||
         hit.lit !== on ||
         hit.stat !== stat ||
         hit.fresh !== isNew
@@ -349,46 +403,63 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
         hit = {
           node: n,
           problems,
+          say,
           lit: on,
           stat,
           fresh: isNew,
-          data: { node: n, problems, lit: on, stats: stat, fresh: isNew },
+          data: { node: n, problems, say, lit: on, stats: stat, fresh: isNew },
         };
         cache.set(n.id, hit);
       }
-      return {
-        id: n.id,
-        type: "step",
-        position: graph.pos[n.id] ?? { x: 0, y: 0 },
-        data: hit.data,
-        selected: selected.includes(n.id),
-        style: { width: NODE_W },
-      };
+      return keepNode<StepNode | StartNode>(
+        kept.current,
+        {
+          id: n.id,
+          type: "step",
+          position: graph.pos[n.id] ?? FALLBACK_POS,
+          data: hit.data,
+          selected: selected.includes(n.id),
+          style: STEP_STYLE,
+        },
+        sameCard,
+        sizes.current,
+      ) as StepNode;
     });
     for (const id of cache.keys()) if (!live.has(id)) cache.delete(id);
+    for (const id of kept.current.keys()) if (id !== START && !live.has(id)) kept.current.delete(id);
     return [start, ...steps];
-  }, [graph, view.triggers, selected, problemsBy, lit, numbers, fresh]);
+  }, [graph, startData, selected, problemsBy, sayBy, lit, numbers, fresh]);
 
-  const edges = useMemo<Edge[]>(
-    () =>
-      linesOf(graph).map((l) => ({
-        id: l.id,
-        source: l.from === "start" ? START : l.from,
-        sourceHandle: l.exit,
-        target: l.to,
-        targetHandle: "in",
-        selected: selected.includes(l.id),
-        // Numbers: how many runs went down this line (from one step to the next).
-        ...(numbers && l.from !== "start"
-          ? { label: (numbers.byLine[`${l.from}>${l.to}`] ?? 0).toLocaleString("en-IN") }
-          : {}),
-      })),
-    [graph, selected, numbers],
-  );
+  const edges = useMemo<Edge[]>(() => {
+    const lines = linesOf(graph).map((l) =>
+      keepNode<Edge>(
+        keptLines.current,
+        {
+          id: l.id,
+          source: l.from === "start" ? START : l.from,
+          sourceHandle: l.exit,
+          target: l.to,
+          targetHandle: "in",
+          selected: selected.includes(l.id),
+          // Numbers: how many runs went down this line (from one step to the next).
+          ...(numbers && l.from !== "start"
+            ? { label: (numbers.byLine[`${l.from}>${l.to}`] ?? 0).toLocaleString("en-IN") }
+            : {}),
+        },
+        sameLine,
+        NO_SIZES,
+      ),
+    );
+    const live = new Set(lines.map((l) => l.id));
+    for (const id of keptLines.current.keys()) if (!live.has(id)) keptLines.current.delete(id);
+    return lines;
+  }, [graph, selected, numbers]);
 
   const onNodesChange = useCallback<OnNodesChange<StepNode | StartNode>>(
     (changes) => {
       for (const c of changes.toArray()) {
+        // What React Flow measured: carried onto a card's next object, so it's never measured again for a move.
+        if (c.type === "dimensions" && c.dimensions) sizes.current.set(c.id, c.dimensions);
         if (c.type === "position" && c.position) change((g) => moveNode(g, c.id, c.position!), false);
         if (c.type === "select")
           setSelected((sel) => (c.selected ? [...new Set([...sel, c.id])] : sel.filter((x) => x !== c.id)));
@@ -423,8 +494,11 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
         return steps.length ? removeNodes(n, steps) : n;
       });
       setSelected([]);
+      // The focused card (or its panel's button) is gone: the canvas keeps the keys, so Undo still works (bug found
+      // 2026-11-28: focus fell to the page and Undo's key never reached the builder).
+      host.current?.focus({ preventScroll: true });
     },
-    [change],
+    [change, host],
   );
 
   /** A new step in the middle of what's on screen. */
@@ -486,9 +560,18 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
     fitGraph(graphRef.current, planShown.current ? PLAN_ROOM : undefined);
   }, [fitGraph]);
 
-  // The whole flow in view when it opens.
+  // The whole flow in view when it opens, unless it'd be too small to read: then readable, from its start (owner
+  // 2026-11-28). Fit still shows all of it.
   useEffect(() => {
-    const t = setTimeout(fitAll, 30);
+    const t = setTimeout(() => {
+      const xs = Object.values(graphRef.current.pos);
+      if (!xs.length) return;
+      const minX = Math.min(...xs.map((p) => p.x));
+      const minY = Math.min(...xs.map((p) => p.y));
+      const maxX = Math.max(...xs.map((p) => p.x)) + NODE_W;
+      const maxY = Math.max(...xs.map((p) => p.y)) + 220;
+      camera.open({ x: minX, y: minY, w: maxX - minX, h: maxY - minY }, graphRef.current.pos[START]);
+    }, 30);
     return () => clearTimeout(t);
   }, []);
 
@@ -506,7 +589,8 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
 
   // Keys, on the builder only: Undo, Redo, Duplicate, Copy, Paste, Fit, zoom. Never while typing.
   const onKey = (e: React.KeyboardEvent) => {
-    if ((e.target as HTMLElement).closest("input, textarea, select, [contenteditable]")) return;
+    if ((e.target as HTMLElement).closest("input, textarea, select, [contenteditable], [role='dialog']"))
+      return;
     // The canvas is LUME AI's while it builds.
     if (aiLocked) return;
     const mod = e.metaKey || e.ctrlKey;
@@ -937,9 +1021,24 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
           ))}
         </span>
         {mode === "numbers" && (
-          <span className={s.range} role="status" title={statsSaid ?? undefined}>
-            {statsSaid ?? (stats ? "Last 30 days" : "Counting…")}
-          </span>
+          <>
+            <span className={s.numRange}>
+              <RangePicker
+                align="left"
+                choice={numChoice}
+                {...(numCustom ? { custom: numCustom } : {})}
+                today={today}
+                tz={tz}
+                onChange={(n) => {
+                  if (n.choice) setNumChoice(n.choice);
+                  if (n.custom) setNumCustom(n.custom);
+                }}
+              />
+            </span>
+            <span className={s.range} role="status" title={statsSaid ?? undefined}>
+              {statsSaid ?? (stats ? "" : "Counting…")}
+            </span>
+          </>
         )}
         <span className={s.right}>
           <button
@@ -1063,20 +1162,35 @@ function BuilderInner({ initial, catalog, flows, businessName }: Props) {
         </ReactFlow>
 
         <nav className={s.rail} aria-label="Add a step" data-tool>
-          {RAIL.map((k) => (
-            <button
-              key={k}
-              type="button"
-              className={s.ibtn}
-              aria-label={`Add ${KINDS[k].label}`}
-              title={KINDS[k].label}
-              disabled={aiLocked}
-              onClick={() => add(k)}
-            >
-              <KindIcon kind={k} />
-            </button>
-          ))}
+          {RAIL.map((k) => {
+            // Its name beside it while pointed at or focused (owner 2026-11-28: icons alone said nothing).
+            const show = (e: { currentTarget: HTMLElement }) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              setRailTip({ label: `Add ${KINDS[k].label}`, x: r.right + 10, y: r.top + r.height / 2 });
+            };
+            return (
+              <button
+                key={k}
+                type="button"
+                className={s.ibtn}
+                aria-label={`Add ${KINDS[k].label}`}
+                disabled={aiLocked}
+                onClick={() => add(k)}
+                onPointerEnter={show}
+                onFocus={show}
+                onPointerLeave={() => setRailTip(null)}
+                onBlur={() => setRailTip(null)}
+              >
+                <KindIcon kind={k} />
+              </button>
+            );
+          })}
         </nav>
+        {railTip && (
+          <span className={s.railTip} style={{ left: railTip.x, top: railTip.y }} aria-hidden>
+            {railTip.label}
+          </span>
+        )}
 
         <div className={s.zoom} data-tool>
           <button type="button" className={s.ibtn} aria-label="Zoom out" onClick={camera.zoomOut}>

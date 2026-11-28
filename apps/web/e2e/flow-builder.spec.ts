@@ -129,6 +129,64 @@ test.describe("The flow builder", () => {
     await expect(page.getByRole("group", { name: "Starts when" })).toContainText("guide +1");
   });
 
+  // Owner 2026-11-28: "the cards are laggy". React Flow measured every card again on every frame of a drag (each
+  // handed over as a new object without its size), so every card was hidden and measured, and every line redrawn.
+  test("dragging a card moves only it: no other card is measured again, no line rebuilt", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openApp(page, `/instagram/flows/${id}`);
+    const ask = page.getByLabel(/^Step: Ask/);
+    await expect(ask).toBeVisible();
+    await page.waitForTimeout(500);
+    await page.evaluate(() => {
+      const w = window as unknown as { __m: string[]; __o: MutationObserver };
+      w.__m = [];
+      w.__o = new MutationObserver((ms) => {
+        for (const m of ms) {
+          const el = m.target as HTMLElement;
+          if (
+            m.type === "attributes" &&
+            el.classList.contains("react-flow__node") &&
+            !el.querySelector("[aria-label^='Step: Ask']")
+          )
+            w.__m.push(`card ${el.dataset.id} ${m.attributeName}`);
+          if (m.type === "childList" && el.classList.contains("react-flow__edges"))
+            w.__m.push("lines rebuilt");
+          // The dragged card itself is never hidden to be measured again (it flickered with every move).
+          if (
+            m.type === "attributes" &&
+            el.classList.contains("react-flow__node") &&
+            el.querySelector("[aria-label^='Step: Ask']") &&
+            el.style.visibility === "hidden"
+          )
+            w.__m.push("dragged card hidden");
+        }
+      });
+      w.__o.observe(document.body, { subtree: true, attributes: true, childList: true });
+    });
+    const box = (await ask.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + 20);
+    await page.mouse.down();
+    for (let i = 1; i <= 20; i++) await page.mouse.move(box.x + box.width / 2 + i * 6, box.y + 20 + i * 3);
+    await page.mouse.up();
+    const seen = await page.evaluate(() => (window as unknown as { __m: string[] }).__m);
+    expect(seen).toEqual([]);
+    // No page text is selected by dragging a card or panning the canvas.
+    // On the bare canvas, its step's panel closed (the panels' own words stay selectable).
+    await page.getByRole("button", { name: "Close" }).first().click();
+    await expect(page.getByRole("complementary", { name: "Ask step" })).toBeHidden();
+    const canvas = (await page.getByRole("region", { name: "The flow's canvas" }).boundingBox())!;
+    const px = canvas.x + canvas.width - 120;
+    const py = canvas.y + 60;
+    await page.mouse.move(px, py);
+    await page.mouse.down();
+    for (let i = 1; i <= 20; i++) await page.mouse.move(px - i * 30, py + i * 15);
+    await page.mouse.up();
+    expect(await page.evaluate(() => window.getSelection()?.toString() ?? "")).toBe("");
+    await expect(page.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible({ timeout: 10_000 });
+  });
+
   test("Test: the flow on an iPhone as Instagram shows it; nothing is sent", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await openApp(page, `/instagram/flows/${id}`);
@@ -205,6 +263,20 @@ test.describe("The flow builder", () => {
         const bar = await page.locator("[data-full-canvas] header").boundingBox();
         const pub = await page.getByRole("button", { name: /^Publish/ }).boundingBox();
         expect(pub!.x + pub!.width).toBeLessThanOrEqual(bar!.x + bar!.width + 0.5);
+        // A custom range, the longest label it has: Publish still whole, and the calendar inside the window.
+        await page.getByRole("button", { name: /Last 30 days/ }).click();
+        const cal = page.getByRole("dialog", { name: "Date range" });
+        await cal.getByRole("button", { name: "The month before" }).click();
+        const days = cal.getByRole("grid").getByRole("button");
+        await days.nth(8).click();
+        const pop = await cal.boundingBox();
+        expect(pop!.x).toBeGreaterThanOrEqual(0);
+        expect(pop!.x + pop!.width).toBeLessThanOrEqual(width);
+        await cal.getByRole("grid").getByRole("button").nth(20).click();
+        await expect(cal).toBeHidden();
+        const pub2 = await page.getByRole("button", { name: /^Publish/ }).boundingBox();
+        expect(pub2!.x + pub2!.width).toBeLessThanOrEqual(bar!.x + bar!.width + 0.5);
+        await noOverflow(page);
       }
       // A phone: the canvas needs a wider screen, and says so, without running off the side.
       await page.setViewportSize({ width: 375, height: 800 });

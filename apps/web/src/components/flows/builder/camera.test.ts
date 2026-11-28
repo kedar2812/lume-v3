@@ -3,6 +3,7 @@ import {
   clampZ,
   decay,
   fitCam,
+  readableCam,
   projection,
   releaseSpeed,
   soft,
@@ -92,5 +93,38 @@ describe("the camera", () => {
     expect(wheelKind({ ...e, deltaMode: 1, deltaY: 3 })).toBe("wheel");
     expect(wheelKind({ ...e, deltaY: 7.25 })).toBe("pan");
     expect(wheelKind({ ...e, deltaX: 12, deltaY: 40 })).toBe("pan");
+  });
+});
+
+// Owner 2026-11-28 ("the information is not easily understood"): a big flow opened fitted whole was 50% and unreadable.
+describe("opening a flow so its steps can be read", () => {
+  const inset = { left: 64, right: 24, top: 24, bottom: 96 };
+  it("a flow that fits at a readable size opens fitted, as before", () => {
+    const box = { x: 0, y: 0, w: 600, h: 300 };
+    expect(readableCam(box, 1200, 800, inset, 0.75)).toEqual(fitCam(box, 1200, 800, inset));
+  });
+
+  it("a big one opens at the readable size, its start at the left and its top in view", () => {
+    const box = { x: -300, y: -100, w: 4000, h: 2000 };
+    const c = readableCam(box, 1200, 800, inset, 0.75);
+    expect(c.z).toBe(0.75);
+    expect(box.x * c.z + c.x).toBe(inset.left);
+    expect(box.y * c.z + c.y).toBe(inset.top);
+  });
+
+  it("tall, its start half way down: the start card in view near the top, not the flow's empty corner", () => {
+    const box = { x: -300, y: 0, w: 4000, h: 3000 };
+    const start = { x: -300, y: 1400 };
+    const c = readableCam(box, 1200, 800, inset, 0.75, start);
+    expect(start.x * c.z + c.x).toBe(inset.left);
+    expect(start.y * c.z + c.y).toBe(inset.top + 40);
+  });
+
+  it("wide but short: at the readable size, its start at the left, centred top to bottom", () => {
+    const box = { x: 0, y: 0, w: 4000, h: 200 };
+    const c = readableCam(box, 1200, 800, inset, 0.75);
+    expect(c.z).toBe(0.75);
+    expect(c.x).toBe(inset.left);
+    expect(c.y).toBe(inset.top + (800 - inset.top - inset.bottom - 200 * 0.75) / 2);
   });
 });

@@ -212,3 +212,38 @@ Edge cases:
 
 Deferred minor (review): a press on the canvas while a pinch past the zoom limits springs back leaves the zoom past
 them until the next zoom (true before this fix for the bare canvas and the wheel; now for a step too).
+
+## Fix 2026-11-28: lag, plain words, Undo after Delete, any range for the numbers
+
+Owner: "the flow builder has quite some bugs, the cards are laggy and the information is not easily understood ...
+the flow metrics dont have the custom date filter, they only show 7 30 90 days".
+
+- **Measured, not guessed:** a probe (Playwright + Chrome's own metrics) on 24 steps: a 60-move card drag cost 3.1 s
+  of style work and 1.9 s of script; a pan cost nothing. A mutation observer showed every card's style changed twice
+  per move and every line's SVG rebuilt: React Flow re-measures a node handed over as a new object without `measured`
+  (its `adoptUserNodes`), and the builder rebuilt every node object on every change. `keep-nodes.ts`: a card unchanged
+  is the same object; a changed one carries the size React Flow reported (`dimensions` changes). After: 0.1 s style,
+  0.5 s script; only the moved card and its own lines change. e2e guard: dragging a card changes no other card, rebuilds
+  no line, never hides the dragged card.
+- **Plain words:** `exitWords` and `headline` (kinds.ts, card-words.test.ts); the first problem's words on its card;
+  "Ends here" on a way out with nothing after it; the rail's names beside it (pointer and focus).
+- **Opening readable:** `readableCam` (camera.ts): fitted unless that's under 75%; then 75% from the flow's start.
+- **Undo after Delete:** the canvas takes focus back when a step is removed (the key, or the panel's Delete).
+- **Any range:** the Flows page and Numbers use Analytics' RangePicker (Compare left out where there's nothing to
+  compare); the API already took `from`/`to`.
+- **Ruling:** the presets are Analytics' (Today, 7 days, 30 days, this and last month, this quarter, 12 months, custom),
+  so "90 days" is gone; one picker everywhere. Cost: a 90-day view is a custom pick.
+- **Not a bug after all:** a probe screenshot looked like a drag selecting page text; the selection came from the probe
+  starting a pan on the open step panel, whose words are selectable. The e2e checks no text is selected by a drag or a
+  pan.
+- **Mutation check:** every new guard's mutant fails a test, but reusing an unchanged card's object (`sameCard`):
+  once a changed card carries its size, React Flow measures nothing again either way, so no DOM test can tell; the
+  unit tests pin the reuse itself.
+
+- **Fresh review 2026-11-28:** (I1) a carried size kept React Flow's old handle places, so a reply swapped at the same
+  height could leave its line on a handle that's gone: a size is carried only while the card's content is the same
+  object (a move, a select); new words are measured again. (I2) Numbers' range picker could push Publish out of the
+  bar at 900–1,110 px: the range gives way first, its words ending "…", and its calendar opens from its left, never
+  wider than the window (e2e: a custom range at every width). (I3) the custom-range test depended on today's date: it
+  runs on a fixed day. Minors fixed: today read once a visit (no refetch after midnight), keys typed in a dialog never
+  edit the canvas, the wording test covers every "Then" kind, a tall flow opens on its Start card.

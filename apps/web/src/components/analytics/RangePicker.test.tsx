@@ -74,4 +74,12 @@ describe("the range picker (canvas Main)", () => {
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(button).toHaveFocus();
   });
+
+  // The flows' boards have no period before to compare with (owner 2026-11-28: a custom range on flow metrics).
+  it("without a compare setting at all: the same picker, and no Compare switch", async () => {
+    render(<RangePicker choice="30d" today={TODAY} tz="Asia/Kolkata" onChange={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: /Last 30 days/ }));
+    expect(screen.getByRole("dialog", { name: "Date range" })).toBeInTheDocument();
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+  });
 });

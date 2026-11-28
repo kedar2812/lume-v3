@@ -1,4 +1,5 @@
 import type { GNode } from "@lume/core/shared";
+import type { Exit } from "./graph-edit";
 
 /**
  * The kinds of step, in LUME's words (plan 2026-11-23-flow-builder, Global Constraints: never ManyChat's names), each
@@ -129,4 +130,37 @@ export function waitWords(minutes: number): string {
   if (minutes % 1440 === 0) return `${minutes / 1440} ${minutes === 1440 ? "day" : "days"}`;
   if (minutes % 60 === 0) return `${minutes / 60} ${minutes === 60 ? "hour" : "hours"}`;
   return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+}
+
+/**
+ * A way out of a step, as what the person does to take it (owner 2026-11-28: "the information is not easily
+ * understood"): "Taps “Yes please”", "Replies anything else", "No answer in 1 hour", "If yes", "70% of people", "Then".
+ */
+export function exitWords(n: GNode, e: Exit): string {
+  const title = (t: string) => t.trim();
+  if (e.key.startsWith("r:") && n.type === "message") {
+    const r = n.replies.find((x) => `r:${x.id}` === e.key);
+    return r && title(r.title) ? `Taps “${title(r.title)}”` : "Taps a reply";
+  }
+  if (e.key.startsWith("c:") && n.type === "ask") {
+    const c = (n.choices ?? []).find((x) => `c:${x.id}` === e.key);
+    return c && title(c.title) ? `Picks “${title(c.title)}”` : "Picks a choice";
+  }
+  if (e.key.startsWith("p:") && n.type === "split") {
+    const p = n.paths.find((x) => `p:${x.id}` === e.key);
+    return `${p?.weight ?? 0}% of people`;
+  }
+  if (n.type === "message" && e.key === "next")
+    return n.replies.some((r) => r.next !== null) ? "Replies anything else" : "Then";
+  if (n.type === "ask" && e.key === "next") return "Answers";
+  if (n.type === "ask" && e.key === "noAnswer") return `No answer in ${waitWords(n.noAnswer.afterMinutes)}`;
+  if (n.type === "check") return e.key === "yes" ? "If yes" : "If no";
+  return "Then";
+}
+
+/** The card's second line, under its kind: only for a step whose card shows nothing more below (no repeats). */
+export function headline(n: GNode): string | null {
+  return n.type === "check" || n.type === "split" || n.type === "update" || n.type === "goto"
+    ? summary(n)
+    : null;
 }

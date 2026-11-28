@@ -1,7 +1,7 @@
 import pg from "pg";
 import { ALL_GRANTS, newId } from "@lume/core";
 import { adminUrl } from "@lume/db";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { startCalendlyFake, type CalendlyFake } from "../../../test/calendly-fake";
 import { createHarness, type AuthedClient, type Harness, type SeededUser } from "../../../test/harness";
 
@@ -54,6 +54,7 @@ beforeEach(async () => {
   ];
   fake.bookings.length = 0;
   fake.cancelled.length = 0;
+  delete fake.nextBookingId;
   await adminC.inject({
     method: "PATCH",
     url: "/api/v1/integrations/calendly",
@@ -81,6 +82,22 @@ async function asSuper(sql: string, params: unknown[]) {
   await c.connect();
   try {
     await c.query(sql, params);
+  } finally {
+    await c.end();
+  }
+}
+
+/** Notifications, read as the read-only backup role (past row-level security). */
+async function told(userId: string): Promise<{ title: string; lead_id: string | null }[]> {
+  const c = new pg.Client({ connectionString: h.url("lume_readonly_backup") });
+  await c.connect();
+  try {
+    return (
+      await c.query<{ title: string; lead_id: string | null }>(
+        "SELECT title, lead_id FROM notifications WHERE kind = 'meeting_booked' AND user_id = $1 ORDER BY id",
+        [userId],
+      )
+    ).rows;
   } finally {
     await c.end();
   }
@@ -169,14 +186,19 @@ describe("Schedule a meeting on Calendly", () => {
     const lead = await h.seedLead({ ownerId: admin.id, name: "Asha Rao", email: "asha@leads.test" });
     fake.nextBookingId = "RACE1";
     const uri = "https://api.calendly.com/scheduled_events/EVRACE1/invitees/INRACE1";
+    const planted = newId();
     await asSuper(
       `INSERT INTO meetings (id, lead_id, owner_id, source, external_id, matched_by, title, starts_at, ends_at, status)
-       VALUES ($1, $2, $3, 'calendly', $4, 'calendly', 'Discovery call', $5, $5::timestamptz + interval '30 minutes', 'scheduled')`,
-      [newId(), lead, host.id, uri, at(50)],
+       VALUES ($1, $2, $3, 'calendly', $4, 'calendly', 'Discovery call', $5::timestamptz + interval '1 second',
+               $5::timestamptz + interval '30 minutes', 'scheduled')`,
+      // Its post's meeting, on the lead: a second off, so only finding it by its booking (not by its time) can.
+      [planted, lead, host.id, uri, at(50)],
     );
     const r = await book(lead, at(50));
     expect(r.statusCode).toBe(201);
-    expect(await meetingsOf(lead)).toHaveLength(1);
+    // Calendly was asked (this booking is the one its post was about), and LUME kept no second meeting for it.
+    expect(fake.bookings.map((b) => b.uri)).toEqual([uri]);
+    expect(r.json().meeting.id).toBe(planted);
     expect(fake.cancelled).toEqual([]);
   });
 
@@ -196,6 +218,20 @@ describe("Schedule a meeting on Calendly", () => {
     );
     expect((await book(lead, at(26))).statusCode).toBe(409);
     expect(fake.bookings).toEqual([]);
+  });
+
+  // Pending list 2026-11-28: a lead Calendly can't book (no email) can still be sent the link to pick a time.
+  it("no email: the link's own page to send instead, a message ready with it, and whether WhatsApp can take it", async () => {
+    const lead = await h.seedLead({ ownerId: admin.id, name: "Ravi Phone", phone: "+971501234568" });
+    const r = (await options(lead)).json();
+    expect(r.ready).toMatchObject({ ready: false, why: "no_email" });
+    expect(r.send.url).toBe("https://calendly.com/maya/DISC");
+    expect(r.send.message).toBe(
+      "Hi Ravi, here's where to pick a time for our call: https://calendly.com/maya/DISC",
+    );
+    expect(r.send.whatsapp).toEqual(
+      expect.objectContaining({ send: expect.any(Boolean), open: expect.any(Boolean) }),
+    );
   });
 
   it("no booking link chosen: not ready, and where an admin chooses one", async () => {
@@ -250,4 +286,28 @@ describe("Schedule a meeting on Calendly", () => {
     expect(fake.bookings).toEqual([]);
   });
   void sourceId;
+
+  // Pending list 2026-11-28: the lead's owner hears when someone else books their lead.
+  it("a lead someone else owns: its owner is told who booked it and when; booking one's own lead tells nobody", async () => {
+    const theirs = await h.seedLead({ ownerId: host.id, name: "Their Lead", email: "theirs@leads.test" });
+    expect((await book(theirs, at(26))).statusCode).toBe(201);
+    await vi.waitFor(async () =>
+      expect(await told(host.id)).toContainEqual({
+        title: "Ada Admin booked a call with Their Lead",
+        lead_id: theirs,
+      }),
+    );
+    const mine = await h.seedLead({ ownerId: admin.id, name: "My Lead", email: "mine@leads.test" });
+    expect((await book(mine, at(27))).statusCode).toBe(201);
+    expect(await told(admin.id)).toEqual([]);
+  });
+
+  it("pressed twice, or by two people at once: one booking in Calendly, one meeting, both told it's booked", async () => {
+    const lead = await h.seedLead({ ownerId: admin.id, name: "Twice", email: "twice@leads.test" });
+    const [a, b] = await Promise.all([book(lead, at(50)), book(lead, at(50))]);
+    expect([a.statusCode, b.statusCode]).toEqual([201, 201]);
+    expect(fake.bookings).toHaveLength(1);
+    expect(await meetingsOf(lead)).toHaveLength(1);
+    expect(a.json().meeting.id).toBe(b.json().meeting.id);
+  });
 });

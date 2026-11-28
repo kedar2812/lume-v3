@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { dayIn, daysOf } from "@/lib/analytics/range";
 import { flowsClient, type FlowListItem, type FlowTrigger } from "@/lib/flows/client";
 import { FlowsList } from "./FlowsList";
 
@@ -112,6 +113,12 @@ beforeEach(() => {
   );
 });
 
+/** The days a choice covers, ending today where the business is (UTC by default). */
+const daysFor = (choice: "7d" | "30d") => {
+  const [from, to] = daysOf(choice, dayIn(new Date(), "UTC"));
+  return { from, to };
+};
+
 describe("the Flows page (plan 2026-11-25-instagram-screens D3; canvas board Flows)", () => {
   it("says what the flows did, in tiles and one line", async () => {
     render(<FlowsList />);
@@ -125,7 +132,7 @@ describe("the Flows page (plan 2026-11-25-instagram-screens D3; canvas board Flo
       "After a flow answered them",
     );
     expect(within(tiles).getByText("Passed to your team").parentElement).toHaveTextContent("9");
-    expect(flowsClient.summary).toHaveBeenCalledWith(30);
+    expect(flowsClient.summary).toHaveBeenCalledWith(daysFor("30d"));
   });
 
   it("every flow: what starts it, whether it's on, who's in it now and what it brought", async () => {
@@ -201,8 +208,34 @@ describe("the Flows page (plan 2026-11-25-instagram-screens D3; canvas board Flo
   it("another range asks again for those days", async () => {
     render(<FlowsList />);
     await screen.findByRole("table", { name: "Every flow" });
-    await userEvent.click(screen.getByRole("radio", { name: "7 days" }));
-    expect(flowsClient.summary).toHaveBeenLastCalledWith(7);
+    await userEvent.click(screen.getByRole("button", { name: /Last 30 days/ }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Date range" })).getByRole("button", { name: "Last 7 days" }),
+    );
+    expect(flowsClient.summary).toHaveBeenLastCalledWith(daysFor("7d"));
+  });
+
+  // Owner 2026-11-28: "the flow metrics dont have the custom date filter, they only show 7 30 90 days".
+  it("a custom range: two days on the calendar, and the numbers are for those days", async () => {
+    // A fixed day mid-month, so the calendar always has the days the test picks (review 2026-11-28).
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-18T09:00:00Z"));
+    render(<FlowsList />);
+    await screen.findByRole("table", { name: "Every flow" });
+    await userEvent.click(screen.getByRole("button", { name: /Last 30 days/ }));
+    const cal = screen.getByRole("dialog", { name: "Date range" });
+    const days = within(cal)
+      .getAllByRole("button")
+      .filter((b) => /^\d+$/.test(b.textContent ?? "") && !b.hasAttribute("disabled"));
+    const a = days[2]!;
+    const b = days[5]!;
+    await userEvent.click(a);
+    await userEvent.click(b);
+    const call = vi.mocked(flowsClient.summary).mock.lastCall![0];
+    expect(call.to > call.from).toBe(true);
+    expect((Date.parse(call.to) - Date.parse(call.from)) / 86_400_000).toBe(3);
+    expect(screen.queryByRole("switch", { name: /Compare/ })).not.toBeInTheDocument();
+    vi.useRealTimers();
   });
 
   it("no flows yet: what a flow does, and New flow", async () => {
@@ -346,7 +379,7 @@ describe("the Flows page (plan 2026-11-25-instagram-screens D3; canvas board Flo
     const card = await screen.findByRole("region", { name: "Where people stop" });
     expect(card).toHaveTextContent("Finished the flow");
     await userEvent.selectOptions(within(card).getByRole("combobox", { name: "Flow" }), "f1");
-    expect(flowsClient.stats).toHaveBeenCalledWith("f1", 30);
+    expect(flowsClient.stats).toHaveBeenCalledWith("f1", daysFor("30d"));
     await waitFor(() => expect(card).toHaveTextContent("Message: Here's the guide"));
     const text = card.textContent!;
     // Started, then its steps by how many reached them (a wait isn't a step a person does), then what they led to.

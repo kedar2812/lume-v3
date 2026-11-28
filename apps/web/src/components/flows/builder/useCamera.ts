@@ -6,6 +6,7 @@ import {
   decay,
   DRAG_SLOP,
   fitCam,
+  readableCam,
   GLIDE_STOP,
   releaseSpeed,
   soft,
@@ -17,6 +18,9 @@ import {
   type Box,
   type Cam,
 } from "./camera";
+
+/** The smallest a flow opens at: its steps still read (owner 2026-11-28). Fit still shows all of it. */
+const OPEN_MIN_Z = 0.75;
 
 /** Anything on the canvas that's not the canvas itself: a press there is that thing's, never a pan. */
 const BUSY =
@@ -289,6 +293,12 @@ export function useCamera(o: { reduce: boolean; initial?: Cam }) {
       const { w, h } = size();
       if (!w || !h) return;
       moveTo(fitCam(box, w, h, { left: room?.left ?? 64, right: panelOpen ? 368 : 24, top: 24, bottom: 96 }));
+    },
+    /** As a flow opens: the whole of it when that reads, else readable from its start (readableCam). */
+    open: (box: Box, start?: { x: number; y: number }) => {
+      const { w, h } = size();
+      if (!w || !h) return;
+      moveTo(readableCam(box, w, h, { left: 64, right: 24, top: 24, bottom: 96 }, OPEN_MIN_Z, start));
     },
     /** Show this canvas point in the middle, at the zoom it's at. */
     centerOn: (x: number, y: number) => {

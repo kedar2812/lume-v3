@@ -8,6 +8,7 @@ export const metadata = { title: "Flows · Instagram · LUME" };
 export default async function Page() {
   await requirePermission("instagram.flows.manage");
   // The business's one currency, for the money its flows brought (shown only to those who see money).
-  const settings = await apiGet<{ currency: string }>("/api/v1/settings");
-  return <FlowsList currency={settings.data?.currency ?? null} />;
+  // Its time zone: the ranges end on its today (owner 2026-11-28: any range, picked on a calendar).
+  const settings = await apiGet<{ currency: string; timezone: string | null }>("/api/v1/settings");
+  return <FlowsList currency={settings.data?.currency ?? null} tz={settings.data?.timezone ?? "UTC"} />;
 }

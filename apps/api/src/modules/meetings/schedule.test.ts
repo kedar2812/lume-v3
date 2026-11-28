@@ -1,7 +1,8 @@
+import pg from "pg";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { ALL_GRANTS, newId, seal, sign } from "@lume/core";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRelay } from "../../../../connect/src/relay";
 import { inbound } from "../../../../../packages/core/src/whatsapp/fixtures";
 import { createHarness, type Harness } from "../../../test/harness";
@@ -192,7 +193,39 @@ describe("whether a person can schedule a meeting", () => {
   });
 });
 
+/** Notifications, read as the read-only backup role (past row-level security). */
+async function told(userId: string): Promise<{ title: string; lead_id: string | null }[]> {
+  const c = new pg.Client({ connectionString: h.url("lume_readonly_backup") });
+  await c.connect();
+  try {
+    return (
+      await c.query<{ title: string; lead_id: string | null }>(
+        "SELECT title, lead_id FROM notifications WHERE kind = 'meeting_booked' AND user_id = $1 ORDER BY id",
+        [userId],
+      )
+    ).rows;
+  } finally {
+    await c.end();
+  }
+}
+
 describe("scheduling a meeting", () => {
+  // Pending list 2026-11-28: the lead's owner hears when someone else books their lead (LUME AI's and Calendly's
+  // bookings always told them; one scheduled by a teammate didn't).
+  it("a lead someone else owns: its owner is told who booked it and when; one's own lead tells nobody", async () => {
+    const theirs = await lead("Rep's Lead", rep);
+    expect((await schedule(theirs)).statusCode).toBe(201);
+    await vi.waitFor(async () =>
+      expect(await told(rep.id)).toContainEqual({
+        title: "Maya Kapoor booked a call with Rep's Lead",
+        lead_id: theirs,
+      }),
+    );
+    const mine = await lead("Own Lead");
+    expect((await schedule(mine)).statusCode).toBe(201);
+    expect(await told(admin.id)).toEqual([]);
+  });
+
   it("adds it to their LUME calls calendar with a Meet link, keeps it on the lead, and moves the lead to booking", async () => {
     const meera = await lead("Meera Iyer");
     const r = await schedule(meera, { notes: "Bring the floor plan." });

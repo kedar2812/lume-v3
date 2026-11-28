@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { ICON_SIZE, TRIGGER_ICONS } from "@/components/ui/icons";
-import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Switch } from "@/components/ui/Switch";
 import {
@@ -13,19 +12,16 @@ import {
   type FlowCounts,
   type FlowListItem,
   type FlowTrigger,
+  type FlowRange,
   type FlowsSummary,
 } from "@/lib/flows/client";
 import { money } from "@/lib/analytics/words";
+import { dayIn, daysOf, type RangeChoice } from "@/lib/analytics/range";
+import { RangePicker } from "@/components/analytics/RangePicker";
 import { FlowsBoard } from "./FlowsBoard";
 import { NewFlowSheet } from "./NewFlowSheet";
 import s from "./flows.module.css";
 
-const RANGES = [
-  { value: "7", label: "7 days" },
-  { value: "30", label: "30 days" },
-  { value: "90", label: "90 days" },
-] as const;
-type Range = (typeof RANGES)[number]["value"];
 type SortKey = "name" | "active" | "triggered" | "finished" | "leads" | "rate" | "won" | "revenue";
 const HEADS: { key: SortKey; label: string }[] = [
   { key: "name", label: "Flow" },
@@ -72,11 +68,24 @@ function startsWith(f: FlowListItem): { kind: FlowTrigger["kind"] | null; words:
  * last days, and every flow with what starts it, whether it's on, who is in it now and what it brought. The board's
  * chart, funnel, posts and notes come with Analytics (D6).
  */
-export function FlowsList({ currency = null }: { currency?: string | null }) {
+export function FlowsList({
+  currency = null,
+  tz = "UTC",
+}: {
+  currency?: string | null;
+  /** The business's time zone: its today ends the ranges (the server counts in its days too). */
+  tz?: string;
+}) {
   const [flows, setFlows] = useState<FlowListItem[] | null>(null);
   const [off, setOff] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
-  const [range, setRange] = useState<Range>("30");
+  // Any range of the business's days (owner 2026-11-28: "the flow metrics dont have the custom date filter").
+  const [choice, setChoice] = useState<RangeChoice>("30d");
+  const [custom, setCustom] = useState<{ from: string; to: string } | undefined>(undefined);
+  // The business's today, read once a visit: a re-render after midnight never moves the range under the numbers.
+  const [today] = useState(() => dayIn(new Date(), tz));
+  const [from, to] = daysOf(choice, today, custom);
+  const range = useMemo<FlowRange>(() => ({ from, to }), [from, to]);
   const [sum, setSum] = useState<FlowsSummary | null>(null);
   const [sumFailed, setSumFailed] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null);
@@ -94,7 +103,7 @@ export function FlowsList({ currency = null }: { currency?: string | null }) {
   useEffect(() => {
     let live = true;
     setSumFailed(false);
-    void flowsClient.summary(Number(range)).then((r) => {
+    void flowsClient.summary(range).then((r) => {
       if (!live) return;
       if (r.ok) setSum(r.data);
       else {
@@ -183,7 +192,16 @@ export function FlowsList({ currency = null }: { currency?: string | null }) {
             your team.
           </p>
         </div>
-        <SegmentedControl label="Days" size="sm" value={range} options={RANGES} onChange={setRange} />
+        <RangePicker
+          choice={choice}
+          {...(custom ? { custom } : {})}
+          today={today}
+          tz={tz}
+          onChange={(n) => {
+            if (n.choice) setChoice(n.choice);
+            if (n.custom) setCustom(n.custom);
+          }}
+        />
         {create}
       </header>
 
@@ -227,7 +245,7 @@ export function FlowsList({ currency = null }: { currency?: string | null }) {
               reload.
             </p>
           )}
-          {sum && <FlowsBoard sum={sum} flows={flows} days={Number(range)} currency={currency} />}
+          {sum && <FlowsBoard sum={sum} flows={flows} range={range} currency={currency} />}
 
           <div className={s.tableWrap} role="region" aria-label="Flows, scrolls sideways" tabIndex={0}>
             <table className={s.table} aria-label="Every flow">

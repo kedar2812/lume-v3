@@ -80,6 +80,30 @@ export function fitCam(
   };
 }
 
+/**
+ * A flow as it opens (owner 2026-11-28: a big flow fitted whole was too small to read): fitted, unless that's smaller
+ * than `minZ`; then at `minZ`, its start at the left edge and its top in view (centred top to bottom when it's short).
+ */
+export function readableCam(
+  box: Box,
+  vw: number,
+  vh: number,
+  inset: { left: number; right: number; top: number; bottom: number },
+  minZ: number,
+  /** Where the flow starts (its Start card): in view first, near the top-left (review 2026-11-28). */
+  start: { x: number; y: number } = { x: box.x, y: box.y },
+): Cam {
+  const fit = fitCam(box, vw, vh, inset);
+  if (fit.z >= minZ) return fit;
+  const z = minZ;
+  const ah = Math.max(1, vh - inset.top - inset.bottom);
+  if (box.h * z <= ah)
+    return { x: inset.left - start.x * z, y: inset.top + (ah - box.h * z) / 2 - box.y * z, z };
+  // Taller than the window: the start a little below the top, never empty canvas above the flow.
+  const y = Math.min(inset.top + 40 - start.y * z, inset.top - box.y * z);
+  return { x: inset.left - start.x * z, y, z };
+}
+
 /** A pointer's recent path → its release speed in px/s (the last 90 ms; none if it stopped before letting go). */
 export function releaseSpeed(
   hist: [t: number, x: number, y: number][],

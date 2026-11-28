@@ -328,6 +328,46 @@ describe("Schedule a meeting on Calendly", () => {
     expect(screen.getByRole("button", { name: "Book on Calendly" })).toBeDisabled();
   });
 
+  // Pending list 2026-11-28: Calendly can't book a lead with no email; the booking link goes to them instead.
+  it("no email: the booking link to send instead, the message ready; Send on WhatsApp sends it", async () => {
+    vi.mocked(calendarClient.calendlyOptions).mockImplementation(
+      async (leadId?: string) =>
+        ok(
+          leadId
+            ? {
+                ready: {
+                  ready: false as const,
+                  why: "no_email" as const,
+                  message:
+                    "Meera has no email, and Calendly needs one to book. Add it to the lead, or book on Google Calendar.",
+                },
+                times: [],
+                send: {
+                  url: "https://calendly.com/maya/disc",
+                  message:
+                    "Hi Meera, here's where to pick a time for our call: https://calendly.com/maya/disc",
+                  whatsapp: { send: true, why: null, open: false },
+                },
+              }
+            : READY,
+        ) as never,
+    );
+    vi.mocked(whatsappClient.send).mockResolvedValue(ok({}) as never);
+    sheet();
+    await userEvent.click(await screen.findByRole("radio", { name: "Calendly" }));
+    const wa = await screen.findByRole("region", { name: "Send the booking link on WhatsApp" });
+    expect(within(wa).getByRole("textbox", { name: "Message" })).toHaveValue(
+      "Hi Meera, here's where to pick a time for our call: https://calendly.com/maya/disc",
+    );
+    expect(screen.getByText(/Meera has no email/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Send on WhatsApp" }));
+    expect(whatsappClient.send).toHaveBeenCalledWith(MEERA.id, {
+      clientKey: expect.any(String),
+      text: "Hi Meera, here's where to pick a time for our call: https://calendly.com/maya/disc",
+    });
+    expect(await screen.findByText(/Sent on WhatsApp/)).toBeInTheDocument();
+  });
+
   it("a time taken meanwhile: says so, and reads the free times again", async () => {
     vi.mocked(calendarClient.calendlyOptions).mockResolvedValue(ok(READY) as never);
     vi.mocked(calendarClient.scheduleCalendly).mockResolvedValue({

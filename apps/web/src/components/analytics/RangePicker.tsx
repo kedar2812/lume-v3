@@ -31,14 +31,18 @@ export function RangePicker({
   today,
   tz,
   onChange,
+  align = "right",
 }: {
   choice: RangeChoice;
   custom?: { from: string; to: string };
-  compare: boolean;
+  /** With the period before; left out where a board has nothing to compare (the flows' numbers): no Compare. */
+  compare?: boolean;
   /** The business's today, "YYYY-MM-DD". */
   today: string;
   tz: string;
   onChange(next: { choice?: RangeChoice; custom?: { from: string; to: string }; compare?: boolean }): void;
+  /** Which edge of the button the calendar opens from: the right (Analytics' bar) or the left (a bar's middle). */
+  align?: "left" | "right";
 }) {
   const reduce = !!useReducedMotion();
   const [open, setOpen] = useState(false);
@@ -51,10 +55,22 @@ export function RangePicker({
   const wrap = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
 
+  /** The side it opens from: as asked, unless the window has no room that way (review 2026-11-28). */
+  const [side, setSide] = useState(align);
   useEffect(() => {
     if (!open) return;
     setMonth(to);
     setStart(null);
+    const r = button.current?.getBoundingClientRect();
+    const w = Math.min(540, window.innerWidth - 24);
+    if (r)
+      setSide(
+        align === "left" && r.left + w > window.innerWidth - 12
+          ? "right"
+          : align === "right" && r.right - w < 12
+            ? "left"
+            : align,
+      );
     const away = (e: PointerEvent) => !pressedWithin(e.target, wrap.current) && setOpen(false);
     const esc = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
@@ -99,7 +115,7 @@ export function RangePicker({
         onClick={() => setOpen((o) => !o)}
       >
         <UI_ICONS.calendar size={ICON_SIZE.md} aria-hidden />
-        {words.label}
+        <span className={s.label}>{words.label}</span>
         {compare && <span className={s.vs}>{words.vs}</span>}
         <UI_ICONS.menu size={ICON_SIZE.md} aria-hidden className={s.chev} />
       </button>
@@ -107,6 +123,7 @@ export function RangePicker({
         {open && (
           <motion.div
             className={s.pop}
+            data-align={side}
             role="dialog"
             aria-label="Date range"
             initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.92, y: -6, filter: "blur(4px)" }}
@@ -196,18 +213,20 @@ export function RangePicker({
               <p className={s.hint} aria-live="polite">
                 {start ? "Now pick the last day." : "Pick two days for any range up to a year."}
               </p>
-              <div className={s.compare}>
-                <div>
-                  <b>Compare</b>
-                  <span>with the period just before</span>
+              {compare !== undefined && (
+                <div className={s.compare}>
+                  <div>
+                    <b>Compare</b>
+                    <span>with the period just before</span>
+                  </div>
+                  <Switch
+                    checked={compare}
+                    onChange={(v) => onChange({ compare: v })}
+                    label="Compare with the period before"
+                    labelHidden
+                  />
                 </div>
-                <Switch
-                  checked={compare}
-                  onChange={(v) => onChange({ compare: v })}
-                  label="Compare with the period before"
-                  labelHidden
-                />
-              </div>
+              )}
             </div>
           </motion.div>
         )}

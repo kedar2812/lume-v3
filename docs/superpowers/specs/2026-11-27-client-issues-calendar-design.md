@@ -139,3 +139,14 @@ On the Calendar a meeting doesn't say where it came from; the only hint is the "
 - **Mutation check:** every new guard's mutant fails a test, but one: `ownBooking` matching any Calendly meeting for
   the invitee rather than only LUME's own is equivalent (a second Calendly delivery of one booking is already one
   `webhook_events` row), kept as the safer reading. `mayBook` duplicated the route's permission and was removed.
+
+## Pending list, 2026-11-28
+
+- **Built:** the lead's owner is told when someone else books their lead (Google and Calendly alike; booking one's own
+  lead tells nobody); a lead with no email is offered the booking link to send instead (the link's own page, a message
+  ready, through LUME's WhatsApp or the person's own); one booking of a lead at a time (a lock per lead, the second finds
+  the first's meeting). Correction to the morning's note: Schedule a meeting on Google never told the owner either; only
+  LUME AI's and Calendly's own bookings did.
+- **Proposed, not built:** LUME AI booking on Calendly, in docs/superpowers/specs/2026-11-28-lume-ai-calendly-design.md
+  (recommended: LUME AI sends the booking link), for the owner's approval.
+

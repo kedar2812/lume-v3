@@ -6,6 +6,27 @@ column in the release that stops using it.
 
 ## Unreleased
 
+- **A lead's owner hears when someone else books their lead**: a call scheduled by a teammate (on Google Calendar or
+  Calendly) tells the lead's owner who booked it and when, as LUME AI's and Calendly's own bookings always did.
+- **Calendly can still reach a lead with no email**: Calendly needs an email to book, so Schedule a meeting offers to
+  send LUME's booking link instead, on WhatsApp, the message ready, for the lead to pick a time themselves.
+- **Fixed:** two quick presses of Book on Calendly (or two people at once) could book the same lead twice; the second
+  now finds the first one's meeting.
+
+- **The flow builder keeps up with a drag** (owner 2026-11-28: "the cards are laggy"): every card was handed to the
+  canvas as new on every frame, so every card was measured again and every line redrawn while one card moved. Now only
+  the card that moves changes (a 24-step flow: style work during a drag from 3.1 s to 0.1 s, script from 1.9 s to 0.5 s).
+- **The flow builder reads plainly** (owner 2026-11-28: "the information is not easily understood"): each card says
+  its kind as its title and no longer repeats its own words; its ways out say what the person does ("Taps “Yes
+  please”", "Replies anything else", "No answer in 1 hour", "If yes", "70% of people"), and one that leads nowhere says
+  "Ends here"; a problem is said on its card in words, not only "!". The add-a-step rail names each step beside it. A
+  big flow opens readable (at 75%, from its start) instead of shrunk to fit; Fit still shows all of it.
+- **Fixed:** a step deleted with the Delete key, or from its panel, couldn't be brought back with Undo's key until the
+  canvas was clicked again (the key went to the page).
+- **Flow numbers for any range** (owner 2026-11-28: "the flow metrics dont have the custom date filter"): the Flows
+  page and a flow's Numbers have the same date range as Analytics, presets and any two days on a calendar (up to a
+  year), counted in the business's own days.
+
 - **Log outcome and Log a call move the lead to any stage** (clients 2026-11-27: "allow moving lead to any pipeline
   stage via the log cards"): a Stage row with every stage of the lead's pipeline, the one it's in first as "Stays in
   …". After Held it starts on the next open stage, as before; otherwise on Stays. A Lost stage asks its reason right

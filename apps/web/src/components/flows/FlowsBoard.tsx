@@ -5,7 +5,13 @@ import { StartsChart, answerTime } from "@/components/analytics/InstagramBoard";
 import { Card } from "@/components/analytics/parts";
 import a from "@/components/analytics/analytics.module.css";
 import { count, money, pct } from "@/lib/analytics/words";
-import { flowsClient, type FlowListItem, type FlowSource, type FlowsSummary } from "@/lib/flows/client";
+import {
+  flowsClient,
+  type FlowListItem,
+  type FlowRange,
+  type FlowSource,
+  type FlowsSummary,
+} from "@/lib/flows/client";
 import { KINDS, summary } from "./builder/kinds";
 import s from "./flows.module.css";
 
@@ -38,12 +44,13 @@ const KIND_WORDS: Record<string, string> = {
 export function FlowsBoard({
   sum,
   flows,
-  days,
+  range,
   currency,
 }: {
   sum: FlowsSummary;
   flows: FlowListItem[];
-  days: number;
+  /** The days these numbers are for (the Flows page's range picker). */
+  range: FlowRange;
   /** The business's currency; without it, no money is shown (never a made-up one). */
   currency: string | null;
 }) {
@@ -94,7 +101,7 @@ export function FlowsBoard({
         <Card title="Conversations started, by what started them" sub="Per day" i={0}>
           <StartsChart series={sum.series} />
         </Card>
-        <WhereTheyStop sum={sum} flows={flows} days={days} />
+        <WhereTheyStop sum={sum} flows={flows} range={range} />
       </div>
       <div className={a.row2}>
         <Sources sum={sum} flows={flows} />
@@ -125,7 +132,15 @@ export function FlowsBoard({
 type Step = { name: string; n: number; outcome?: boolean };
 
 /** Where people stop: all flows' path, or one flow's steps in the order runs reach them; the biggest drop marked. */
-function WhereTheyStop({ sum, flows, days }: { sum: FlowsSummary; flows: FlowListItem[]; days: number }) {
+function WhereTheyStop({
+  sum,
+  flows,
+  range,
+}: {
+  sum: FlowsSummary;
+  flows: FlowListItem[];
+  range: FlowRange;
+}) {
   const [pick, setPick] = useState("");
   const [one, setOne] = useState<{ id: string; steps: Step[] } | null>(null);
   const [failed, setFailed] = useState(false);
@@ -134,7 +149,7 @@ function WhereTheyStop({ sum, flows, days }: { sum: FlowsSummary; flows: FlowLis
     setFailed(false);
     if (!pick) return setOne(null);
     let live = true;
-    void Promise.all([flowsClient.stats(pick, days), flowsClient.get(pick)]).then(([st, view]) => {
+    void Promise.all([flowsClient.stats(pick, range), flowsClient.get(pick)]).then(([st, view]) => {
       if (!live) return;
       if (!st.ok || !view.ok) {
         setOne(null);
@@ -165,7 +180,7 @@ function WhereTheyStop({ sum, flows, days }: { sum: FlowsSummary; flows: FlowLis
     return () => {
       live = false;
     };
-  }, [pick, days, sum]);
+  }, [pick, range, sum]);
   const t = sum.total;
   const steps: Step[] =
     pick && one?.id === pick

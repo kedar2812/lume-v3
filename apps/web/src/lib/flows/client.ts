@@ -93,6 +93,9 @@ export type FlowListItem = {
   /** Conversations in it now. */
   active: number;
 };
+/** A range of the business's days, both whole ("YYYY-MM-DD"), as the range picker gives it. */
+export type FlowRange = { from: string; to: string };
+
 /** Every flow's numbers over the business's last days (GET /api/v1/instagram/flows/summary). */
 export type FlowCounts = {
   triggered: number;
@@ -133,7 +136,8 @@ const flow = (id: string) => `/api/v1/instagram/flows/${encodeURIComponent(id)}`
 
 export const flowsClient = {
   list: () => api.get<{ flows: FlowListItem[] }>("/api/v1/instagram/flows"),
-  summary: (days: number) => api.get<FlowsSummary>(`/api/v1/instagram/flows/summary?days=${days}`),
+  summary: (r: FlowRange) =>
+    api.get<FlowsSummary>(`/api/v1/instagram/flows/summary?from=${r.from}&to=${r.to}`),
   /** A new draft: from nothing, or from a ready-made flow. */
   create: (body: { name: string; template?: string }) => api.post<FlowView>("/api/v1/instagram/flows", body),
   /** On (live) or off (paused): only a flow that has been published. */
@@ -149,8 +153,8 @@ export const flowsClient = {
   versions: (id: string) => api.get<{ versions: FlowVersion[] }>(`${flow(id)}/versions`),
   restore: (id: string, versionId: string, rev: number) =>
     api.post<FlowView>(`${flow(id)}/versions/${encodeURIComponent(versionId)}/restore`, { rev }),
-  /** The last `days` of the business's own days (its time zone decides where today ends). */
-  stats: (id: string, days: number) => api.get<FlowStats>(`${flow(id)}/stats?days=${days}`),
+  /** The business's days from `from` to `to`, both whole (owner 2026-11-28: any range, not only 7, 30 or 90 days). */
+  stats: (id: string, r: FlowRange) => api.get<FlowStats>(`${flow(id)}/stats?from=${r.from}&to=${r.to}`),
   people: (id: string, q = "") =>
     api.get<{ people: FlowPerson[] }>(
       `${flow(id)}/people${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ""}`,

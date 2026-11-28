@@ -208,20 +208,19 @@
   flex: 1;
 }
 .nk {
+  /* The step's kind is its title, in words that read at any zoom (owner 2026-11-28). */
   display: block;
-  font-size: 10.5px;
+  font-size: 13.5px;
   font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  line-height: 1.1;
+  letter-spacing: -0.008em;
+  color: var(--text);
+  line-height: 1.2;
 }
 .nn {
   display: block;
-  font-size: 13.5px;
-  font-weight: 620;
-  letter-spacing: -0.008em;
-  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
   line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
@@ -1308,4 +1307,49 @@ select.input {
 .trigIc {
   flex: none;
   color: var(--text-3);
+}
+
+/* A problem on the card, in its own words (owner 2026-11-28: a "!" alone said nothing). */
+.say {
+  display: block;
+  margin: 0;
+  padding: 7px 12px;
+  border-bottom: 0.5px solid var(--line);
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--warn-ink);
+  background: var(--warn-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* A way out that leads nowhere: the flow ends there, and the card says so. */
+.ends {
+  flex: none;
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+/* The rail's label: the step's name beside its button, in LUME's dark HUD (owner 2026-11-28). */
+.railTip {
+  position: fixed;
+  z-index: 60;
+  transform: translateY(-50%);
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 560;
+  white-space: nowrap;
+  color: #fff;
+  background: rgba(20, 22, 28, 0.92);
+  box-shadow: var(--shadow-pop);
+  pointer-events: none;
+}
+/* Numbers' range in the top bar: it gives way first when the bar is short (review 2026-11-28). */
+.numRange {
+  flex: 0 1 auto;
+  min-width: 44px;
+  display: flex;
 }
