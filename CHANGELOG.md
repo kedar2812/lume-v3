@@ -6,6 +6,10 @@ column in the release that stops using it.
 
 ## Unreleased
 
+- **Each connected Instagram account shows its own profile photo** in Settings → Integrations → Instagram, instead of
+  its initials. LUME reads it with the account's own connection and keeps its own copy (Instagram's links expire),
+  looks again a week later, and lets it go when the account disconnects. An account with no photo keeps its initials.
+
 - **Team Chat photos load as thumbnails**: a photo sent in chat gets a small preview, made after it's sent (as the
   Media library's are); the conversation shows that, and the photo opens whole. Until it's made, or with no render
   service, the photo itself shows, as before.

@@ -1,6 +1,6 @@
 # LUME AI and Calendly: design (for the owner's approval)
 
-**Status:** proposed 2026-11-28; not built. The owner asked (2026-11-27) to "allow lume to schedule calls in calendly".
+**Status:** APPROVED 2026-11-28 by the owner: "yes go with option A, build LUME AI Calendly". Building A. The owner asked (2026-11-27) to "allow lume to schedule calls in calendly".
 Schedule a meeting now books on Calendly (89e3a84b). This is the other half: LUME AI, when it agrees a call with a
 lead in WhatsApp or Instagram.
 

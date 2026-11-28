@@ -3,6 +3,8 @@ export type IgAccount = {
   id: string;
   username: string;
   name: string | null;
+  /** LUME's copy of the account's profile photo (owner 2026-11-28); null: its initials show. */
+  photo: string | null;
   /** Whose account: a person's, or null for the business. */
   owner: { id: string; name: string } | null;
   status: "active" | "needs_attention";

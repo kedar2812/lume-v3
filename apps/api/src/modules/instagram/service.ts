@@ -1,3 +1,4 @@
+import { photoDue } from "./photo";
 import { createHash, randomBytes } from "node:crypto";
 import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
@@ -90,6 +91,8 @@ export async function accountsView(req: FastifyRequest, d?: AppDeps) {
       mediaMbPerDay: A.mediaMbPerDay,
       sourceId: A.sourceId,
       connectedAt: A.connectedAt,
+      photoSha256: A.photoSha256,
+      photoCheckedAt: A.photoCheckedAt,
     })
     .from(A)
     .leftJoin(schema.users, eq(schema.users.id, A.ownerUserId))
@@ -112,6 +115,18 @@ export async function accountsView(req: FastifyRequest, d?: AppDeps) {
           ),
         )
     : [];
+  // Each active account's own photo, when due a look (never asked, or a week since): asked once the list is read.
+  if (d?.instagram) {
+    const now = d.clock();
+    const due = rows.filter((r) => r.status === "active" && photoDue(r.photoCheckedAt, now)).map((r) => r.id);
+        // Best effort: a queue that won't take it now is asked again at the next visit, never failing the page.
+    if (due.length)
+      req.afterCommit(() =>
+        void Promise.all(due.map((id) => d.instagram!.enqueueAccountPhoto(id))).catch((e: unknown) =>
+          req.log.warn({ err: e }, "couldn't queue an Instagram account's photo"),
+        ),
+      );
+  }
   return {
     ...(d
       ? {
@@ -126,6 +141,10 @@ export async function accountsView(req: FastifyRequest, d?: AppDeps) {
       id: r.id,
       username: r.username,
       name: r.name,
+      /** LUME's copy of its profile photo; null: initials. The hash in the address: a new photo, a new address. */
+      photo: r.photoSha256
+        ? `/api/v1/instagram/accounts/${r.id}/photo?v=${r.photoSha256.slice(0, 12)}`
+        : null,
       owner: r.ownerId ? { id: r.ownerId, name: r.ownerName ?? "" } : null,
       status: r.status,
       problem: r.problem,
@@ -289,6 +308,12 @@ export async function connectComplete(req: FastifyRequest, d: AppDeps, body: { p
       .set({ ...fields, connectedAt: now })
       .where(eq(A.id, id));
   else await req.db.insert(A).values({ id, igUserId: ig.userId, ownerUserId: null, ...fields });
+  // Its photo, looked at straight away (review 2026-11-28): the list it returns shows it once fetched.
+  req.afterCommit(() =>
+    void d.instagram
+      ?.enqueueAccountPhoto(id)
+      .catch((e: unknown) => req.log.warn({ err: e }, "couldn't queue an Instagram account's photo")),
+  );
   await audit(req, {
     action: was ? "instagram.reconnected" : "instagram.connected",
     entityType: "instagram_account",

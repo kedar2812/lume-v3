@@ -54,6 +54,7 @@ import { processWhatsAppEvent } from "../src/modules/whatsapp/process";
 import { runDueFlows } from "../src/modules/instagram/flow-due";
 import { runInstagramEvent } from "../src/modules/instagram/process";
 import { fetchInstagramMedia } from "../src/modules/instagram/media";
+import { readAccountPhoto } from "../src/modules/instagram/account-photo";
 import { readInstagramPhoto } from "../src/modules/instagram/photo";
 import { readInstagramProfile } from "../src/modules/instagram/profile";
 import { igPacer, sendInstagramOutbox, TryLater } from "../src/modules/instagram/sender";
@@ -186,6 +187,8 @@ export type Harness = {
   instagramProfileQueued: string[];
   /** Profile photos due a look (1B addendum), by conversation. */
   instagramPhotoQueued: string[];
+  instagramAccountPhotoQueued: string[];
+  runInstagramAccountPhoto(): Promise<void>;
   /** Flows' public replies under comments, queued (comment id and words). */
   instagramPublicQueued: { commentId: string; text: string }[];
   /** The minute sweep's flow steps: every run due at the harness's time, once. */
@@ -329,6 +332,7 @@ export async function createHarness(
   const instagramMediaQueued: string[] = [];
   const instagramProfileQueued: string[] = [];
   const instagramPhotoQueued: string[] = [];
+  const instagramAccountPhotoQueued: string[] = [];
   const instagramPublicQueued: { commentId: string; text: string }[] = [];
   const igSendPacer = igPacer({ now: () => clock.now, perSecond: 20 });
   const autopilotQueued: string[] = [];
@@ -410,6 +414,7 @@ export async function createHarness(
       enqueueMedia: async (id) => void instagramMediaQueued.push(id),
       enqueueProfile: async (id) => void instagramProfileQueued.push(id),
       enqueuePhoto: async (id) => void instagramPhotoQueued.push(id),
+      enqueueAccountPhoto: async (id) => void instagramAccountPhotoQueued.push(id),
       enqueuePublic: async (commentId, text) => void instagramPublicQueued.push({ commentId, text }),
     },
     files,
@@ -615,6 +620,7 @@ export async function createHarness(
     instagramMediaQueued,
     instagramProfileQueued,
     instagramPhotoQueued,
+    instagramAccountPhotoQueued,
     instagramPublicQueued,
     whatsappMediaQueued,
     whatsappSendQueued,
@@ -674,6 +680,12 @@ export async function createHarness(
       for (const id of instagramPhotoQueued.splice(0))
         if ((await readInstagramPhoto({ app, d: deps }, id)) === "later") again.push(id);
       instagramPhotoQueued.push(...again);
+    },
+    async runInstagramAccountPhoto() {
+      const again: string[] = [];
+      for (const id of instagramAccountPhotoQueued.splice(0))
+        if ((await readAccountPhoto({ app, d: deps }, id)) === "later") again.push(id);
+      instagramAccountPhotoQueued.push(...again);
     },
     async runAutopilot() {
       for (let pass = 0; pass < 50; pass++) {

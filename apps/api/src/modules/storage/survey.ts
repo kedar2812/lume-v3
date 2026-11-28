@@ -116,6 +116,7 @@ const KINDS_SQL = `
     SELECT sha256, 1 AS o FROM whatsapp_media WHERE sha256 IS NOT NULL
     UNION ALL SELECT sha256, 2 FROM instagram_media WHERE sha256 IS NOT NULL
     UNION ALL SELECT photo_sha256, 2 FROM instagram_threads WHERE photo_sha256 IS NOT NULL
+    UNION ALL SELECT photo_sha256, 2 FROM instagram_accounts WHERE photo_sha256 IS NOT NULL
     UNION ALL SELECT thumb_sha256, 3 FROM file_previews WHERE thumb_sha256 IS NOT NULL
     UNION ALL SELECT pdf_sha256, 3 FROM file_previews WHERE pdf_sha256 IS NOT NULL
     UNION ALL SELECT sha256, 4 FROM message_files

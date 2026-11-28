@@ -30,6 +30,7 @@ const account = (over: Partial<IgAccount> = {}): IgAccount => ({
   limits: { newLeadsPerHour: 200, mediaMbPerPersonDay: 50, mediaMbPerDay: 2000 },
   sourceId: "s1",
   connectedAt: "2026-11-22T10:00:00.000Z",
+  photo: null,
   ...over,
 });
 const on = { enabled: true, available: true, inPlan: true };
@@ -158,6 +159,24 @@ describe("the Instagram card (plan 2026-11-25-instagram-screens D1; canvas board
     expect(screen.queryByRole("option", { name: "Left Already" })).toBeNull();
     expect(screen.getByRole("radio", { name: "Become leads" })).toBeChecked();
     expect(screen.getByText(/Each becomes a lead under the account’s source/)).toBeInTheDocument();
+  });
+
+  // Owner 2026-11-28: "every synced account's profile photo will be shown", initials only when there's none.
+  it("each account shows its own profile photo; one without a photo keeps its initials", async () => {
+    vi.mocked(instagramClient.accounts).mockResolvedValue(
+      ok({
+        accounts: [
+          account({ photo: "/api/v1/instagram/accounts/a1/photo?v=abc123abc123" }),
+          account({ id: "a2", username: "maya.coach", name: "Maya Coach" }),
+        ],
+      }),
+    );
+    const { container } = render(<InstagramCard ig={on} onView={vi.fn()} />);
+    await screen.findByText("2 accounts connected");
+    const imgs = [...container.querySelectorAll("img")].map((i) => i.getAttribute("src"));
+    expect(imgs).toContain("/api/v1/instagram/accounts/a1/photo?v=abc123abc123");
+    expect(screen.getByRole("img", { name: "Maya Coach" })).toHaveTextContent("MC");
+    expect(screen.getByRole("img", { name: "Maya Coach" }).querySelector("img")).toBeNull();
   });
 
   it("two accounts: the summary counts them", async () => {

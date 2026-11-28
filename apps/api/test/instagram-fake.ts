@@ -9,7 +9,14 @@ import type { AddressInfo } from "node:net";
  * pages (read 2026-11-22) say Meta does, to verify against the test account, and it can deliver a webhook signed the
  * way Meta signs them. Tests drive it through its fields; e2e through /__fake/*.
  */
-export type IgFakeAccount = { userId: string; username: string; name: string; accountType: string };
+export type IgFakeAccount = {
+  userId: string;
+  username: string;
+  name: string;
+  accountType: string;
+  /** Its profile photo's link, when it has one (asked as `profile_picture_url`). */
+  picture?: string;
+};
 export type IgFakeSent = {
   accountId: string;
   body: Record<string, unknown>;
@@ -214,6 +221,7 @@ export async function startInstagramFake(o: { version?: string } = {}): Promise<
           username: acct.username,
           name: acct.name,
           account_type: acct.accountType,
+          ...(acct.picture ? { profile_picture_url: acct.picture } : {}),
         });
       if (edge === "subscribed_apps" && (node === acct.userId || node === "me")) {
         if (req.method === "POST") {

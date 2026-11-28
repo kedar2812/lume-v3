@@ -229,8 +229,11 @@ describe("connecting an account", () => {
   beforeEach(async () => void (await switchTo(true)));
 
   it("keeps the account with its token encrypted, makes its lead source, and audits it", async () => {
+    h.instagramAccountPhotoQueued.length = 0;
     const [a] = await connect();
     expect(a).toMatchObject({ username: "harbour.studio", status: "active" });
+    // Its own photo is looked at straight away (review 2026-11-28).
+    expect(h.instagramAccountPhotoQueued).toEqual([a!.id]);
     const [row] = await h.queryAll<{ token_enc: Buffer; ig_user_id: string; run_as: string }>(
       "SELECT token_enc, ig_user_id, run_as FROM instagram_accounts",
     );

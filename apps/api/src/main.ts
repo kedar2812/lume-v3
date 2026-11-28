@@ -98,6 +98,7 @@ const instagram: NonNullable<AppDeps["instagram"]> = {
   enqueueMedia: async () => undefined,
   enqueueProfile: async () => undefined,
   enqueuePhoto: async () => undefined,
+  enqueueAccountPhoto: async () => undefined,
   enqueuePublic: async () => undefined,
 };
 // Autopilot (A2): filled once its queue is up; the minute sweep catches any run started meanwhile.
@@ -232,6 +233,7 @@ instagram.enqueue = instagramQueue.enqueue;
 instagram.enqueueMedia = instagramQueue.enqueueMedia;
 instagram.enqueueProfile = instagramQueue.enqueueProfile;
 instagram.enqueuePhoto = instagramQueue.enqueuePhoto;
+instagram.enqueueAccountPhoto = instagramQueue.enqueueAccountPhoto;
 instagram.enqueueSend = instagramQueue.enqueueSend;
 instagram.enqueuePublic = instagramQueue.enqueuePublic;
 const autopilotQueue = await startAutopilotQueue({ connectionString: cfg.DATABASE_URL_APP, app, d: deps });

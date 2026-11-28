@@ -354,7 +354,7 @@ export function InstagramCard({
               return (
                 <li key={a.id} className={s.waNumber}>
                   <div className={s.waRow}>
-                    <Avatar name={a.name || a.username} size={36} />
+                    <Avatar name={a.name || a.username} size={36} {...(a.photo ? { photo: a.photo } : {})} />
                     <div className={s.waWho}>
                       <span className={s.igHandle} title={handle}>
                         {handle}

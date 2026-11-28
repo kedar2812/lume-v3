@@ -50,6 +50,10 @@ export const instagramAccounts = pgTable("instagram_accounts", {
   mediaMbPerDay: integer("media_mb_per_day").notNull().default(5000),
   connectedAt: tz("connected_at").notNull().defaultNow(),
   updatedAt: tz("updated_at").notNull().defaultNow(),
+  /** The account's own profile photo (0141): LUME's copy, looked at again a week after `photoCheckedAt`. */
+  photoSha256: text("photo_sha256"),
+  photoMime: text("photo_mime"),
+  photoCheckedAt: tz("photo_checked_at"),
 });
 
 export type InstagramEventKind =

@@ -5,6 +5,7 @@ import { sweepInstagram } from "./inbox";
 import { takeRelayNotes } from "./notes";
 import { fetchInstagramMedia } from "./media";
 import { ECHO_WAIT_MS, runInstagramEvent, type InstagramJobDeps } from "./process";
+import { readAccountPhoto } from "./account-photo";
 import { readInstagramPhoto } from "./photo";
 import { readInstagramProfile } from "./profile";
 import {
@@ -163,6 +164,22 @@ export async function startInstagramQueue(o: InstagramJobDeps & { connectionStri
           throw new Error("Instagram didn't answer; looking at the photo again later");
       },
     );
+  // A connected account's own photo (owner 2026-11-28): one look per account at a time.
+  const enqueueAccountPhoto = async (id: string) => {
+    await boss.send(
+      "instagram.account-photo",
+      { id },
+      { retryLimit: 5, retryDelay: 300, retryBackoff: true, singletonKey: id },
+    );
+  };
+  await boss.work<{ id: string }>(
+    "instagram.account-photo",
+    { batchSize: 1, pollingIntervalSeconds: 5 },
+    async ([job]) => {
+      if (job && (await readAccountPhoto(o, job.data.id)) === "later")
+        throw new Error("Instagram didn't answer; looking at the account's photo again later");
+    },
+  );
   // Replies (Task 6): eight senders, each message once (singleton), tried again with backoff when Meta is busy or the
   // account's pace is reached; one pace for the whole process.
   const limits = o.d.instagramLimits ?? { perSecond: 20, privateRepliesPerHour: 600 };
@@ -251,6 +268,7 @@ export async function startInstagramQueue(o: InstagramJobDeps & { connectionStri
     enqueueMedia,
     enqueueProfile,
     enqueuePhoto,
+    enqueueAccountPhoto,
     enqueueSend,
     enqueuePublic,
     stop: async () => {

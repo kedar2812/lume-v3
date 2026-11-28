@@ -11,7 +11,7 @@ function worked(dir: string): Set<string> {
       const p = path.join(d, f);
       if (statSync(p).isDirectory()) walk(p);
       else if (/\.ts$/.test(f) && !/\.test\.ts$/.test(f))
-        for (const m of readFileSync(p, "utf8").matchAll(/\.work(?:<[^>]*>)?\(\s*"([a-z.-]+)"/g))
+        for (const m of readFileSync(p, "utf8").matchAll(/\.work(?:<[^>]*>)?\(\s*"([a-z0-9._-]+)"/g))
           out.add(m[1]!);
     }
   };

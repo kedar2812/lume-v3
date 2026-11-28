@@ -18,6 +18,7 @@ const account = (id: string, username: string, connectedAt: string) => ({
   id,
   username,
   name: null,
+  photo: null,
   owner: null,
   status: "active" as const,
   problem: null,

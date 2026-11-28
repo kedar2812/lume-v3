@@ -45,6 +45,8 @@ export function igGraph(g: IgGraphConfig, token: string) {
   };
   return {
     me: () => call(at("me", { fields: "user_id,username,name,account_type" }), { token }),
+    /** The account's own profile photo: a signed link that expires (kept as LUME's copy, never shown). */
+    accountPhoto: () => call(at("me", { fields: "profile_picture_url" }), { token }),
     /** One message (a DM, or a private reply to a comment): Meta's Send API. */
     send: (accountIgId: string, body: Record<string, unknown>) =>
       call(at(`${accountIgId}/messages`), { method: "POST", token, body: JSON.stringify(body) }),

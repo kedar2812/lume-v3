@@ -917,6 +917,10 @@ export const PROBES: Record<string, Probe> = {
     body: () => ({ p: "x", s: "y" }),
   },
   "GET /api/v1/instagram/accounts": { access: "integrations.manage" },
+  "GET /api/v1/instagram/accounts/:id/photo": {
+    access: "integrations.manage",
+    path: () => `/api/v1/instagram/accounts/${uuid}/photo`,
+  },
   "PUT /api/v1/instagram/ai-goal": {
     access: "integrations.manage",
     body: () => ({ goal: { kind: "brief", text: "Book a trial class" } }),

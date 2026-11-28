@@ -1,3 +1,4 @@
+import { sendAccountPhoto } from "./photo-route";
 import { handToAi, setInstagramAiGoal } from "./ai-on";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { ZodTypeProvider } from "fastify-type-provider-zod";
@@ -49,6 +50,10 @@ export async function instagramRoutes(app: FastifyInstance, d: AppDeps): Promise
     (req) => connectComplete(req, d, req.body),
   );
   r.get("/api/v1/instagram/accounts", manage, (req) => accountsView(req, d));
+  // The account's own photo (owner 2026-11-28): LUME's copy, to those who see the accounts.
+  r.get("/api/v1/instagram/accounts/:id/photo", { ...manage, schema: { params: id } }, (req, reply) =>
+    sendAccountPhoto(req, reply, d, req.params.id),
+  );
   // Who replied's "Let LUME AI handle these" for Instagram leads (as starting a LUME AI run: messages.send_queue).
   r.post(
     "/api/v1/instagram/ai/handle",
