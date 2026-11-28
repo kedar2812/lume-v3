@@ -119,12 +119,13 @@ export async function accountsView(req: FastifyRequest, d?: AppDeps) {
   if (d?.instagram) {
     const now = d.clock();
     const due = rows.filter((r) => r.status === "active" && photoDue(r.photoCheckedAt, now)).map((r) => r.id);
-        // Best effort: a queue that won't take it now is asked again at the next visit, never failing the page.
+    // Best effort: a queue that won't take it now is asked again at the next visit, never failing the page.
     if (due.length)
-      req.afterCommit(() =>
-        void Promise.all(due.map((id) => d.instagram!.enqueueAccountPhoto(id))).catch((e: unknown) =>
-          req.log.warn({ err: e }, "couldn't queue an Instagram account's photo"),
-        ),
+      req.afterCommit(
+        () =>
+          void Promise.all(due.map((id) => d.instagram!.enqueueAccountPhoto(id))).catch((e: unknown) =>
+            req.log.warn({ err: e }, "couldn't queue an Instagram account's photo"),
+          ),
       );
   }
   return {
@@ -309,10 +310,11 @@ export async function connectComplete(req: FastifyRequest, d: AppDeps, body: { p
       .where(eq(A.id, id));
   else await req.db.insert(A).values({ id, igUserId: ig.userId, ownerUserId: null, ...fields });
   // Its photo, looked at straight away (review 2026-11-28): the list it returns shows it once fetched.
-  req.afterCommit(() =>
-    void d.instagram
-      ?.enqueueAccountPhoto(id)
-      .catch((e: unknown) => req.log.warn({ err: e }, "couldn't queue an Instagram account's photo")),
+  req.afterCommit(
+    () =>
+      void d.instagram
+        ?.enqueueAccountPhoto(id)
+        .catch((e: unknown) => req.log.warn({ err: e }, "couldn't queue an Instagram account's photo")),
   );
   await audit(req, {
     action: was ? "instagram.reconnected" : "instagram.connected",
