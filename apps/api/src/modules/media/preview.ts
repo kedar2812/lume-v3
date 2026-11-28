@@ -119,9 +119,10 @@ export async function makePreview(
     kind: Sniffed["kind"];
     mime: string;
   }>(
-    `SELECT p.state, p.tries, f.kind, f.mime FROM file_previews p
-       JOIN LATERAL (SELECT kind, mime FROM message_files WHERE sha256 = p.sha256 LIMIT 1) f ON true
-      WHERE p.sha256 = $1`,
+    // The library's file of these bytes says what they are; a Team Chat photo's preview says it itself (0140).
+    `SELECT p.state, p.tries, COALESCE(f.kind, p.kind) AS kind, COALESCE(f.mime, p.mime) AS mime FROM file_previews p
+       LEFT JOIN LATERAL (SELECT kind, mime FROM message_files WHERE sha256 = p.sha256 LIMIT 1) f ON true
+      WHERE p.sha256 = $1 AND COALESCE(f.kind, p.kind) IS NOT NULL`,
     [sha256],
   );
   const row = rows[0];

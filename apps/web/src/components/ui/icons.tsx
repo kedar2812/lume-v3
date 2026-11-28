@@ -82,6 +82,14 @@ import {
   ZoomIn,
   ZoomOut,
   type LucideIcon,
+  CalendarClock,
+  CalendarRange,
+  ClipboardCheck,
+  List,
+  UserRound,
+  UserX,
+  UserRoundPlus,
+  EyeClosed,
 } from "lucide-react";
 
 /**
@@ -254,6 +262,21 @@ export const UI_ICONS = {
   schedule: CalendarPlus,
   /** A video call. */
   video: Video,
+  /** The Calendar's views: the agenda (a list of days), the week (its days side by side). */
+  agenda: List,
+  week: CalendarRange,
+  /** Log how a call went (its outcome). */
+  outcome: ClipboardCheck,
+  /** A call the lead didn't join. */
+  noShow: UserX,
+  /** A call moved to another time. */
+  rescheduled: CalendarClock,
+  /** A lead (open its card). */
+  lead: UserRound,
+  /** Make someone a lead (assigning keeps UserPlus). */
+  addLead: UserRoundPlus,
+  /** Read, never kept (personal events LUME looks through and lets go). */
+  notKept: EyeClosed,
   /** Settings (as the sidebar's). */
   settings: Settings,
   /** Zoom in. */

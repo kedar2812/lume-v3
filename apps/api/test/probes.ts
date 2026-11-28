@@ -1284,6 +1284,7 @@ export const PROBES: Record<string, Probe> = {
   "GET /api/v1/chat/:id": { access: "chat.use", path: () => `/api/v1/chat/${uuid}` },
   "POST /api/v1/chat/:id/typing": { access: "chat.use", path: () => `/api/v1/chat/${uuid}/typing` },
   "GET /api/v1/chat/files/:id": { access: "chat.use" },
+  "GET /api/v1/chat/files/:id/thumb": { access: "chat.use" },
   "PUT /api/v1/chat/:id/delivered": {
     access: "chat.use",
     path: () => `/api/v1/chat/${uuid}/delivered`,

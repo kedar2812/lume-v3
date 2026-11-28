@@ -6,6 +6,10 @@ column in the release that stops using it.
 
 ## Unreleased
 
+- **Team Chat photos load as thumbnails**: a photo sent in chat gets a small preview, made after it's sent (as the
+  Media library's are); the conversation shows that, and the photo opens whole. Until it's made, or with no render
+  service, the photo itself shows, as before.
+
 - **A lead's owner hears when someone else books their lead**: a call scheduled by a teammate (on Google Calendar or
   Calendly) tells the lead's owner who booked it and when, as LUME AI's and Calendly's own bookings always did.
 - **Calendly can still reach a lead with no email**: Calendly needs an email to book, so Schedule a meeting offers to

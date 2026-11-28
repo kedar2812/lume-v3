@@ -233,6 +233,33 @@ describe("writing", () => {
 });
 
 describe("what's on screen", () => {
+  // 2B Task 7 (pending list 2026-11-28): a photo shows as its thumbnail, and opens whole.
+  it("a photo in a message shows its thumbnail, and opens the photo itself", async () => {
+    vi.mocked(chatClient.page).mockResolvedValue(
+      ok(
+        page([
+          msg(70, SANA, "", {
+            body: null,
+            files: [
+              {
+                id: "f1",
+                name: "studio.png",
+                mime: "image/png",
+                kind: "image",
+                size: 3,
+                url: "/api/v1/chat/files/f1",
+              },
+            ],
+          } as never),
+        ]),
+      ),
+    );
+    show();
+    const img = await screen.findByAltText("studio.png");
+    expect(img).toHaveAttribute("src", "/api/v1/chat/files/f1/thumb");
+    expect(img.closest("a")).toHaveAttribute("href", "/api/v1/chat/files/f1");
+  });
+
   it("a message not loaded that changes isn't put in, out of place; one quoted loses its words when deleted", async () => {
     vi.mocked(chatClient.page).mockResolvedValue(
       ok(

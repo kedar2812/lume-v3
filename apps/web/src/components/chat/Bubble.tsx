@@ -145,7 +145,8 @@ export const Bubble = memo(function Bubble({
             m.files.map((f) =>
               f.kind === "image" ? (
                 <a key={f.id} href={f.url} target="_blank" rel="noreferrer">
-                  <img className={s.photo} src={f.url} alt={f.name} loading="lazy" />
+                  {/* Its thumbnail (the photo itself until that's made); the photo whole when opened. */}
+                  <img className={s.photo} src={`${f.url}/thumb`} alt={f.name} loading="lazy" />
                 </a>
               ) : (
                 <a key={f.id} className={s.file} href={f.url} target="_blank" rel="noreferrer">

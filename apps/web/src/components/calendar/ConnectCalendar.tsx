@@ -1,4 +1,5 @@
 "use client";
+import { ICON_SIZE, UI_ICONS, type Icon } from "@/components/ui/icons";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -45,12 +46,11 @@ const PROMISES = [
   { icon: "lock", title: "Read-only.", body: "LUME never changes your calendar." },
 ] as const;
 
-const ICONS: Record<(typeof PROMISES)[number]["icon"], string> = {
-  people:
-    "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21a7 7 0 0 1 14 0M16 3.5a4 4 0 0 1 0 7.5M22 21a7 7 0 0 0-4-6.3",
-  "eye-off":
-    "M3 3l18 18M10.6 5.1A10.4 10.4 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3 3.7M6.6 6.6C3.9 8.4 2 12 2 12s4 7 10 7c1.7 0 3.2-.5 4.5-1.2M9.9 9.9a3 3 0 0 0 4.2 4.2",
-  lock: "M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3",
+/** Each promise's icon, from LUME's registry (one meaning, one icon). */
+const ICONS: Record<(typeof PROMISES)[number]["icon"], Icon> = {
+  people: UI_ICONS.lead,
+  "eye-off": UI_ICONS.notKept,
+  lock: UI_ICONS.private,
 };
 
 function Tiles({ phase, reduce }: { phase: Phase; reduce: boolean }) {
@@ -84,15 +84,7 @@ function Tiles({ phase, reduce }: { phase: Phase; reduce: boolean }) {
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: "spring", bounce: 0.4, duration: 0.5 }}
           >
-            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden>
-              <path
-                d="M5.5 12.5 10 17l8.5-9.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-                strokeLinecap="round"
-              />
-            </svg>
+            <UI_ICONS.done size={14} strokeWidth={3} aria-hidden />
           </motion.span>
         )}
       </AnimatePresence>
@@ -190,17 +182,10 @@ export function ConnectCalendar({
         {PROMISES.map((p) => (
           <li key={p.icon}>
             <span className={s.picon}>
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d={ICONS[p.icon]} />
-              </svg>
+              {(() => {
+                const I = ICONS[p.icon];
+                return <I size={ICON_SIZE.md} aria-hidden />;
+              })()}
             </span>
             <span>
               <b>{p.title}</b> {p.body}

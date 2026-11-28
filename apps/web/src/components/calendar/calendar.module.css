@@ -79,11 +79,15 @@
   box-shadow: 0 0 0 0.5px var(--line-2);
   white-space: nowrap;
 }
+/* The chip's menu chevron (the registry's, already pointing down: review 2026-11-28, it was turned to point left);
+   a source's own mark (From) stays whole and unturned. */
 .chip svg {
   width: 14px;
   height: 14px;
-  transform: rotate(90deg);
   opacity: 0.7;
+}
+.chip [data-source] svg {
+  opacity: 1;
 }
 .chip[data-active] {
   color: var(--text);

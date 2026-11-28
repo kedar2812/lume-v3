@@ -126,6 +126,9 @@ export const filePreviews = pgTable("file_previews", {
   updatedAt: tz("updated_at").notNull().defaultNow(),
   /** Last opened (0126): one not opened in 90 days may be cleared, and is made again when it next is. */
   openedAt: tz("opened_at").notNull().defaultNow(),
+  /** For bytes the library doesn't hold (a Team Chat photo, 0140): the kind and type they were sent as. */
+  kind: text("kind"),
+  mime: text("mime"),
 });
 
 /** Files gone from the server: their off-site copies go 200 days later. */

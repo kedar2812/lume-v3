@@ -1,5 +1,5 @@
 "use client";
-import { ICON_SIZE, UI_ICONS } from "@/components/ui/icons";
+import { ICON_SIZE, UI_ICONS, type Icon } from "@/components/ui/icons";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
@@ -41,10 +41,11 @@ const CHOICES: { value: MeetingOutcome; label: string; sub: (first: string) => s
   },
   { value: "rescheduled", label: "Rescheduled", sub: () => "Moved to another time", tone: "warn" },
 ];
-const ICON: Record<MeetingOutcome, string> = {
-  completed: "M5 12.5 9.5 17 19 7.5",
-  no_show: "M5.6 5.6l12.8 12.8M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z",
-  rescheduled: "M4 8h13l-3-3M20 16H7l3 3",
+/** Each outcome's icon, from LUME's registry (one meaning, one icon). */
+const ICON: Record<MeetingOutcome, Icon> = {
+  completed: UI_ICONS.done,
+  no_show: UI_ICONS.noShow,
+  rescheduled: UI_ICONS.rescheduled,
 };
 
 /**
@@ -178,15 +179,10 @@ export function LogOutcome({
             onClick={() => setChoice(c.value)}
           >
             <span className={s.choiceIcon} aria-hidden>
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              >
-                <path d={ICON[c.value]} />
-              </svg>
+              {(() => {
+                const I = ICON[c.value];
+                return <I size={ICON_SIZE.md} aria-hidden />;
+              })()}
             </span>
             <b>{c.label}</b>
             <span>{c.sub(first)}</span>

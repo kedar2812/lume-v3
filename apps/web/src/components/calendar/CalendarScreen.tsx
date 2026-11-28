@@ -76,43 +76,16 @@ const DAY = 86_400_000;
 const BEFORE_DAYS = 38;
 const AFTER_DAYS = 60;
 
-const IconAgenda = (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    aria-hidden
-  >
-    <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />
-  </svg>
-);
-const IconWeek = (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    aria-hidden
-  >
-    <rect x="3" y="4" width="18" height="16" rx="2.5" />
-    <path d="M3 9h18M9 9v11M15 9v11" />
-  </svg>
-);
-const Chevron = ({ back }: { back?: boolean }) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    aria-hidden
-  >
-    <path d={back ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6"} />
-  </svg>
-);
+// From LUME's registry (one meaning, one icon): the views, the period before and after, a menu.
+const IconAgenda = <UI_ICONS.agenda size={ICON_SIZE.md} aria-hidden />;
+const IconWeek = <UI_ICONS.week size={ICON_SIZE.md} aria-hidden />;
+const Chevron = ({ back }: { back?: boolean }) =>
+  back ? (
+    <UI_ICONS.before size={ICON_SIZE.md} aria-hidden />
+  ) : (
+    <UI_ICONS.after size={ICON_SIZE.md} aria-hidden />
+  );
+const MenuChevron = () => <UI_ICONS.menu size={ICON_SIZE.sm} aria-hidden />;
 
 /**
  * The Calendar (Phase 5 canvas, Main): meetings with leads only, on the business's clock. The agenda groups
@@ -329,7 +302,7 @@ export function CalendarScreen({
                     />
                   )}
                   {stageName ?? "Any stage"}
-                  <Chevron />
+                  <MenuChevron />
                 </>
               }
             >
@@ -367,7 +340,7 @@ export function CalendarScreen({
                     </span>
                   )}
                   {from ? SOURCE_NAME[from] : "All sources"}
-                  <Chevron />
+                  <MenuChevron />
                 </>
               }
             >

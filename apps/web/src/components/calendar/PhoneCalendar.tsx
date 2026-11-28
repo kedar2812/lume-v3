@@ -326,18 +326,7 @@ function MeetingSheet({
               )}
               {state === "needsOutcome" && (
                 <button type="button" className={s.primary} onClick={() => onLogOutcome(m)}>
-                  <svg
-                    viewBox="0 0 16 16"
-                    width="17"
-                    height="17"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.45"
-                    aria-hidden
-                  >
-                    <path d="M3 2.5h7.5L13 5v8.5H3z" />
-                    <path d="M5.5 7h5M5.5 9.5h5M5.5 12h3" />
-                  </svg>
+                  <UI_ICONS.outcome size={17} aria-hidden />
                   Log how it went
                 </button>
               )}
@@ -345,17 +334,7 @@ function MeetingSheet({
                 {!m.lead && onAddLead && (
                   <button type="button" className={s.tile} onClick={() => onAddLead(m)}>
                     <span className={s.tileIcon} data-tone="lead" aria-hidden>
-                      <svg
-                        viewBox="0 0 16 16"
-                        width="17"
-                        height="17"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.45"
-                      >
-                        <circle cx="7" cy="5.4" r="2.6" />
-                        <path d="M2 13.6c.6-2.5 2.6-3.9 5-3.9M12 9v5M9.5 11.5h5" />
-                      </svg>
+                      <UI_ICONS.addLead size={17} />
                     </span>
                     Add as a lead
                   </button>
@@ -363,16 +342,7 @@ function MeetingSheet({
                 {!m.lead && onLinkLead && (
                   <button type="button" className={s.tile} onClick={() => onLinkLead(m)}>
                     <span className={s.tileIcon} data-tone="lead" aria-hidden>
-                      <svg
-                        viewBox="0 0 16 16"
-                        width="17"
-                        height="17"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.45"
-                      >
-                        <path d="M6.5 9.5 9.5 6.5M7 4.5l1-1a2.8 2.8 0 0 1 4 4l-1 1M9 11.5l-1 1a2.8 2.8 0 0 1-4-4l1-1" />
-                      </svg>
+                      <UI_ICONS.link size={17} />
                     </span>
                     Link to a lead
                   </button>
@@ -380,17 +350,7 @@ function MeetingSheet({
                 {m.lead && (
                   <Link className={s.tile} href={`/leads?lead=${m.lead.id}`}>
                     <span className={s.tileIcon} data-tone="lead" aria-hidden>
-                      <svg
-                        viewBox="0 0 16 16"
-                        width="17"
-                        height="17"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.45"
-                      >
-                        <circle cx="8" cy="5.4" r="2.6" />
-                        <path d="M2.8 13.6c.6-2.5 2.6-3.9 5.2-3.9s4.6 1.4 5.2 3.9" />
-                      </svg>
+                      <UI_ICONS.lead size={17} />
                     </span>
                     Open lead
                   </Link>
@@ -398,23 +358,7 @@ function MeetingSheet({
                 {m.link && (
                   <button type="button" className={s.tile} onClick={() => void copy()}>
                     <span className={s.tileIcon} data-done={copied || undefined} aria-hidden>
-                      <svg
-                        viewBox="0 0 16 16"
-                        width="17"
-                        height="17"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.45"
-                      >
-                        {copied ? (
-                          <path d="m3.5 8.5 3 3 6-7" />
-                        ) : (
-                          <>
-                            <rect x="5" y="5" width="8.5" height="8.5" rx="1.6" />
-                            <path d="M11 5V3.8A1.3 1.3 0 0 0 9.7 2.5H3.8a1.3 1.3 0 0 0-1.3 1.3v5.9A1.3 1.3 0 0 0 3.8 11H5" />
-                          </>
-                        )}
-                      </svg>
+                      {copied ? <UI_ICONS.done size={17} /> : <UI_ICONS.copy size={17} />}
                     </span>
                     {copied ? "Copied" : "Copy link"}
                   </button>

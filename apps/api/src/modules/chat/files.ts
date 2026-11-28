@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { newId } from "@lume/core";
 import { sql } from "drizzle-orm";
 import type { FastifyInstance, FastifyRequest } from "fastify";
@@ -28,6 +29,18 @@ export async function uploadChatFile(
   await req.db.execute(sql`
     INSERT INTO chat_files (id, uploader_id, sha256, name, mime, kind, size)
     VALUES (${id}, ${req.actor!.userId}, ${sha256}, ${name}, ${type.mime}, ${type.kind}, ${bytes.length})`);
+  // A photo's thumbnail (2B Task 7, pending list 2026-11-28): made after it's kept, as the library's previews are
+  // (keyed by the bytes, so a photo already in the library keeps its own); never waited for.
+  if (type.kind === "image" && d.render) {
+    await req.db.execute(sql`
+      INSERT INTO file_previews (sha256, state, updated_at, kind, mime)
+      VALUES (${sha256}, 'pending', ${d.clock()}, ${type.kind}, ${type.mime})
+      ON CONFLICT (sha256) DO NOTHING`);
+    const p = await req.db.execute<{ state: string }>(
+      sql`SELECT state FROM file_previews WHERE sha256 = ${sha256}`,
+    );
+    if (p.rows[0]?.state === "pending") req.afterCommit(() => void d.media?.enqueuePreview(sha256));
+  }
   return {
     file: { id, name, mime: type.mime, kind: type.kind, size: bytes.length, url: `/api/v1/chat/files/${id}` },
   };
@@ -86,6 +99,62 @@ export async function chatFileRoutes(app: FastifyInstance, d: AppDeps): Promise<
           d,
           { sha256: f.sha256, mime: f.mime, kind: f.kind, filename: f.name },
           3600,
+        );
+      },
+    )
+    // A photo as the bubble shows it: its thumbnail once made, the photo itself until then (or with no render service).
+    // Readable exactly as the photo is (row-level security, a message not deleted).
+    .get(
+      "/api/v1/chat/files/:id/thumb",
+      { config: { permission: "chat.use" }, schema: { params: z.object({ id: z.uuid() }) } },
+      async (req, reply) => {
+        const f = (
+          await req.db.execute<{
+            sha256: string;
+            mime: string;
+            kind: string;
+            name: string;
+            state: string | null;
+            thumb: string | null;
+            stale: boolean | null;
+          }>(
+            sql`SELECT f.sha256, f.mime, f.kind, f.name, p.state,
+                       CASE WHEN p.state = 'ready' THEN p.thumb_sha256 END AS thumb,
+                       p.opened_at < now() - interval '1 day' AS stale
+                  FROM chat_files f
+                  LEFT JOIN chat_messages m ON m.id = f.message_id
+                  LEFT JOIN file_previews p ON p.sha256 = f.sha256
+                 WHERE f.id = ${req.params.id} AND (f.message_id IS NULL OR m.deleted_at IS NULL)`,
+          )
+        ).rows[0];
+        if (!f) throw notFound("NOT_FOUND", "That file isn't there.");
+        // Shown in chat, it's in use: Clean up never takes it for idle (stamped at most once a day); one Clean up let
+        // go is made anew (review 2026-11-28).
+        if (f.thumb && f.stale)
+          await req.db.execute(sql`UPDATE file_previews SET opened_at = now() WHERE sha256 = ${f.sha256}`);
+        if (f.state === "cleared" && d.render) {
+          await req.db.execute(
+            sql`UPDATE file_previews SET state = 'pending', tries = 0, opened_at = now(), updated_at = now()
+                 WHERE sha256 = ${f.sha256} AND state = 'cleared'`,
+          );
+          req.afterCommit(() => void d.media?.enqueuePreview(f.sha256));
+        }
+        // Its thumbnail once made and still kept; otherwise the photo itself, for a minute only, so the small one is
+        // asked for again soon.
+        if (f.thumb && d.files && existsSync(d.files.store.path(f.thumb)))
+          return sendStored(
+            req,
+            reply,
+            d,
+            { sha256: f.thumb, mime: "image/webp", kind: "image", filename: null },
+            86_400,
+          );
+        return sendStored(
+          req,
+          reply,
+          d,
+          { sha256: f.sha256, mime: f.mime, kind: f.kind, filename: f.name },
+          60,
         );
       },
     );

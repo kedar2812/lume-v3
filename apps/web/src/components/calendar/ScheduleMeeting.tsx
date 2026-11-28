@@ -23,22 +23,8 @@ export type Lead = { id: string; name: string };
 const first = (name: string) => name.trim().split(/\s+/)[0] || "your lead";
 
 const CalendarPlus = () => <UI_ICONS.schedule size={ICON_SIZE.md} aria-hidden />;
-const MeetMark = () => (
-  <svg
-    viewBox="0 0 24 24"
-    width="18"
-    height="18"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.9"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden
-  >
-    <rect x="3" y="6.5" width="12.5" height="11" rx="2.5" />
-    <path d="m15.5 10.5 5.5-3.5v10l-5.5-3.5" />
-  </svg>
-);
+/** Google Meet's own mark (public/brand, unmodified): the link LUME makes is Meet's. */
+const MeetMark = () => <img src="/brand/google-meet.png" alt="" width={18} height={18} />;
 
 /**
  * Schedule a meeting (owner, 2026-11-13): the blue button on a lead's card and on the Calendar. It works once this

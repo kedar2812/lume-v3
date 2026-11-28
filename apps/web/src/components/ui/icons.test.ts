@@ -68,19 +68,16 @@ describe("LUME's icons come from the registry (2026-11-27 sweep)", () => {
       "analytics/RevenueBoard.tsx": 2, // a chart and a ring
       "analytics/TeamBoard.tsx": 2, // a ring and a sort arrow
     });
+    // 2026-11-28: the Calendar's own drawings moved over (its views, the period before and after, the outcomes, the
+    // phone tiles, the connect card's promises); Google Meet's mark is Meet's own file.
     expect(drawn("calendar")).toEqual({
       "calendar/CalendarRefresh.tsx": 1, // the Refresh morph
-      "calendar/CalendarScreen.tsx": 3, // the views' marks and the arrows, waiting for their meaning
-      "calendar/ConnectCalendar.tsx": 2, // the animated tick, and each provider's mark
-      "calendar/LogOutcome.tsx": 1, // each outcome's mark
-      "calendar/PhoneCalendar.tsx": 5, // the phone tiles, waiting for their meaning, and Copy's morph
-      "calendar/ScheduleMeeting.tsx": 1, // Google Meet's mark
     });
   });
 
   it("across LUME, drawings only ever go down (a ratchet: lower it as each screen moves over)", () => {
     const all = Object.values(drawn(".")).reduce((a, b) => a + b, 0);
-    expect(all).toBeLessThanOrEqual(120);
+    expect(all).toBeLessThanOrEqual(108);
   });
 
   it("one meaning, one name: every registry entry is a component", () => {
